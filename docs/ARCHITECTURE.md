@@ -42,7 +42,9 @@ seams listed under **Extension seams** and never ships inside this plugin.
    hooks, `bfrc_plugin()`, `plugins_loaded` → `Plugin::boot()` at priority 10.
 2. `Plugin::boot()`: `Installer::maybe_upgrade()`; hooks `Installer::maybe_flush_rewrite`
    on `init` 99; creates `Settings` (service `settings`); **`do_action( 'bfrc_loaded' )`**;
-   wires the subsystems (later milestones); `do_action( 'bfrc_booted' )`.
+   wires the content model (services `content.taxonomies` → `init` 5, `content.post_type` →
+   `init` 6, `content.meta` → `init` 7, `content.slugs` → `wp_unique_post_slug`); later
+   subsystems; `do_action( 'bfrc_booted' )`.
 3. Pro hooks `bfrc_loaded` at file scope, so its filters are in place before anything here
    reads them, and sets `bfrc_is_pro` to true from its own boot after `base_ok()`.
 
@@ -69,10 +71,16 @@ WordPress owns) or a four-digit year. Custom filter-type codes match
 `Settings::TAXONOMY_CODE_PATTERN` (`^[a-z][a-z0-9_]{1,26}\z`, so `bfrc_{code}` fits
 core's 32-character taxonomy-name limit); at most `MAX_CUSTOM_TAXONOMIES` (50) are kept.
 
-## Data (milestone A1; A2 adds the content model)
+## Content model (milestone A2)
 
 | What | Where | Notes |
 |---|---|---|
+| Recipes | post type `bfrc_recipe` (`Content\PostType`) | public, block editor, excerpt = short description, featured image = recipe photo, author, revisions; archive at the `archive_slug` setting; `capability_type bfrc_recipe` + `map_meta_cap`; `delete_with_user` off. **Enabled off:** still registered for the admin, but not publicly queryable, no archive, excluded from search and from `wp_sitemaps_post_types`. |
+| Filter types | taxonomies `bfrc_{code}` (`Content\Taxonomies`) | four system codes (`meal_type`, `diet`, `season`, `cuisine`) plus valid definitions from `bfrc_filter_taxonomies`; switched and ordered by the `taxonomies` setting; rewrite `{archive}/{code-with-dashes}`; term capabilities `manage/edit/delete/assign_bfrc_terms`. A disabled type (or a disabled plugin) registers with `public false` so the admin keeps its terms. Starter terms seeded on activation only into an empty system taxonomy (`ensure_default_terms()`), with the taxonomies registered on the fly because activation runs after `init`. |
+| Recipe fields | registered post meta (`Content\Meta`) | `_bfrc_media_type`, `_bfrc_video_url`, `_bfrc_prep_minutes`, `_bfrc_cook_minutes`, `_bfrc_servings_min`, `_bfrc_servings_max`, `_bfrc_featured`, `_bfrc_ingredients`, `_bfrc_steps`, `_bfrc_nutrition`; each single, REST schema, `revisions_enabled`, `auth_callback` = `edit_post`, one sanitiser (bounds: minutes 0–6000, servings 0–999, 200 rows, measure 64, label 255; nutrition two decimals or null). Servings max ≥ min is a save-time rule (milestone A3), since a per-key sanitiser sees one key. |
+| Ingredient rows | `{ measure, label, type, …extra }` | `type` is `plain` unless `bfrc_ingredient_types` adds more; extra fields and their sanitisers come from `bfrc_ingredient_row_fields( $type )` and nothing else survives. |
+| Video | `Support\VideoUrl` | YouTube (11-character id) and Vimeo (numeric id) only; stored as the canonical watch URL; embedded as an iframe from the id via `youtube-nocookie.com` / `player.vimeo.com`; no oEmbed, no server-side fetch. |
+| Reserved recipe slugs | `Content\Slugs` on `wp_unique_post_slug` | `chef`, `submit`, `page`, feed bases, `embed`, `trackback`, every taxonomy code (dashed and underscored) and `bfrc_reserved_slugs`; a reserved slug gets the first free `-N` suffix (N ≤ 100, then a random one). |
 | Settings | option `bfrc_settings` (autoload) | see above |
 | Versions | options `bfrc_version`, `bfrc_db_version` (autoload) | `Installer::maybe_upgrade()` compares on every boot |
 | Rewrite flag | option `bfrc_flush_rewrite` (autoload, always present, `0`/`1`) | raised by activation and by a changed `archive_slug` (only when the version write succeeded); consumed once on `init` 99. An option rather than a transient: free to read, cannot be evicted or expire |
@@ -117,13 +125,16 @@ must the capability list, the role list and the core-role list (one test enforce
 | `bfrc_loaded` | action | 1.0.0 | fired before the base binds anything |
 | `bfrc_booted` | action | 1.0.0 | fired after every subsystem is wired |
 | `bfrc_is_pro` | filter (bool) | 1.0.0 | Pro answers true after `base_ok()`; hides the upsell |
+| `bfrc_filter_taxonomies` | filter (array) | 1.0.0 | add filter types keyed by code (`label`, `singular`, `sort_order`); system codes cannot be changed |
+| `bfrc_ingredient_types` | filter (list) | 1.0.0 | add ingredient row types beyond `plain` |
+| `bfrc_ingredient_row_fields` | filter (array, $type) | 1.0.0 | extra row fields for a type, each a sanitiser callable |
+| `bfrc_reserved_slugs` | filter (list) | 1.0.0 | more recipe slugs to refuse |
 
-Seams added by later milestones (`bfrc_filter_taxonomies`, `bfrc_ingredient_types`,
-`bfrc_ingredient_row_fields`, `bfrc_render_ingredient_actions`, `bfrc_recipe_meta_boxes`,
+Seams added by later milestones (`bfrc_render_ingredient_actions`, `bfrc_recipe_meta_boxes`,
 `bfrc_schema_data`, `bfrc_single_after_steps`, `bfrc_single_after_nutrition`,
 `bfrc_single_footer`, `bfrc_settings_tabs`, `bfrc_settings_page_footer`,
 `bfrc_settings_saved`, `bfrc_admin_menu_items`, `bfrc_archive_query_args`,
-`bfrc_rest_recipe_item`, `bfrc_reserved_slugs`) are appended to this table as they land.
+`bfrc_rest_recipe_item`) are appended to this table as they land.
 
 ## Tests
 
