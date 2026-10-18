@@ -379,17 +379,20 @@ final class Meta {
 
 	/**
 	 * `rest_prepare_bfrc_recipe`: a password-protected recipe's REST item
-	 * shows every field at its default until the caller may read the post
-	 * (core's own rule for `content`: an editor of the post, or the right
-	 * `password` parameter). The page shows the password form and nothing
-	 * else; the API must not hand out what the page withholds.
+	 * shows every field at its default until the caller may read the post:
+	 * the recipe is unlocked for them (`post_password_required()`, which
+	 * honours the unlock cookie; core's controller has removed its own
+	 * password filter by the time this runs), they may edit it, or they sent
+	 * the right `password` parameter, as core does for `content`. The page
+	 * shows the password form and nothing else; the API must not hand out
+	 * what the page withholds.
 	 *
 	 * @param \WP_REST_Response $response The item.
 	 * @param \WP_Post          $post     The recipe.
 	 * @param \WP_REST_Request  $request  The request.
 	 */
 	public static function hide_protected_meta( \WP_REST_Response $response, \WP_Post $post, \WP_REST_Request $request ): \WP_REST_Response {
-		if ( '' === (string) $post->post_password || current_user_can( 'edit_post', $post->ID ) ) {
+		if ( ! post_password_required( $post ) || current_user_can( 'edit_post', $post->ID ) ) {
 			return $response;
 		}
 		$password = $request['password'] ?? null;

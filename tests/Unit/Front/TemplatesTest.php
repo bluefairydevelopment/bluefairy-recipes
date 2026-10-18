@@ -55,9 +55,169 @@ final class TemplatesTest extends TestCase {
 		foreach ( [ 'pre_get_posts' => 'shape_query', 'template_redirect' => 'guard', 'wp_enqueue_scripts' => 'enqueue' ] as $hook => $method ) {
 			$this->assertSame( 10, has_action( $hook, [ $t, $method ] ), $hook );
 		}
-		$this->assertSame( 10, has_filter( 'wp_sitemaps_users_query_args', [ $this->writers, 'sitemap_users_query' ] ), 'opted-out writers leave core\'s users sitemap too' );
-		$this->assertSame( 10, has_action( 'pre_user_query', [ $this->writers, 'exclude_opted_out' ] ), 'the NOT EXISTS clause behind the listing and the sitemap' );
 		$this->assertSame( 10, has_action( 'wp_head', [ $t, 'rel_canonical' ] ) );
+		$this->assertSame( 10, has_filter( 'rest_queried_resource_route', [ $t, 'rest_resource_route' ] ) );
+		foreach ( [ 'wpseo_canonical', 'rank_math/frontend/canonical', 'aioseo_canonical_url' ] as $hook ) {
+			$this->assertSame( 10, has_filter( $hook, [ $t, 'seo_plugin_canonical' ] ), "$hook: the SEO plugin prints our canonical, not the post type's" );
+		}
+		$this->assertFalse( has_filter( 'wp_sitemaps_users_query_args', [ $this->writers, 'sitemap_users_query' ] ), 'Writers registers its own hooks' );
+	}
+
+	public function test_rest_resource_route_names_the_writer_not_users_0(): void {
+		$t = $this->templates;
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		$this->assertSame( '/wp/v2/users/5', $t->rest_resource_route( '/wp/v2/users/0' ), 'core sees the post type as the queried object and would print users/0' );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writers' => '1' ] );
+		$this->assertSame( '', $t->rest_resource_route( '/wp/v2/users/0' ), 'the listing is no single resource' );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
+		$this->assertSame( '/wp/v2/types/bfrc_recipe', $t->rest_resource_route( '/wp/v2/types/bfrc_recipe' ), 'the archive: core\'s own' );
+		bfrc_test_front_query( [ 'post_type' => 'post' ] );
+		$this->assertSame( 'x', $t->rest_resource_route( 'x' ) );
+	}
+
+	public function test_shape_query_ignores_a_keyword_or_filter_on_a_writers_page(): void {
+		$_GET = [ 'bfrc_s' => 'soup', 'bfrc_filter' => [ 'diet' => 'vegan' ] ];
+		$q    = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		$this->templates->shape_query( $q );
+		$this->assertSame( 12, $q->get( 'posts_per_page' ) );
+		$this->assertSame( '', $q->get( 's' ), 'no filter form on a writer page, so nothing silently narrows it' );
+		$this->assertSame( '', $q->get( 'tax_query' ) );
+		$archive = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
+		$this->templates->shape_query( $archive );
+		$this->assertSame( 'soup', $archive->get( 's' ), 'the archive honours them' );
+		$_GET = [];
+	}
+
+	public function test_seo_plugin_canonical_replaces_the_plugins_url_on_writer_views_only(): void {
+		$t = $this->templates;
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		$this->assertSame( 'https://example.com/recipes/chef/ann/', $t->seo_plugin_canonical( 'https://example.com/recipes/' ), 'Yoast would name the post-type archive' );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writers' => '1', 'paged' => 2 ] );
+		$this->assertSame( 'https://example.com/recipes/chef/page/2/', $t->seo_plugin_canonical( false ) );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
+		$this->assertSame( 'https://example.com/recipes/', $t->seo_plugin_canonical( 'https://example.com/recipes/' ), 'the archive is the SEO plugin\'s own' );
+		$gone = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'bob' ], 'author' );
+		$gone->set_404();
+		$this->assertSame( 'x', $t->seo_plugin_canonical( 'x' ) );
+		bfrc_test_front_query( [ 'post_type' => 'post' ] );
+		$this->assertNull( $t->seo_plugin_canonical( null ), 'not ours: whatever the plugin had' );
+		$this->assertFalse( Templates::seo_plugin_present(), 'no SEO plugin in the harness' );
+	}
+
+	#[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+	public function test_with_an_seo_plugin_active_the_plugin_prints_no_canonical_of_its_own(): void {
+		define( 'WPSEO_VERSION', '99.0' );
+		$this->assertTrue( Templates::seo_plugin_present() );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		ob_start();
+		$this->templates->rel_canonical();
+		$this->assertSame( '', ob_get_clean(), 'two rel=canonical tags cancel each other out: Yoast prints the one we hand it' );
+		$this->assertSame( 'https://example.com/recipes/chef/ann/', $this->templates->seo_plugin_canonical( 'https://example.com/recipes/' ) );
+	}
+
+	public function test_under_plain_permalinks_the_writer_views_live_at_their_query_string_urls(): void {
+		$GLOBALS['wp_rewrite']->permalink_structure = '';
+		$this->assertFalse( Writers::uses_permalinks() );
+		$t = $this->templates;
+		$this->assertSame( 'https://example.com/?post_type=bfrc_recipe&bfrc_writers=1', $this->writers->listing_url() );
+		$this->assertSame( 'https://example.com/?post_type=bfrc_recipe&author_name=ann&bfrc_writer=1', $this->writers->url( get_userdata( 5 ) ) );
+		$this->assertSame( 'https://example.com/?post_type=bfrc_recipe&bfrc_writers=1&paged=2', $t->canonical_url( bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writers' => '1', 'paged' => 2 ] ) ) );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		$_GET = [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ];
+		$t->guard();
+		$this->assertFalse( $GLOBALS['wp_query']->is_404(), 'no rewrite rules run: the query string is the page, never redirected' );
+		ob_start();
+		$t->rel_canonical();
+		$this->assertSame( '<link rel="canonical" href="https://example.com/?post_type=bfrc_recipe&amp;author_name=ann&amp;bfrc_writer=1">' . "\n", ob_get_clean(), 'the canonical names a URL that resolves (the pretty one would serve the home page)' );
+		$_GET = [];
+		$GLOBALS['bfrc_test_rewrite_rules'] = [];
+		$this->writers->add_rewrite_rules();
+		$this->assertCount( 6, $GLOBALS['bfrc_test_rewrite_rules'], 'the rules are still registered for when permalinks come on' );
+	}
+
+	public function test_a_custom_pagination_base_is_used_in_the_routes_the_canonical_and_the_listing_pagination(): void {
+		$GLOBALS['wp_rewrite']->pagination_base = 'seite';
+		$this->assertSame( 'seite', Writers::pagination_base() );
+		$this->writers->add_rewrite_rules();
+		$rules = array_column( $GLOBALS['bfrc_test_rewrite_rules'], 0 );
+		$this->assertContains( '^recipes/chef/seite/([0-9]{1,})/?$', $rules );
+		$this->assertContains( '^recipes/chef/([^/]+)/seite/([0-9]{1,})/?$', $rules );
+		$this->assertNotContains( '^recipes/chef/page/([0-9]{1,})/?$', $rules );
+		$this->assertSame( 'https://example.com/recipes/chef/seite/3/', $this->templates->canonical_url( bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writers' => '1', 'paged' => 3 ] ) ) );
+		for ( $i = 1; $i <= 30; $i++ ) {
+			bfrc_test_add_user( 200 + $i, [ 'roles' => [ 'bfrc_writer' ], 'display_name' => 'W' . $i, 'user_nicename' => 'w' . $i ] );
+			bfrc_test_add_post( [ 'ID' => 300 + $i, 'post_type' => 'bfrc_recipe', 'post_status' => 'publish', 'post_author' => 200 + $i ] );
+		}
+		$this->writers->reset();
+		Plugin::service( 'front.renderer' )->writers_list( 1 );
+		$this->assertSame( 'seite/%#%/', $GLOBALS['bfrc_test_paginate_calls'][0]['format'] );
+		$GLOBALS['wp_rewrite']->pagination_base = '';
+		$this->assertSame( 'page', Writers::pagination_base(), 'an empty base (no rewrite object yet) falls back to core\'s default' );
+	}
+
+	public function test_guard_leaves_no_trace_of_a_hidden_writer_or_a_recipe_on_the_404(): void {
+		$q                    = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'bob' ], 'author' );
+		$q->queried_object    = get_userdata( 6 );
+		$q->queried_object_id = 6;
+		$q->post              = get_post( 41 );
+		$GLOBALS['post']      = get_post( 41 );
+		$this->templates->guard();
+		$this->assertTrue( $q->is_404() );
+		$this->assertNull( $q->queried_object, 'an SEO plugin building og: tags from the queried object must not name the hidden writer' );
+		$this->assertSame( 0, $q->queried_object_id );
+		$this->assertNull( $q->post );
+		$this->assertNull( $GLOBALS['post'] );
+	}
+
+	public function test_the_redirect_keeps_the_other_query_arguments_and_fires_on_an_author_name_override_or_a_posted_var(): void {
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		$_GET = [ 'bfrc_writer' => '1', 'author_name' => 'ann', 'bfrc_s' => 'so\\\'up <b>', 'bfrc_filter' => [ 'diet' => 'vegan', 'x' => [ 'deep' => '<i>y</i>' ] ], '' => 'dropped' ];
+		try {
+			$this->templates->guard();
+			$this->fail( 'expected a redirect' );
+		} catch ( \BfrcTestExit $e ) {
+			$this->assertSame( 'https://example.com/recipes/chef/ann/?bfrc_s=so%27up&bfrc_filter%5Bdiet%5D=vegan&bfrc_filter%5Bx%5D%5Bdeep%5D=y', $e->payload, 'the keyword and the filters travel, unslashed and sanitised; the writer vars do not' );
+		}
+		// /recipes/chef/nobody-here/?author_name=ann: the query string overrides what the route matched.
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		$_GET = [ 'author_name' => 'ann' ];
+		try {
+			$this->templates->guard();
+			$this->fail( 'expected a redirect' );
+		} catch ( \BfrcTestExit $e ) {
+			$this->assertSame( 'https://example.com/recipes/chef/ann/', $e->payload, 'any /chef/<x>/ URL carrying ?author_name= serves one writer only at their own address' );
+		}
+		$_GET  = [];
+		$_POST = [ 'bfrc_writers' => '1' ];
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writers' => '1' ] );
+		try {
+			$this->templates->guard();
+			$this->fail( 'expected a redirect' );
+		} catch ( \BfrcTestExit $e ) {
+			$this->assertSame( 'https://example.com/recipes/chef/', $e->payload, 'core reads query vars from the request body too' );
+		}
+		$_POST = [];
+	}
+
+	public function test_the_view_blocks_render_nothing_inside_a_recipes_own_body(): void {
+		$t = $this->templates;
+		// A writer pasted the Single Recipe block (and the archive block) into the recipe's body.
+		$GLOBALS['bfrc_test_posts'][41]->post_content = '<!-- wp:paragraph --><p>Serve warm.</p><!-- /wp:paragraph --><!-- wp:bfrc/recipe-single /--><!-- wp:bfrc/recipe-archive /-->';
+		$GLOBALS['post']                              = get_post( 41 );
+		$nested                                       = [];
+		add_filter( 'the_content', static function ( string $c ) use ( $t, &$nested ): string {
+			$nested[] = $t->render_single_block();
+			$nested[] = $t->render_archive_block();
+			return $c;
+		} );
+		$html = $t->render_single_block();
+		$this->assertSame( 1, substr_count( $html, '<article class="bfrc-recipe' ), 'rendered once, not until the stack runs out' );
+		$this->assertStringContainsString( '<p>Serve warm.</p>', $html, 'the body still renders' );
+		$this->assertSame( [ '', '' ], $nested, 'inside the body both view blocks are inert' );
+		$this->assertFalse( Renderer::is_rendering_single(), 'the guard is released after the render' );
+		$q        = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
+		$q->posts = [ get_post( 41 ) ];
+		$this->assertStringContainsString( 'bfrc-grid__item', $t->render_archive_block(), 'outside a recipe render the archive block works' );
 	}
 
 	public function test_guard_empties_a_404ed_query_so_a_writer_feed_carries_no_recipes(): void {
@@ -106,7 +266,6 @@ final class TemplatesTest extends TestCase {
 		$this->assertSame( '', $t->canonical_url( bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] ) ), 'the archive is core\'s to canonicalise' );
 
 		// The pretty route: the vars arrive through the rewrite, $_GET is empty, no redirect.
-		$GLOBALS['bfrc_test_options']['permalink_structure'] = '/%postname%/';
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
 		$this->templates->guard();
 		$this->assertFalse( $GLOBALS['wp_query']->is_404() );
@@ -136,11 +295,12 @@ final class TemplatesTest extends TestCase {
 		$_GET          = [ 'bfrc_writer' => '1', 'author_name' => 'ann', 'feed' => 'rss2' ];
 		$this->templates->guard();
 		$this->assertFalse( $feed->is_404(), 'a feed is never redirected' );
-		$GLOBALS['bfrc_test_options']['permalink_structure'] = '';
+		$GLOBALS['wp_rewrite']->permalink_structure = '';
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
 		$_GET = [ 'bfrc_writer' => '1', 'author_name' => 'ann' ];
 		$this->templates->guard();
 		$this->assertFalse( $GLOBALS['wp_query']->is_404(), 'plain permalinks: the query string is the only URL, so it stands' );
+		$GLOBALS['wp_rewrite']->permalink_structure = '/%postname%/';
 		$_GET = [];
 
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
@@ -178,13 +338,18 @@ final class TemplatesTest extends TestCase {
 		$this->templates->register();
 		$this->assertCount( 6, $GLOBALS['bfrc_test_rewrite_rules'] );
 		$this->assertSame( [ 'bfrc/recipe-single', 'bfrc/recipe-archive' ], array_keys( $GLOBALS['bfrc_test_blocks'] ) );
+		$this->assertStringEndsWith( 'assets/front/recipes.css', $GLOBALS['bfrc_test_registered']['style']['bfrc-recipes'], 'registered at init so the block can name it' );
+		$this->assertStringEndsWith( 'assets/front/recipes.js', $GLOBALS['bfrc_test_registered']['script']['bfrc-recipes'] );
 		foreach ( $GLOBALS['bfrc_test_blocks'] as $name => $args ) {
 			$this->assertTrue( is_callable( $args['render_callback'] ), $name );
 			$this->assertTrue( $args['supports']['autoRegister'], "$name: the Site Editor gets a server-rendered preview on WordPress 7.0+" );
 			$this->assertSame( '3', $args['api_version'], "$name: block API v3 (core documents the register arg as a string)" );
+			$this->assertSame( 'bfrc-recipes', $args['style'], "$name: styled on the site" );
+			$this->assertSame( 'bfrc-recipes', $args['editor_style'], "$name: styled in the Site Editor's canvas too" );
 		}
 		$templates = $GLOBALS['bfrc_test_block_templates'];
-		$this->assertSame( [ 'bluefairy-recipes//single-bfrc_recipe', 'bluefairy-recipes//archive-bfrc_recipe' ], array_keys( $templates ) );
+		$this->assertSame( [ 'bluefairy-recipes//single-bfrc_recipe', 'bluefairy-recipes//archive-bfrc_recipe', 'bluefairy-recipes//bfrc-writers' ], array_keys( $templates ) );
+		$this->assertSame( $templates['bluefairy-recipes//archive-bfrc_recipe']['content'], $templates['bluefairy-recipes//bfrc-writers']['content'], 'the writer views: same markup, their own slug, so a theme\'s archive-bfrc_recipe.html does not catch them' );
 		$this->assertStringContainsString( '<!-- wp:bfrc/recipe-single /-->', $templates['bluefairy-recipes//single-bfrc_recipe']['content'] );
 		$this->assertStringContainsString( '<!-- wp:template-part {"slug":"header"', $templates['bluefairy-recipes//archive-bfrc_recipe']['content'] );
 		$this->assertStringContainsString( '<!-- wp:bfrc/recipe-archive /-->', $templates['bluefairy-recipes//archive-bfrc_recipe']['content'] );
@@ -270,6 +435,9 @@ final class TemplatesTest extends TestCase {
 		$this->templates->shape_query( $q );
 		$this->assertSame( 1, $q->get( 'posts_per_page' ) );
 		$this->assertSame( 3, $q->get( 'paged' ), 'paged stays: the listing reads it and core must see a real page' );
+		$this->assertTrue( $q->get( 'no_found_rows' ), 'no SQL_CALC_FOUND_ROWS: the page count comes from Writers::listed()' );
+		$this->assertFalse( $q->get( 'update_post_meta_cache' ), 'the one vehicle recipe is never rendered' );
+		$this->assertFalse( $q->get( 'update_post_term_cache' ) );
 		$single                 = bfrc_test_front_query( [], 'single' );
 		$single->queried_object = get_post( 41 );
 		$this->templates->shape_query( $single );
@@ -344,7 +512,13 @@ final class TemplatesTest extends TestCase {
 		$tax->queried_object = new \WP_Term( [ 'term_id' => 3, 'taxonomy' => 'bfrc_diet', 'slug' => 'vegan', 'name' => 'Vegan' ] );
 		$this->assertSame( [ 'archive-bfrc_recipe', 'taxonomy-bfrc_diet-vegan', 'taxonomy-bfrc_diet', 'taxonomy' ], $t->archive_hierarchy( [ 'taxonomy-bfrc_diet-vegan', 'taxonomy-bfrc_diet', 'taxonomy' ] ) );
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
-		$this->assertSame( [ 'archive-bfrc_recipe', 'author-ann', 'author' ], $t->archive_hierarchy( [ 'author-ann', 'author' ] ) );
+		$this->assertSame( [ 'bfrc-writers', 'archive-bfrc_recipe', 'author-ann', 'author' ], $t->archive_hierarchy( [ 'author-ann', 'author' ] ), 'a writer page: the writers template first' );
+		$list = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writers' => '1' ] );
+		$this->assertTrue( Templates::is_writer_view( $list ) );
+		$this->assertSame( [ 'bfrc-writers', 'archive-bfrc_recipe', 'archive' ], $t->archive_hierarchy( [ 'archive' ] ) );
+		$plain = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
+		$this->assertFalse( Templates::is_writer_view( $plain ) );
+		$this->assertSame( [ 'archive-bfrc_recipe', 'archive-bfrc_recipe', 'archive' ], $t->archive_hierarchy( [ 'archive-bfrc_recipe', 'archive' ] ), 'the archive itself: no writers template' );
 		$cat                 = bfrc_test_front_query( [], 'tax' );
 		$cat->queried_object = new \WP_Term( [ 'term_id' => 4, 'taxonomy' => 'category', 'slug' => 'news', 'name' => 'News' ] );
 		$this->assertSame( [ 'category-news', 'category' ], $t->archive_hierarchy( [ 'category-news', 'category' ] ), 'another taxonomy: untouched' );
@@ -401,7 +575,11 @@ final class TemplatesTest extends TestCase {
 		$this->assertSame( '', $t->render_single_block(), 'not a recipe' );
 		$this->assertFalse( Templates::is_editor_preview() );
 		$GLOBALS['bfrc_test_serving_rest'] = true;
-		$this->assertTrue( Templates::is_editor_preview(), 'the block-renderer route is a REST request' );
+		$GLOBALS['wp']->query_vars['rest_route'] = '/wp/v2/pages/5';
+		$this->assertFalse( Templates::is_editor_preview(), 'a page\'s content.rendered over REST renders as on the site' );
+		$this->assertSame( '', $t->render_single_block() );
+		$GLOBALS['wp']->query_vars['rest_route'] = '/wp/v2/block-renderer/bfrc/recipe-single';
+		$this->assertTrue( Templates::is_editor_preview(), 'the block-renderer route is the Site Editor asking' );
 		$this->assertStringContainsString( 'class="bfrc-recipe__title">Soup<', $t->render_single_block(), 'the Site Editor\'s block-renderer request has no recipe in context: preview the newest published one' );
 		$this->assertSame( 'publish', $GLOBALS['bfrc_test_get_posts_calls'][0]['post_status'] );
 		$this->assertSame( 1, $GLOBALS['bfrc_test_get_posts_calls'][0]['numberposts'] );
@@ -418,7 +596,18 @@ final class TemplatesTest extends TestCase {
 		$GLOBALS['bfrc_test_serving_rest'] = true;
 		$this->assertStringContainsString( 'bfrc-grid__item', $t->render_archive_block(), 'the Site Editor previews the newest recipes in the grid' );
 		$this->assertSame( 12, end( $GLOBALS['bfrc_test_get_posts_calls'] )['numberposts'], 'one page, per the setting' );
-		$this->assertSame( [ get_post( 41 ) ], $empty->posts );
+		$this->assertSame( [], $empty->posts, 'on a copy: the request\'s own query is left alone' );
+		$full        = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
+		$full->posts = [ get_post( 41 ) ];
+		$calls       = count( $GLOBALS['bfrc_test_get_posts_calls'] );
+		$this->assertStringContainsString( 'bfrc-grid__item', $t->render_archive_block() );
+		$this->assertSame( $calls, count( $GLOBALS['bfrc_test_get_posts_calls'] ), 'a query with posts is not refilled' );
+		foreach ( $GLOBALS['bfrc_test_get_posts_calls'] as $args ) {
+			$this->assertFalse( $args['has_password'], 'a preview is never a password form' );
+		}
+		bfrc_test_add_post( [ 'ID' => 60, 'post_type' => 'bfrc_recipe', 'post_status' => 'publish', 'post_title' => 'Locked', 'post_password' => 'x', 'post_date_gmt' => '2030-01-01 00:00:00' ] );
+		$GLOBALS['post'] = bfrc_test_add_post( [ 'ID' => 50, 'post_type' => 'post' ] );
+		$this->assertStringContainsString( 'class="bfrc-recipe__title">Soup<', $t->render_single_block(), 'the newest recipe is locked: preview the newest open one' );
 		$GLOBALS['bfrc_test_serving_rest'] = false;
 	}
 

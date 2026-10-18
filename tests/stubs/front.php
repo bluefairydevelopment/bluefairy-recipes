@@ -25,6 +25,8 @@ if ( ! class_exists( 'WP_Query' ) ) {
 		public int $max_num_pages  = 0;
 		public bool $is_feed       = false;
 		public mixed $queried_object = null;
+		public int $queried_object_id = 0;
+		public mixed $post           = null;
 		public bool $is_singular   = false;
 		public bool $is_archive    = false;
 		public bool $is_post_type_archive = false;
@@ -185,6 +187,82 @@ if ( ! class_exists( 'WP_User_Query' ) ) {
 	}
 }
 
+if ( ! class_exists( 'WP_Rewrite' ) ) {
+	/** Enough of core's rewrite object: the permalink structure and the pagination segment. */
+	final class WP_Rewrite {
+		public string $permalink_structure = '/%postname%/';
+		public string $pagination_base     = 'page';
+		public function using_permalinks(): bool {
+			return '' !== $this->permalink_structure;
+		}
+	}
+}
+if ( ! class_exists( 'WP' ) ) {
+	/** The request object: only the query vars the plugin reads (rest_route). */
+	final class WP {
+		/** @var array<string, mixed> */
+		public array $query_vars = [];
+	}
+}
+if ( ! function_exists( 'parse_blocks' ) ) {
+	/**
+	 * A small block parser: block comments open/close (nested blocks are kept
+	 * inside the parent's innerHTML, which is all has_body() reads), self-closing
+	 * blocks, and freeform text as blocks with a null name, as core does.
+	 *
+	 * @return array<int, array{blockName: string|null, attrs: array<string, mixed>, innerHTML: string}>
+	 */
+	function parse_blocks( string $content ): array {
+		$blocks = [];
+		$offset = 0;
+		$open   = null;
+		$depth  = 0;
+		$pattern = '/<!--\s+(\/)?wp:([a-z][a-z0-9_-]*\/)?([a-z][a-z0-9_-]*)\s+(\{.*?\}\s+)?(\/)?-->/s';
+		if ( 1 !== preg_match_all( $pattern, $content, $m, PREG_OFFSET_CAPTURE | PREG_SET_ORDER ) && 0 === preg_match_all( $pattern, $content, $m, PREG_OFFSET_CAPTURE | PREG_SET_ORDER ) ) {
+			return '' === trim( $content ) ? [] : [ [ 'blockName' => null, 'attrs' => [], 'innerHTML' => $content ] ];
+		}
+		foreach ( $m as $match ) {
+			$at      = $match[0][1];
+			$len     = strlen( $match[0][0] );
+			$closing = '' !== ( $match[1][0] ?? '' );
+			$name    = ( '' !== ( $match[2][0] ?? '' ) ? $match[2][0] : 'core/' ) . $match[3][0];
+			$void    = '' !== ( $match[5][0] ?? '' );
+			if ( null === $open ) {
+				$free = substr( $content, $offset, $at - $offset );
+				if ( '' !== trim( $free ) ) {
+					$blocks[] = [ 'blockName' => null, 'attrs' => [], 'innerHTML' => $free ];
+				}
+				if ( $void ) {
+					$blocks[] = [ 'blockName' => $name, 'attrs' => [], 'innerHTML' => '' ];
+					$offset   = $at + $len;
+					continue;
+				}
+				$open   = [ 'name' => $name, 'start' => $at + $len ];
+				$depth  = 1;
+				$offset = $at + $len;
+				continue;
+			}
+			if ( $void ) {
+				continue;
+			}
+			if ( ! $closing ) {
+				++$depth;
+				continue;
+			}
+			--$depth;
+			if ( 0 === $depth ) {
+				$blocks[] = [ 'blockName' => $open['name'], 'attrs' => [], 'innerHTML' => substr( $content, $open['start'], $at - $open['start'] ) ];
+				$open     = null;
+				$offset   = $at + $len;
+			}
+		}
+		$tail = substr( $content, $offset );
+		if ( '' !== trim( $tail ) ) {
+			$blocks[] = [ 'blockName' => $open['name'] ?? null, 'attrs' => [], 'innerHTML' => $tail ];
+		}
+		return $blocks;
+	}
+}
 if ( ! function_exists( 'add_rewrite_rule' ) ) {
 	function add_rewrite_rule( string $regex, mixed $query, string $after = 'bottom' ): void {
 		$GLOBALS['bfrc_test_rewrite_rules'][] = [ $regex, $query, $after ];

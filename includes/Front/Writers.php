@@ -63,6 +63,35 @@ final class Writers {
 	public function __construct( private Settings $settings ) {}
 
 	/**
+	 * The writer rules core must know about on every request: the opt-out
+	 * applied to core's users sitemap (whether or not the plugin is enabled:
+	 * the writer asked not to be listed), and the `NOT EXISTS` clause behind
+	 * it and the listing.
+	 */
+	public function register_hooks(): void {
+		add_filter( 'wp_sitemaps_users_query_args', [ $this, 'sitemap_users_query' ] );
+		add_action( 'pre_user_query', [ $this, 'exclude_opted_out' ] );
+	}
+
+	/**
+	 * Are pretty permalinks on? Without them no rewrite rule runs, so the
+	 * writer views exist only in their query-string form.
+	 */
+	public static function uses_permalinks(): bool {
+		global $wp_rewrite;
+		return ! ( $wp_rewrite instanceof \WP_Rewrite ) || $wp_rewrite->using_permalinks();
+	}
+
+	/**
+	 * Core's pagination segment (`page` unless the site changed it).
+	 */
+	public static function pagination_base(): string {
+		global $wp_rewrite;
+		$base = $wp_rewrite instanceof \WP_Rewrite ? (string) $wp_rewrite->pagination_base : '';
+		return '' !== $base ? $base : 'page';
+	}
+
+	/**
 	 * The archive slug in force.
 	 */
 	public function archive_slug(): string {
@@ -88,11 +117,12 @@ final class Writers {
 		$base  = preg_quote( $this->archive_slug(), '#' ) . '/' . self::SEGMENT;
 		$type  = 'post_type=' . PostType::NAME;
 		$feeds = '(feed|rdf|rss|rss2|atom)';
+		$paged = preg_quote( self::pagination_base(), '#' ) . '/([0-9]{1,})/?$';
 		add_rewrite_rule( '^' . $base . '/?$', 'index.php?' . $type . '&' . self::LIST_VAR . '=1', 'top' );
-		add_rewrite_rule( '^' . $base . '/page/([0-9]{1,})/?$', 'index.php?' . $type . '&' . self::LIST_VAR . '=1&paged=$matches[1]', 'top' );
+		add_rewrite_rule( '^' . $base . '/' . $paged, 'index.php?' . $type . '&' . self::LIST_VAR . '=1&paged=$matches[1]', 'top' );
 		add_rewrite_rule( '^' . $base . '/([^/]+)/feed/' . $feeds . '/?$', 'index.php?' . $type . '&author_name=$matches[1]&' . self::QUERY_VAR . '=1&feed=$matches[2]', 'top' );
 		add_rewrite_rule( '^' . $base . '/([^/]+)/' . $feeds . '/?$', 'index.php?' . $type . '&author_name=$matches[1]&' . self::QUERY_VAR . '=1&feed=$matches[2]', 'top' );
-		add_rewrite_rule( '^' . $base . '/([^/]+)/page/([0-9]{1,})/?$', 'index.php?' . $type . '&author_name=$matches[1]&' . self::QUERY_VAR . '=1&paged=$matches[2]', 'top' );
+		add_rewrite_rule( '^' . $base . '/([^/]+)/' . $paged, 'index.php?' . $type . '&author_name=$matches[1]&' . self::QUERY_VAR . '=1&paged=$matches[2]', 'top' );
 		add_rewrite_rule( '^' . $base . '/([^/]+)/?$', 'index.php?' . $type . '&author_name=$matches[1]&' . self::QUERY_VAR . '=1', 'top' );
 	}
 
@@ -157,9 +187,19 @@ final class Writers {
 	}
 
 	/**
-	 * The listing URL.
+	 * The listing URL (`{archive}/chef/`; the query-string form under plain
+	 * permalinks, as core's `get_post_type_archive_link()` does).
 	 */
 	public function listing_url(): string {
+		if ( ! self::uses_permalinks() ) {
+			return add_query_arg(
+				[
+					'post_type'    => PostType::NAME,
+					self::LIST_VAR => '1',
+				],
+				home_url( '/' )
+			);
+		}
 		return home_url( user_trailingslashit( '/' . $this->archive_slug() . '/' . self::SEGMENT ) );
 	}
 
@@ -169,6 +209,16 @@ final class Writers {
 	 * @param \WP_User $user The writer.
 	 */
 	public function url( \WP_User $user ): string {
+		if ( ! self::uses_permalinks() ) {
+			return add_query_arg(
+				[
+					'post_type'     => PostType::NAME,
+					'author_name'   => rawurlencode( $user->user_nicename ),
+					self::QUERY_VAR => '1',
+				],
+				home_url( '/' )
+			);
+		}
 		return home_url( user_trailingslashit( '/' . $this->archive_slug() . '/' . self::SEGMENT . '/' . rawurlencode( $user->user_nicename ) ) );
 	}
 

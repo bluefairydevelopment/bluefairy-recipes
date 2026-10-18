@@ -61,6 +61,15 @@ final class WritersTest extends TestCase {
 		$this->assertSame( [], $GLOBALS['bfrc_test_rewrite_rules'], 'disabled: no writer routes' );
 	}
 
+	public function test_register_hooks_wires_the_sitemap_opt_out_and_the_not_exists_clause(): void {
+		$this->writers->register_hooks();
+		$this->assertSame( 10, has_filter( 'wp_sitemaps_users_query_args', [ $this->writers, 'sitemap_users_query' ] ), 'opted-out writers leave core\'s users sitemap too, enabled or not' );
+		$this->assertSame( 10, has_action( 'pre_user_query', [ $this->writers, 'exclude_opted_out' ] ), 'the NOT EXISTS clause behind the listing and the sitemap' );
+		$this->assertTrue( Writers::uses_permalinks(), 'the harness has pretty permalinks on' );
+		unset( $GLOBALS['wp_rewrite'] );
+		$this->assertTrue( Writers::uses_permalinks(), 'before the rewrite object exists, assume them on' );
+	}
+
 	public function test_query_vars_and_urls(): void {
 		$this->assertSame( [ 'x', 'bfrc_writer', 'bfrc_writers' ], $this->writers->query_vars( [ 'x' ] ) );
 		$this->assertSame( 'https://example.com/recipes/chef/', $this->writers->listing_url() );

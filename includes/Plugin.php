@@ -53,6 +53,8 @@ final class Plugin {
 
 		$settings = new Settings();
 		self::set( 'settings', $settings );
+		add_filter( 'woocommerce_prevent_admin_access', [ Capabilities::class, 'allow_writer_admin_access' ] );
+		add_filter( 'woocommerce_disable_admin_bar', [ Capabilities::class, 'allow_writer_admin_access' ] );
 
 		/**
 		 * The base plugin is ready to be extended.
@@ -84,6 +86,7 @@ final class Plugin {
 		$writers   = new Front\Writers( $settings );
 		$renderer  = new Front\Renderer( $settings, $writers, $taxonomies );
 		$templates = new Front\Templates( $settings, $writers, $renderer, $taxonomies );
+		$writers->register_hooks();
 		$templates->register_hooks();
 		self::set( 'front.writers', $writers );
 		self::set( 'front.renderer', $renderer );

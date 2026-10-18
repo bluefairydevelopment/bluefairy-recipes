@@ -188,6 +188,19 @@ final class Capabilities {
 	}
 
 	/**
+	 * `woocommerce_prevent_admin_access` / `woocommerce_disable_admin_bar`:
+	 * WooCommerce sends anyone without `edit_posts`, `manage_woocommerce` or
+	 * `view_admin_dashboard` to My Account and hides the admin bar. A Recipe
+	 * Writer has none of those (recipes are their own type), so on a shop
+	 * they could neither write a recipe nor fill their profile.
+	 *
+	 * @param bool $prevent WooCommerce's decision.
+	 */
+	public static function allow_writer_admin_access( bool $prevent ): bool {
+		return $prevent && ! current_user_can( 'edit_bfrc_recipes' );
+	}
+
+	/**
 	 * Can the current user manage recipes (settings, taxonomies, every recipe)?
 	 */
 	public static function current_user_can_manage(): bool {

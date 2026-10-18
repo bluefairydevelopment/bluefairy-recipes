@@ -11,6 +11,7 @@
 
 	var DEBOUNCE   = 600;
 	var FOCUS_FLAG = 'bfrcFocus';
+	var FOCUS_TTL  = 10000; // A flag older than this was written for a navigation that never happened.
 
 	// A disabled field is not submitted, which keeps empty fields out of the URL. The page
 	// normally unloads at once, but a cancelled submit, or a Back navigation restoring the
@@ -52,15 +53,27 @@
 		}
 	}
 
-	var focusName = readFlag( FOCUS_FLAG );
+	// The flag is "name:timestamp": a stale one (a cancelled search, a detour through other pages)
+	// must not steal focus on a later recipe view.
+	var focusName = ( function () {
+		var raw = readFlag( FOCUS_FLAG );
+		if ( ! raw ) {
+			return null;
+		}
+		var at = raw.lastIndexOf( ':' );
+		if ( at === -1 || Date.now() - Number( raw.slice( at + 1 ) ) > FOCUS_TTL ) {
+			return null;
+		}
+		return raw.slice( 0, at );
+	}() );
 
 	document.querySelectorAll( '[data-bfrc-filters]' ).forEach( function ( form ) {
 		var timer = null;
-		function submitSoon( fromTyping ) {
+		function submitSoon( focusField ) {
 			window.clearTimeout( timer );
 			timer = window.setTimeout( function () {
-				if ( fromTyping ) {
-					writeFlag( FOCUS_FLAG, fromTyping );
+				if ( focusField ) {
+					writeFlag( FOCUS_FLAG, focusField + ':' + Date.now() );
 				}
 				dropEmptyFields( form );
 				if ( typeof form.requestSubmit === 'function' ) {
@@ -76,25 +89,35 @@
 			var remaining = Array.prototype.filter.call( form.querySelectorAll( 'select, input[type=search]' ), function ( field ) {
 				return ! field.disabled;
 			} );
-			if ( remaining.length === 0 && form.action ) {
+			var action = form.getAttribute( 'action' ); // Not form.action: a field named "action" would shadow it.
+			if ( remaining.length === 0 && action ) {
 				event.preventDefault(); // Nothing to send: go to the plain archive URL rather than "…/?".
-				window.location.assign( form.action );
+				window.location.assign( action );
 			}
 		} );
 		form.querySelectorAll( 'select' ).forEach( function ( select ) {
 			select.addEventListener( 'change', function () {
-				submitSoon( '' );
+				submitSoon( select.name ); // The page reloads: focus goes back to this select, not to the top of the page.
 			} );
+			if ( focusName === select.name && document.activeElement === document.body ) {
+				select.focus();
+			}
 		} );
 		form.querySelectorAll( 'input[type=search]' ).forEach( function ( input ) {
 			input.addEventListener( 'input', function ( event ) {
 				if ( event.isComposing ) {
-					return; // Mid-composition (IME): wait for the composed text.
+					return; // Mid-composition (IME): compositionend below submits the committed text.
 				}
 				submitSoon( input.name );
 			} );
-			// After a keyword search the page has reloaded: put the caret back where the visitor was typing.
-			if ( focusName === input.name && input.value !== '' && document.activeElement === document.body ) {
+			// Chrome and Safari send the composition's last input event with isComposing still true and
+			// nothing after it, so the committed text is submitted from here.
+			input.addEventListener( 'compositionend', function () {
+				submitSoon( input.name );
+			} );
+			// After a keyword search the page has reloaded: put the caret back where the visitor was typing
+			// (also when they cleared the box: the flag says typing caused the reload).
+			if ( focusName === input.name && document.activeElement === document.body ) {
 				input.focus();
 				if ( typeof input.setSelectionRange === 'function' ) {
 					input.setSelectionRange( input.value.length, input.value.length );

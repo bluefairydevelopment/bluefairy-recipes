@@ -146,6 +146,8 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_paginate_calls']   = [];
 	$GLOBALS['bfrc_test_archive_slugs']    = [];
 	unset( $GLOBALS['wp_query'] );
+	$GLOBALS['wp_rewrite'] = class_exists( 'WP_Rewrite' ) ? new WP_Rewrite() : null; // Pretty permalinks, `page`, unless a test says otherwise.
+	$GLOBALS['wp']         = class_exists( 'WP' ) ? new WP() : null;
 	$GLOBALS['bfrc_test_primed']           = [];
 	$GLOBALS['bfrc_test_prime_args']       = [];
 	$GLOBALS['bfrc_test_thumbnail_cache_calls'] = [];
@@ -162,6 +164,7 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_db_delta_errors'] = [];
 	$GLOBALS['bfrc_test_admin_pages']   = [];
 	$GLOBALS['bfrc_test_enqueued']      = [];
+	$GLOBALS['bfrc_test_registered']    = [];
 	$GLOBALS['bfrc_test_output']        = [];
 	$GLOBALS['bfrc_test_screen']        = null;
 	$GLOBALS['bfrc_test_user_meta']     = [];
@@ -1416,10 +1419,30 @@ function wp_enqueue_script( string $handle, string $src = '', array $deps = [], 
 	$GLOBALS['bfrc_test_enqueued']['deps'][ $handle ] = $deps;
 }
 function wp_register_script( string $handle, mixed $src, array $deps = [], mixed $ver = false, mixed $args = [] ): bool {
+	$GLOBALS['bfrc_test_registered']['script'][ $handle ] = $src;
 	return true;
 }
 function wp_register_style( string $handle, mixed $src, array $deps = [], mixed $ver = false, string $media = 'all' ): bool {
+	$GLOBALS['bfrc_test_registered']['style'][ $handle ] = $src;
 	return true;
+}
+function map_deep( mixed $value, callable $callback ): mixed {
+	if ( is_array( $value ) ) {
+		foreach ( $value as $k => $v ) {
+			$value[ $k ] = map_deep( $v, $callback );
+		}
+		return $value;
+	}
+	if ( is_object( $value ) ) {
+		foreach ( get_object_vars( $value ) as $k => $v ) {
+			$value->$k = map_deep( $v, $callback );
+		}
+		return $value;
+	}
+	return $callback( $value );
+}
+function rest_get_route_for_user( int $user_id ): string {
+	return $user_id > 0 ? '/wp/v2/users/' . $user_id : '';
 }
 function wp_localize_script( string $handle, string $object_name, array $l10n ): bool {
 	foreach ( $l10n as $k => $v ) {

@@ -34,6 +34,11 @@ release tag.
   same choices and picks up where it stopped).
 - After an uninstall and reinstall, recipes and writer profiles are intact, but users must
   be given the Recipe Writer role again (uninstall removes the plugin's roles).
+- **WooCommerce sites:** WooCommerce keeps users without blog-editing rights out of the
+  dashboard; the plugin lets Recipe Writers through so they can write recipes and fill their
+  profile. They still see nothing of the shop's admin.
+- **Plain permalinks** (no permalink structure) are not recommended: the writer pages then
+  live at query-string addresses such as `/?post_type=bfrc_recipe&bfrc_writers=1`.
 - **Very long recipes** post many form fields. PHP's `max_input_vars` (usually 1000) allows a
   recipe of 200 ingredients and 200 steps; the editor warns before a recipe outgrows the limit,
   and a panel that was cut off keeps its previous values rather than being emptied.

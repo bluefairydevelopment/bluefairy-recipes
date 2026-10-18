@@ -44,6 +44,8 @@ final class Templates {
 	public const SEARCH_VAR   = 'bfrc_s';
 	public const FILTER_VAR   = 'bfrc_filter';
 	public const SEARCH_MAX   = 100;
+	/** Block template slug of the writer views. */
+	public const WRITERS_TEMPLATE = 'bfrc-writers';
 
 	/**
 	 * Wire the dependencies.
@@ -71,9 +73,56 @@ final class Templates {
 		add_filter( 'comments_open', [ $this, 'comments_closed' ], 10, 2 );
 		add_filter( 'body_class', [ $this, 'body_class' ] );
 		add_filter( 'document_title_parts', [ $this, 'document_title' ] );
-		add_filter( 'wp_sitemaps_users_query_args', [ $this->writers, 'sitemap_users_query' ] );
-		add_action( 'pre_user_query', [ $this->writers, 'exclude_opted_out' ] );
 		add_action( 'wp_head', [ $this, 'rel_canonical' ] );
+		add_filter( 'rest_queried_resource_route', [ $this, 'rest_resource_route' ] );
+		// The SEO plugins print their own canonical from the queried object (the post type or the
+		// author archive, never the writer view): hand them ours, and print none of our own then.
+		add_filter( 'wpseo_canonical', [ $this, 'seo_plugin_canonical' ] );
+		add_filter( 'rank_math/frontend/canonical', [ $this, 'seo_plugin_canonical' ] );
+		add_filter( 'aioseo_canonical_url', [ $this, 'seo_plugin_canonical' ] );
+	}
+
+	/**
+	 * `rest_queried_resource_route`: core's `<link rel="alternate" type="application/json">`
+	 * for the main query. A writer page is both an author archive and a
+	 * post-type archive, and core's queried object is then the post type, so
+	 * it would advertise `/wp/v2/users/0`: name the writer instead, and
+	 * nothing on the listing.
+	 *
+	 * @param string $route Core's route, or ''.
+	 */
+	public function rest_resource_route( string $route ): string {
+		global $wp_query;
+		if ( ! $wp_query instanceof \WP_Query || $wp_query->is_404() || ! $this->is_recipe_query( $wp_query ) || ! self::is_writer_view( $wp_query ) ) {
+			return $route;
+		}
+		if ( (bool) $wp_query->get( Writers::LIST_VAR ) ) {
+			return '';
+		}
+		$writer = $this->writers->public_writer( (string) $wp_query->get( 'author_name' ) );
+		return null === $writer ? '' : (string) rest_get_route_for_user( $writer->ID );
+	}
+
+	/**
+	 * Is one of the SEO plugins whose canonical filters we feed active?
+	 */
+	public static function seo_plugin_present(): bool {
+		return defined( 'WPSEO_VERSION' ) || defined( 'AIOSEO_VERSION' ) || class_exists( 'RankMath', false );
+	}
+
+	/**
+	 * `wpseo_canonical`, `rank_math/frontend/canonical`, `aioseo_canonical_url`:
+	 * the writer view's URL in place of what the SEO plugin computed.
+	 *
+	 * @param mixed $url The SEO plugin's canonical.
+	 */
+	public function seo_plugin_canonical( mixed $url ): mixed {
+		global $wp_query;
+		if ( ! $wp_query instanceof \WP_Query || $wp_query->is_404() || ! $this->is_recipe_query( $wp_query ) ) {
+			return $url;
+		}
+		$ours = $this->canonical_url( $wp_query );
+		return '' !== $ours ? $ours : $url;
 	}
 
 	/**
@@ -83,9 +132,13 @@ final class Templates {
 		$this->writers->add_rewrite_rules();
 		// `autoRegister` (WordPress 7.0+) gives the Site Editor a server-rendered preview of a
 		// block that ships no editor script; older versions show a placeholder to leave in place.
+		wp_register_style( self::STYLE, BFRC_URL . 'assets/front/recipes.css', [], BFRC_VERSION );
+		wp_register_script( self::SCRIPT, BFRC_URL . 'assets/front/recipes.js', [], BFRC_VERSION, true );
 		$block_args = [
-			'api_version' => '3',
-			'supports'    => [ 'autoRegister' => true ],
+			'api_version'  => '3',
+			'supports'     => [ 'autoRegister' => true ],
+			'style'        => self::STYLE, // Core enqueues it wherever the block renders: the site, and the Site Editor's canvas.
+			'editor_style' => self::STYLE,
 		];
 		register_block_type( self::BLOCK_SINGLE, $block_args + [ 'render_callback' => [ $this, 'render_single_block' ] ] );
 		register_block_type( self::BLOCK_LIST, $block_args + [ 'render_callback' => [ $this, 'render_archive_block' ] ] );
@@ -103,7 +156,18 @@ final class Templates {
 				'bluefairy-recipes//archive-' . PostType::NAME,
 				[
 					'title'       => __( 'Recipes Archive', 'bluefairy-recipes' ),
-					'description' => __( 'The recipe grid with filters, a filter type, a writer\'s recipes, or the writers list.', 'bluefairy-recipes' ),
+					'description' => __( 'The recipe grid with filters, or a filter type\'s recipes.', 'bluefairy-recipes' ),
+					'content'     => self::template_markup( 'archive-recipe' ),
+				]
+			);
+			// The writer views get their own template, so a theme's archive-bfrc_recipe.html (which
+			// wins over ours by slug) does not catch them and loop one recipe; a theme overrides
+			// this one only by shipping bfrc-writers.html deliberately.
+			register_block_template(
+				'bluefairy-recipes//' . self::WRITERS_TEMPLATE,
+				[
+					'title'       => __( 'Recipe Writers', 'bluefairy-recipes' ),
+					'description' => __( 'The writers list and a writer\'s page with their recipes.', 'bluefairy-recipes' ),
 					'content'     => self::template_markup( 'archive-recipe' ),
 				]
 			);
@@ -177,9 +241,15 @@ final class Templates {
 			// page. `paged` stays: the writers listing reads it, and guard() 404s pages past the
 			// last writer; core must still see a real page for the pages that exist.
 			$query->set( 'posts_per_page', 1 );
+			$query->set( 'no_found_rows', true ); // SQL_CALC_FOUND_ROWS over every recipe (50 ms at 100k) for a count nothing reads.
+			$query->set( 'update_post_meta_cache', false );
+			$query->set( 'update_post_term_cache', false );
 			return;
 		}
 		$query->set( 'posts_per_page', $this->per_page() );
+		if ( (bool) $query->get( Writers::QUERY_VAR ) ) {
+			return; // A writer's page has no filter form: a keyword or filter in its URL is ignored, not silently applied.
+		}
 		$search = $this->requested_search();
 		if ( '' !== $search ) {
 			$query->set( 's', $search );
@@ -241,10 +311,14 @@ final class Templates {
 			$this->redirect_to_canonical( $wp_query );
 			return;
 		}
-		$wp_query->posts         = [];
-		$wp_query->post_count    = 0;
-		$wp_query->found_posts   = 0;
-		$wp_query->max_num_pages = 0;
+		$wp_query->posts             = [];
+		$wp_query->post_count        = 0;
+		$wp_query->found_posts       = 0;
+		$wp_query->max_num_pages     = 0;
+		$wp_query->post              = null;
+		$wp_query->queried_object    = null; // The non-public writer must not survive into the 404 page's head.
+		$wp_query->queried_object_id = 0;
+		$GLOBALS['post']             = null; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- the 404 page must not carry the hidden writer's first recipe.
 		$wp_query->set_404();
 		status_header( 404 );
 		nocache_headers();
@@ -271,7 +345,9 @@ final class Templates {
 			return '';
 		}
 		if ( $page > 1 ) {
-			$base = trailingslashit( $base ) . user_trailingslashit( 'page/' . $page, 'paged' );
+			$base = Writers::uses_permalinks()
+				? trailingslashit( $base ) . user_trailingslashit( Writers::pagination_base() . '/' . $page, 'paged' )
+				: add_query_arg( 'paged', $page, $base );
 		}
 		return $base;
 	}
@@ -280,21 +356,44 @@ final class Templates {
 	 * The writer views answer to their pretty URLs only. The rewrite rules
 	 * pass the writer vars inside the request, never through the query
 	 * string, so `?bfrc_writers=1` or `?bfrc_writer=1&author_name=…` in
-	 * `$_GET` is the duplicate form: redirect it (301) when pretty permalinks
-	 * are on. Nothing happens for feeds (their URLs are core's) or without
-	 * permalinks (the query string is then the only URL there is).
+	 * `$_GET` (or the request body: core reads query vars from `$_POST` too)
+	 * is the duplicate form, and so is `?author_name=` or `?paged=` overriding
+	 * what the pretty route matched: redirect (301) when pretty permalinks are
+	 * on, keeping every other query argument (a keyword, the filters), as
+	 * core's `redirect_canonical()` keeps what it did not consume. Nothing
+	 * happens for feeds (their URLs are core's) or without permalinks (the
+	 * query string is then the only URL there is).
 	 *
 	 * @param \WP_Query $query The main query, already judged valid.
 	 */
 	private function redirect_to_canonical( \WP_Query $query ): void {
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- presence of a public query var, no value read.
-		$in_query_string = isset( $_GET[ Writers::LIST_VAR ] ) || isset( $_GET[ Writers::QUERY_VAR ] );
-		if ( ! $in_query_string || $query->is_feed() || '' === (string) get_option( 'permalink_structure' ) ) {
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended,WordPress.Security.NonceVerification.Missing -- public query arguments of a GET view, carried over sanitised.
+		$consumed = [ Writers::LIST_VAR, Writers::QUERY_VAR, 'author_name', 'paged', 'post_type' ];
+		$in_query = false;
+		foreach ( $consumed as $var ) {
+			if ( isset( $_GET[ $var ] ) || isset( $_POST[ $var ] ) ) {
+				$in_query = true;
+				break;
+			}
+		}
+		if ( ! $in_query || $query->is_feed() || ! Writers::uses_permalinks() ) {
 			return;
 		}
 		$url = $this->canonical_url( $query );
 		if ( '' === $url ) {
 			return;
+		}
+		$keep = [];
+		foreach ( $_GET as $key => $value ) {
+			if ( in_array( (string) $key, $consumed, true ) ) {
+				continue;
+			}
+			$keep[ sanitize_key( (string) $key ) ] = map_deep( wp_unslash( $value ), 'sanitize_text_field' );
+		}
+		// phpcs:enable
+		unset( $keep[''] );
+		if ( [] !== $keep ) {
+			$url = add_query_arg( $keep, $url );
 		}
 		wp_safe_redirect( $url, 301, 'BlueFairy Recipes' );
 		exit;
@@ -309,8 +408,8 @@ final class Templates {
 	 */
 	public function rel_canonical(): void {
 		global $wp_query;
-		if ( ! $wp_query instanceof \WP_Query || $wp_query->is_404() || ! $this->is_recipe_query( $wp_query ) ) {
-			return;
+		if ( self::seo_plugin_present() || ! $wp_query instanceof \WP_Query || $wp_query->is_404() || ! $this->is_recipe_query( $wp_query ) ) {
+			return; // With an SEO plugin, its canonical carries ours (seo_plugin_canonical()); two tags would cancel out.
 		}
 		$url = $this->canonical_url( $wp_query );
 		if ( '' === $url ) {
@@ -347,8 +446,7 @@ final class Templates {
 		if ( function_exists( 'wp_is_block_theme' ) && wp_is_block_theme() ) {
 			return $template; // The block templates registered above apply through the hierarchy.
 		}
-		$writer_view = (bool) $wp_query->get( Writers::LIST_VAR ) || (bool) $wp_query->get( Writers::QUERY_VAR );
-		if ( ! $writer_view && self::is_theme_recipe_template( $template ) ) {
+		if ( ! self::is_writer_view( $wp_query ) && self::is_theme_recipe_template( $template ) ) {
 			return $template;
 		}
 		return self::locate( $wp_query->is_singular( PostType::NAME ) ? 'single-recipe' : 'archive-recipe' );
@@ -387,7 +485,19 @@ final class Templates {
 			return $templates;
 		}
 		array_unshift( $templates, 'archive-' . PostType::NAME );
+		if ( self::is_writer_view( $wp_query ) ) {
+			array_unshift( $templates, self::WRITERS_TEMPLATE );
+		}
 		return $templates;
+	}
+
+	/**
+	 * The writers listing or a writer's page?
+	 *
+	 * @param \WP_Query $query The query.
+	 */
+	public static function is_writer_view( \WP_Query $query ): bool {
+		return (bool) $query->get( Writers::LIST_VAR ) || (bool) $query->get( Writers::QUERY_VAR );
 	}
 
 	/**
@@ -406,6 +516,8 @@ final class Templates {
 	 * shortcodes when they render).
 	 */
 	public static function enqueue_assets(): void {
+		// The src is repeated so the classic templates work even if register() has not run (a theme
+		// calling the Renderer before init 20).
 		wp_enqueue_style( self::STYLE, BFRC_URL . 'assets/front/recipes.css', [], BFRC_VERSION );
 		wp_enqueue_script( self::SCRIPT, BFRC_URL . 'assets/front/recipes.js', [], BFRC_VERSION, true );
 	}
@@ -461,6 +573,9 @@ final class Templates {
 	 * The single-recipe view block.
 	 */
 	public function render_single_block(): string {
+		if ( Renderer::is_rendering_single() ) {
+			return ''; // Inside a recipe's own body: render nothing rather than recurse.
+		}
 		$post = get_post();
 		if ( ! $post instanceof \WP_Post || PostType::NAME !== $post->post_type ) {
 			if ( ! self::is_editor_preview() ) {
@@ -472,6 +587,7 @@ final class Templates {
 				[
 					'post_type'        => PostType::NAME,
 					'post_status'      => 'publish',
+					'has_password'     => false, // A template preview that is a password form helps nobody.
 					'numberposts'      => 1,
 					'orderby'          => 'date',
 					'order'            => 'DESC',
@@ -489,10 +605,17 @@ final class Templates {
 
 	/**
 	 * Is this the block editor asking for a server-rendered preview (the
-	 * block-renderer REST route), rather than a visitor's page?
+	 * block-renderer REST route), rather than a visitor's page or any other
+	 * REST request that renders content (a page's `content.rendered`, a
+	 * headless consumer), where the blocks render as on the site?
 	 */
 	public static function is_editor_preview(): bool {
-		return function_exists( 'wp_is_serving_rest_request' ) && wp_is_serving_rest_request();
+		if ( ! function_exists( 'wp_is_serving_rest_request' ) || ! wp_is_serving_rest_request() ) {
+			return false;
+		}
+		global $wp;
+		$route = $wp instanceof \WP && isset( $wp->query_vars['rest_route'] ) ? (string) $wp->query_vars['rest_route'] : '';
+		return str_contains( $route, '/block-renderer/' );
 	}
 
 	/**
@@ -501,15 +624,19 @@ final class Templates {
 	 */
 	public function render_archive_block(): string {
 		global $wp_query;
-		if ( ! $wp_query instanceof \WP_Query ) {
+		if ( ! $wp_query instanceof \WP_Query || Renderer::is_rendering_single() ) {
 			return '';
 		}
+		$query = $wp_query;
 		if ( self::is_editor_preview() && [] === (array) $wp_query->posts ) {
-			// The Site Editor's query has no recipes: preview the newest page of them.
-			$wp_query->posts = get_posts(
+			// The Site Editor's query has no recipes: preview the newest page of them, on a copy so
+			// the request's own query is left alone.
+			$query        = clone $wp_query;
+			$query->posts = get_posts(
 				[
 					'post_type'        => PostType::NAME,
 					'post_status'      => 'publish',
+					'has_password'     => false,
 					'numberposts'      => $this->per_page(),
 					'orderby'          => 'date',
 					'order'            => 'DESC',
@@ -518,7 +645,7 @@ final class Templates {
 			);
 		}
 		self::enqueue_assets();
-		return $this->renderer->archive( $wp_query );
+		return $this->renderer->archive( $query );
 	}
 
 	/**

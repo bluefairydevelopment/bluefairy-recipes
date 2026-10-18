@@ -31,6 +31,13 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class Renderer {
 
+	/**
+	 * True while single() renders a recipe (re-entrancy guard, see is_rendering_single()).
+	 *
+	 * @var bool
+	 */
+	private static bool $rendering_single = false;
+
 	public const GRID_IMAGE  = 'medium_large';
 	public const HERO_IMAGE  = 'large';
 	public const TERMS_LIMIT = 200;
@@ -92,7 +99,8 @@ final class Renderer {
 		$action = is_string( $action ) ? $action : (string) get_post_type_archive_link( PostType::NAME );
 		$chosen = $this->current_filters();
 		$search = $this->current_search();
-		$html   = '<form class="bfrc-filters" method="get" action="' . esc_url( $action ) . '" data-bfrc-filters role="search" aria-label="' . esc_attr__( 'Filter recipes', 'bluefairy-recipes' ) . '">';
+		$html   = '<form class="bfrc-filters" method="get" action="' . esc_url( $action ) . '" data-bfrc-filters role="search" aria-label="' . esc_attr__( 'Filter recipes', 'bluefairy-recipes' ) . '" aria-describedby="bfrc-filters-hint">';
+		$html  .= '<p id="bfrc-filters-hint" class="screen-reader-text">' . esc_html__( 'Changing a filter or pausing while typing updates the list; the Filter button applies it at once.', 'bluefairy-recipes' ) . '</p>';
 		$terms  = $this->terms_by_taxonomy();
 		foreach ( $this->taxonomies->enabled() as $code => $definition ) {
 			$name = Taxonomies::taxonomy_name( $code );
@@ -161,9 +169,10 @@ final class Renderer {
 	 * The card grid, or a "no recipes" line. Thumbnails and authors are
 	 * primed once for the whole grid.
 	 *
-	 * @param array<int, \WP_Post> $posts The recipes.
+	 * @param array<int, \WP_Post> $posts         The recipes.
+	 * @param int                  $heading_level Card title level: 2 under an h1, 3 under a section's h2.
 	 */
-	public function grid( array $posts ): string {
+	public function grid( array $posts, int $heading_level = 2 ): string {
 		$posts = array_values( array_filter( $posts, static fn( mixed $p ): bool => $p instanceof \WP_Post ) );
 		if ( [] === $posts ) {
 			return '<p class="bfrc-empty">' . esc_html__( 'No recipes match. Try fewer filters.', 'bluefairy-recipes' ) . '</p>';
@@ -172,7 +181,7 @@ final class Renderer {
 		$links = $this->writer_links( $posts );
 		$html  = '<ul class="bfrc-grid">';
 		foreach ( $posts as $post ) {
-			$html .= '<li class="bfrc-grid__item">' . $this->card( $post, $links[ (int) $post->post_author ] ?? null ) . '</li>';
+			$html .= '<li class="bfrc-grid__item">' . $this->card( $post, $links[ (int) $post->post_author ] ?? null, $heading_level ) . '</li>';
 		}
 		return $html . '</ul>';
 	}
@@ -183,10 +192,12 @@ final class Renderer {
 	 * no badges and no excerpt (core would print "There is no excerpt
 	 * because this is a protected post." in its place).
 	 *
-	 * @param \WP_Post    $post       The recipe.
-	 * @param string|null $writer_url The writer's public URL, or null when they have no page.
+	 * @param \WP_Post    $post          The recipe.
+	 * @param string|null $writer_url    The writer's public URL, or null when they have no page.
+	 * @param int         $heading_level Title level (2..6).
 	 */
-	public function card( \WP_Post $post, ?string $writer_url = null ): string {
+	public function card( \WP_Post $post, ?string $writer_url = null, int $heading_level = 2 ): string {
+		$h         = 'h' . min( 6, max( 2, $heading_level ) ); // h2 under the archive's h1; h3 under a writer page's "Recipes by" h2.
 		$data      = RecipeData::for_post( $post );
 		$protected = post_password_required( $post );
 		$url       = get_permalink( $post );
@@ -194,7 +205,7 @@ final class Renderer {
 		$html      = '<article class="bfrc-card' . ( $data->featured ? ' bfrc-card--featured' : '' ) . ( $protected ? ' bfrc-card--protected' : '' ) . '">';
 		$thumb     = get_the_post_thumbnail( $post, self::GRID_IMAGE, [ 'class' => 'bfrc-card__image' ] );
 		$html     .= '<a class="bfrc-card__media" href="' . esc_url( (string) $url ) . '" tabindex="-1" aria-hidden="true">' . ( '' !== $thumb ? $thumb : '<span class="bfrc-card__placeholder"></span>' ) . '</a>';
-		$html     .= '<div class="bfrc-card__body"><h2 class="bfrc-card__title"><a href="' . esc_url( (string) $url ) . '">' . esc_html( $title ) . '</a></h2>';
+		$html     .= '<div class="bfrc-card__body"><' . $h . ' class="bfrc-card__title"><a href="' . esc_url( (string) $url ) . '">' . esc_html( $title ) . '</a></' . $h . '>';
 		if ( ! $protected ) {
 			$html .= $this->badges( $data, false ); // As the recipe page: a locked recipe shows its title and photo, nothing of its contents.
 		}
@@ -210,20 +221,61 @@ final class Renderer {
 	}
 
 	/**
-	 * Did the writer write a body? Text once block comments, tags and
-	 * non-breaking spaces are gone, or a media element (an image, gallery,
-	 * video, audio or embed block alone is a body). An empty paragraph block
-	 * left behind by the editor is not.
+	 * Did the writer write a body? Judged on the parsed block list: any block
+	 * other than a paragraph, a spacer or a separator is a body (an image,
+	 * a synced pattern, a Query Loop: dynamic blocks carry no static HTML, so
+	 * their comment alone counts); a paragraph or classic (non-block) content
+	 * is a body when text or a media element remains once tags and
+	 * non-breaking spaces are gone. An empty paragraph block left behind by
+	 * the editor is not.
 	 *
 	 * @param string $content Raw post content.
 	 */
 	public static function has_body( string $content ): bool {
-		$stripped = (string) preg_replace( '/<!--.*?-->/s', '', $content );
-		if ( 1 === preg_match( '/<(img|picture|video|audio|iframe|embed|object|figure|svg)\b/i', $stripped ) ) {
+		if ( '' === trim( $content ) ) {
+			return false;
+		}
+		$blocks = function_exists( 'parse_blocks' ) ? parse_blocks( $content ) : [];
+		if ( [] === $blocks ) {
+			return self::has_text_or_media( $content );
+		}
+		foreach ( $blocks as $block ) {
+			$name = is_array( $block ) ? ( $block['blockName'] ?? null ) : null;
+			if ( null === $name || 'core/paragraph' === $name ) {
+				if ( self::has_text_or_media( (string) ( $block['innerHTML'] ?? '' ) ) ) {
+					return true;
+				}
+				continue;
+			}
+			if ( in_array( $name, [ 'core/spacer', 'core/separator' ], true ) ) {
+				continue;
+			}
 			return true;
 		}
-		$text = str_replace( [ '&nbsp;', "\xC2\xA0" ], ' ', wp_strip_all_tags( $stripped ) );
+		return false;
+	}
+
+	/**
+	 * Does this HTML carry visible text or a media element?
+	 *
+	 * @param string $html A paragraph's or classic content's HTML.
+	 */
+	private static function has_text_or_media( string $html ): bool {
+		if ( 1 === preg_match( '/<(img|picture|video|audio|iframe|embed|object|figure|svg)\b/i', $html ) ) {
+			return true;
+		}
+		$text = str_replace( [ '&nbsp;', "\xC2\xA0" ], ' ', wp_strip_all_tags( $html ) );
 		return '' !== trim( $text );
+	}
+
+	/**
+	 * Is a recipe page being rendered right now? The view blocks return
+	 * nothing while it is, so a recipe whose body carries the Single Recipe
+	 * block (the editor lets a writer insert it anywhere) renders once instead
+	 * of recursing through `the_content` until PHP runs out of stack.
+	 */
+	public static function is_rendering_single(): bool {
+		return self::$rendering_single;
 	}
 
 	/**
@@ -281,7 +333,7 @@ final class Renderer {
 			$links = paginate_links(
 				[
 					'base'      => trailingslashit( $this->writers->listing_url() ) . '%_%',
-					'format'    => user_trailingslashit( 'page/%#%' ),
+					'format'    => user_trailingslashit( Writers::pagination_base() . '/%#%' ),
 					'total'     => $listing['pages'],
 					'current'   => $page,
 					'prev_text' => __( '&laquo; Previous', 'bluefairy-recipes' ),
@@ -330,7 +382,7 @@ final class Renderer {
 		$html .= '</div></header>';
 		$html .= '<h2 class="bfrc-writer__recipes-title">' . esc_html( sprintf( /* translators: %s: writer's name */ __( 'Recipes by %s', 'bluefairy-recipes' ), $writer->display_name ) ) . '</h2>';
 		$posts = is_array( $query->posts ) ? $query->posts : [];
-		$html .= $this->grid( $posts );
+		$html .= $this->grid( $posts, 3 );
 		$html .= $this->pagination( $query );
 		return $html . '</div>';
 	}
@@ -342,9 +394,26 @@ final class Renderer {
 	 * @param \WP_Post $post The recipe.
 	 */
 	public function single( \WP_Post $post ): string {
+		if ( self::$rendering_single ) {
+			return ''; // Nested: the recipe's own body carries the view block.
+		}
 		if ( post_password_required( $post ) ) {
 			return '<article class="bfrc-recipe bfrc-recipe--protected" id="bfrc-recipe-' . (int) $post->ID . '"><h1 class="bfrc-recipe__title">' . esc_html( get_the_title( $post ) ) . '</h1>' . get_the_password_form( $post ) . '</article>';
 		}
+		self::$rendering_single = true;
+		try {
+			return $this->single_body( $post );
+		} finally {
+			self::$rendering_single = false;
+		}
+	}
+
+	/**
+	 * The recipe page's markup (see single()).
+	 *
+	 * @param \WP_Post $post The recipe.
+	 */
+	private function single_body( \WP_Post $post ): string {
 		$data   = RecipeData::for_post( $post );
 		$links  = $this->writer_links( [ $post ] );
 		$html   = '<article class="bfrc-recipe' . ( $data->featured ? ' bfrc-recipe--featured' : '' ) . '" id="bfrc-recipe-' . (int) $post->ID . '">';
@@ -393,7 +462,12 @@ final class Renderer {
 		if ( '' !== $embed ) {
 			return '<div class="bfrc-recipe__video"><iframe src="' . esc_url( $embed ) . '" title="' . esc_attr( get_the_title( $post ) ) . '" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>';
 		}
-		return get_the_post_thumbnail( $post, self::HERO_IMAGE, [ 'class' => 'bfrc-recipe__image' ] );
+		$attr = [ 'class' => 'bfrc-recipe__image' ];
+		$alt  = trim( (string) get_post_meta( (int) get_post_thumbnail_id( $post ), '_wp_attachment_image_alt', true ) );
+		if ( '' === $alt ) {
+			$attr['alt'] = get_the_title( $post ); // The hero is the recipe: without its own alt text, its name.
+		}
+		return get_the_post_thumbnail( $post, self::HERO_IMAGE, $attr );
 	}
 
 	/**

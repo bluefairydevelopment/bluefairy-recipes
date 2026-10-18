@@ -17,3 +17,7 @@
 - A password-protected recipe shows only its title, photo and writer on cards and keeps its
   fields out of the REST API until unlocked; writer pages have one canonical address; the
   Single Recipe template previews a recipe in the Site Editor.
+- The recipe blocks render nothing inside a recipe's own text; writer pages work with Yoast,
+  Rank Math and All in One SEO canonicals, custom pagination bases and plain permalinks;
+  Recipe Writers can reach the dashboard on WooCommerce sites; keyboard focus returns to the
+  filter control that was used.

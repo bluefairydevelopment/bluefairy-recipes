@@ -38,13 +38,20 @@ if ( ! function_exists( 'get_post_thumbnail_id' ) ) {
 		$url = wp_get_attachment_url( $attachment_id );
 		return false === $url ? false : [ $url, 150, 150, true ];
 	}
+	/** As core: the attachment's stored alt unless the caller passes one; a class attribute when given. */
 	function wp_get_attachment_image( int $attachment_id, mixed $size = 'thumbnail', bool $icon = false, mixed $attr = '' ): string {
 		$url = wp_get_attachment_url( $attachment_id );
-		return false === $url ? '' : '<img src="' . esc_url( $url ) . '" alt="">';
+		if ( false === $url ) {
+			return '';
+		}
+		$attr  = is_array( $attr ) ? $attr : [];
+		$alt   = array_key_exists( 'alt', $attr ) ? (string) $attr['alt'] : (string) get_post_meta( $attachment_id, '_wp_attachment_image_alt', true );
+		$class = isset( $attr['class'] ) ? ' class="' . esc_attr( (string) $attr['class'] ) . '"' : '';
+		return '<img src="' . esc_url( $url ) . '"' . $class . ' alt="' . esc_attr( $alt ) . '">';
 	}
 	function get_the_post_thumbnail( mixed $post = null, mixed $size = 'post-thumbnail', mixed $attr = '' ): string {
 		$id = get_post_thumbnail_id( $post );
-		return false === $id ? '' : wp_get_attachment_image( $id, $size );
+		return false === $id ? '' : wp_get_attachment_image( $id, $size, false, $attr );
 	}
 }
 if ( ! function_exists( 'wp_set_object_terms' ) ) {
@@ -192,6 +199,9 @@ if ( ! function_exists( 'get_posts' ) ) {
 				continue;
 			}
 			if ( isset( $args['post_status'] ) && 'any' !== $args['post_status'] && $post->post_status !== $args['post_status'] ) {
+				continue;
+			}
+			if ( isset( $args['has_password'] ) && ( '' !== (string) ( $post->post_password ?? '' ) ) !== (bool) $args['has_password'] ) {
 				continue;
 			}
 			if ( isset( $args['meta_key'] ) ) {

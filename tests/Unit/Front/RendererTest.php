@@ -60,6 +60,9 @@ final class RendererTest extends TestCase {
 		bfrc_test_add_attachment( 77 );
 		$html = $this->renderer->card( get_post( 41 ), 'https://example.com/recipes/chef/ann/' );
 		$this->assertStringContainsString( '<article class="bfrc-card bfrc-card--featured">', $html );
+		$this->assertStringContainsString( '<h2 class="bfrc-card__title"><a href="https://example.com/?p=41">', $html, 'h2 under the archive\'s h1' );
+		$this->assertStringContainsString( '<h3 class="bfrc-card__title">', $this->renderer->card( get_post( 41 ), null, 3 ), 'h3 under a writer page\'s "Recipes by" h2' );
+		$this->assertStringContainsString( '<h6 class="bfrc-card__title">', $this->renderer->card( get_post( 41 ), null, 9 ), 'clamped' );
 		$this->assertStringContainsString( 'href="https://example.com/?p=41"', $html );
 		$this->assertStringContainsString( '<img src="https://example.test/uploads/77.jpg"', $html );
 		$this->assertStringContainsString( 'Tomato &quot;Soup&quot;</a></h2>', $html );
@@ -232,6 +235,8 @@ final class RendererTest extends TestCase {
 		$this->assertStringNotContainsString( 'YouTube', $page );
 		$this->assertStringContainsString( 'Recipes by Ann &lt;b&gt;Lee&lt;/b&gt;</h2>', $page );
 		$this->assertStringContainsString( 'bfrc-grid__item', $page );
+		$this->assertStringContainsString( '<h3 class="bfrc-card__title">', $page, 'cards under the "Recipes by" h2 are h3' );
+		$this->assertStringNotContainsString( '<h2 class="bfrc-card__title">', $page );
 		$this->assertSame( '', $this->renderer->archive( bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'eve' ], 'author' ) ), 'no public page: nothing (the guard already 404ed)' );
 	}
 
@@ -312,9 +317,39 @@ final class RendererTest extends TestCase {
 		$this->assertTrue( Renderer::has_body( 'plain text' ) );
 		$this->assertTrue( Renderer::has_body( '<!-- wp:image --><figure class="wp-block-image"><img src="https://x/a.jpg" alt=""/></figure><!-- /wp:image -->' ), 'media alone is a body' );
 		$this->assertTrue( Renderer::has_body( '<!-- wp:embed {"url":"https://x"} --><figure class="wp-block-embed"><div class="wp-block-embed__wrapper">https://x</div></figure><!-- /wp:embed -->' ) );
+		// Dynamic blocks carry no static HTML: their comment alone is the body.
+		$this->assertTrue( Renderer::has_body( '<!-- wp:block {"ref":12} /-->' ), 'a synced pattern (the owner\'s disclosure block on every recipe)' );
+		$this->assertTrue( Renderer::has_body( '<!-- wp:latest-posts {"postsToShow":3} /-->' ) );
+		$this->assertTrue( Renderer::has_body( '<!-- wp:query {"queryId":1} --><div class="wp-block-query"><!-- wp:post-template --><!-- wp:post-title /--><!-- /wp:post-template --></div><!-- /wp:query -->' ), 'a Query Loop with no static text' );
+		$this->assertTrue( Renderer::has_body( '<!-- wp:shortcode -->[gallery]<!-- /wp:shortcode -->' ) );
+		$this->assertTrue( Renderer::has_body( '<!-- wp:paragraph --><p></p><!-- /wp:paragraph --><!-- wp:block {"ref":12} /-->' ), 'an empty paragraph before a pattern' );
+		$this->assertFalse( Renderer::has_body( '<!-- wp:spacer --><div style="height:10px" class="wp-block-spacer"></div><!-- /wp:spacer --><!-- wp:separator --><hr class="wp-block-separator"/><!-- /wp:separator -->' ), 'spacing alone is not a body' );
+		// Classic (non-block) content.
+		$this->assertTrue( Renderer::has_body( '<img src="https://x/a.jpg">' ), 'a classic-editor image without a figure' );
+		$this->assertTrue( Renderer::has_body( '<IMG SRC="https://x/a.jpg">' ), 'case-insensitive' );
+		$this->assertFalse( Renderer::has_body( "<p>\xC2\xA0</p>\n<p>&nbsp;</p>" ), 'raw and entity non-breaking spaces' );
+		$this->assertFalse( Renderer::has_body( "<!-- wp:paragraph -->\n<p>\n\n</p>\n<!-- /wp:paragraph -->" ), 'newlines inside the block' );
+		$this->assertTrue( Renderer::has_body( "<!-- wp:paragraph -->\n<p>text</p>\n<!-- /wp:paragraph -->" ) );
 		add_filter( 'the_content', static fn( string $c ): string => $c . '<aside>promo</aside>' );
 		$GLOBALS['bfrc_test_posts'][42]->post_content = "<!-- wp:paragraph -->\n<p></p>\n<!-- /wp:paragraph -->";
 		$this->assertStringNotContainsString( 'promo', $this->renderer->single( get_post( 42 ) ), 'an empty paragraph block is not a body: the_content does not run' );
+	}
+
+	public function test_single_renders_once_when_its_own_body_asks_for_the_recipe_again(): void {
+		$renderer                                     = $this->renderer;
+		$GLOBALS['bfrc_test_posts'][41]->post_content = '<!-- wp:paragraph --><p>Serve warm.</p><!-- /wp:paragraph --><!-- wp:bfrc/recipe-single /-->';
+		$depth                                        = 0;
+		add_filter( 'the_content', static function ( string $c ) use ( $renderer, &$depth ): string {
+			++$depth; // do_blocks() rendering the Single Recipe block inside the body.
+			return $c . $renderer->single( get_post( 41 ) );
+		} );
+		$this->assertFalse( Renderer::is_rendering_single() );
+		$html = $renderer->single( get_post( 41 ) );
+		$this->assertSame( 1, $depth, 'the nested render returned at once' );
+		$this->assertSame( 1, substr_count( $html, 'id="bfrc-recipe-41"' ) );
+		$this->assertStringContainsString( '<p>Serve warm.</p>', $html );
+		$this->assertFalse( Renderer::is_rendering_single(), 'released afterwards' );
+		$this->assertFalse( Renderer::is_rendering_single(), 'and after a protected recipe, which never sets it' );
 	}
 
 	public function test_single_handles_body_content_a_missing_hero_and_a_deleted_author(): void {
@@ -377,6 +412,17 @@ final class RendererTest extends TestCase {
 		$this->assertStringContainsString( '&amp;text=Tomato%20%27Soup%27%20%26%20Bread"', $html, 'X: quotes decoded (ENT_QUOTES), tags stripped, then URL-encoded' );
 		$this->assertStringContainsString( '&amp;description=Tomato%20%27Soup%27%20%26%20Bread', $html, 'Pinterest the same' );
 		$this->assertStringNotContainsString( '%3Cb%3E', $html, 'no markup in the share text' );
+	}
+
+	public function test_the_hero_photo_falls_back_to_the_recipe_title_for_its_alt_text(): void {
+		update_post_meta( 41, '_thumbnail_id', 77 );
+		bfrc_test_add_attachment( 77 );
+		$hero = $this->renderer->hero( get_post( 41 ), RecipeData::for_post( 41 ) );
+		$this->assertStringContainsString( 'class="bfrc-recipe__image" alt="Tomato &quot;Soup&quot;"', $hero, 'no alt stored: the recipe name' );
+		update_post_meta( 77, '_wp_attachment_image_alt', 'A red bowl' );
+		$this->assertStringContainsString( 'alt="A red bowl"', $this->renderer->hero( get_post( 41 ), RecipeData::for_post( 41 ) ), 'a stored alt wins' );
+		$this->assertStringContainsString( 'aria-describedby="bfrc-filters-hint"', $this->renderer->filters( bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] ) ) );
+		$this->assertStringContainsString( '<p id="bfrc-filters-hint" class="screen-reader-text">Changing a filter or pausing while typing updates the list', $this->renderer->filters( bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] ) ), 'WCAG 3.2.2: the change of context is announced' );
 	}
 
 	public function test_badges_hero_term_badges_and_section_helpers_handle_empty_data(): void {

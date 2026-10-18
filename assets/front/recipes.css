@@ -47,12 +47,15 @@
 .bfrc-writer__header img { display: block; width: 100%; height: auto; max-height: 20rem; object-fit: cover; border-radius: .5rem; margin-bottom: 1.5rem; }
 .bfrc-writer__intro { display: flex; gap: 1.5rem; align-items: flex-start; }
 .bfrc-avatar { border-radius: 50%; width: 10rem; height: 10rem; object-fit: cover; flex: 0 0 auto; }
+.bfrc-writers__grid { grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); }
 .bfrc-writer-card { display: flex; gap: 1rem; align-items: flex-start; }
+.bfrc-writer-card__avatar { flex: 0 0 auto; }
 .bfrc-writer-card .bfrc-avatar { width: 5rem; height: 5rem; }
 .bfrc-writer-card__name { margin: 0; font-size: 1.1em; }
 .bfrc-writer__links { list-style: none; display: flex; flex-wrap: wrap; gap: .5rem 1rem; padding: 0; margin: .5rem 0 0; }
 @media (max-width: 40rem) {
 	.bfrc-writer__intro { flex-direction: column; }
+	.bfrc-card__media:has(.bfrc-card__placeholder) { aspect-ratio: 3 / 1; }
 	.bfrc-filters__field select, .bfrc-filters__field input { min-width: 100%; }
 }
 @media print {

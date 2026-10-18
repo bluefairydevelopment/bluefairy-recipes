@@ -48,7 +48,9 @@ test( 'a changed select submits after the debounce with the empty fields disable
 	assert.equal( p.doc.querySelector( '[name="bfrc_filter[cuisine]"]' ).disabled, false, 'Back from the bfcache: the field is usable again' );
 	assert.equal( p.doc.querySelector( '[name="bfrc_s"]' ).disabled, false );
 	assert.equal( p.doc.querySelector( '[name="bfrc_s"]' ).hasAttribute( 'data-bfrc-disabled' ), false );
-	assert.equal( p.win.sessionStorage.getItem( 'bfrcFocus' ), null, 'a select does not ask for focus' );
+	assert.match( p.win.sessionStorage.getItem( 'bfrcFocus' ), /^bfrc_filter\[diet\]:\d+$/, 'the changed select asks to be focused again after the reload' );
+	const back = page( form(), { query: '?bfrc_filter%5Bdiet%5D=vegan', flag: 'bfrc_filter[diet]:' + Date.now() } );
+	assert.equal( back.doc.activeElement, back.doc.querySelector( '[name="bfrc_filter[diet]"]' ), 'a keyboard user lands back on the select, not at the top of the page' );
 } );
 
 test( 'a cancelled submit re-enables the fields on pagehide and a field disabled by the theme is left alone', () => {
@@ -71,14 +73,57 @@ test( 'typing submits with a focus flag, IME composition waits, and the flag res
 	assert.deepEqual( p.submits, [], 'mid-composition: nothing submitted' );
 	input.dispatchEvent( new p.win.InputEvent( 'input', { bubbles: true } ) );
 	assert.deepEqual( p.submits, [ [ 'bfrc_filter[diet]:off', 'bfrc_filter[cuisine]:off', 'bfrc_s:on' ] ] );
-	assert.equal( p.win.sessionStorage.getItem( 'bfrcFocus' ), 'bfrc_s', 'typing asks for focus on the next page' );
 
-	const after = page( form( 'sou' ), { query: '?bfrc_s=sou', flag: 'bfrc_s' } );
+	assert.match( p.win.sessionStorage.getItem( 'bfrcFocus' ), /^bfrc_s:\d+$/, 'typing asks for focus on the next page, with a timestamp' );
+	const after = page( form( 'sou' ), { query: '?bfrc_s=sou', flag: 'bfrc_s:' + Date.now() } );
 	assert.equal( after.doc.activeElement, after.doc.querySelector( '[name="bfrc_s"]' ), 'the caret is back in the search box' );
 	assert.equal( after.win.sessionStorage.getItem( 'bfrcFocus' ), null, 'consumed: a plain reload will not refocus' );
 
 	const shared = page( form( 'sou' ), { query: '?bfrc_s=sou' } );
 	assert.equal( shared.doc.activeElement, shared.doc.body, 'a shared link with a search in the URL does not steal focus' );
+
+	const stale = page( form( 'sou' ), { query: '?bfrc_s=sou', flag: 'bfrc_s:' + ( Date.now() - 60000 ) } );
+	assert.equal( stale.doc.activeElement, stale.doc.body, 'a flag from a search that never navigated (a minute old) is ignored' );
+	assert.equal( stale.win.sessionStorage.getItem( 'bfrcFocus' ), null, 'and consumed' );
+
+	const cleared = page( form( '' ), { flag: 'bfrc_s:' + Date.now() } );
+	assert.equal( cleared.doc.activeElement, cleared.doc.querySelector( '[name="bfrc_s"]' ), 'the visitor cleared the box and the page reloaded: the caret goes back to the empty box' );
+
+	const busy = page( form( 'sou' ) + '<input id="cookie-ok" autofocus>', { query: '?bfrc_s=sou', flag: 'bfrc_s:' + Date.now() } );
+	busy.doc.getElementById( 'cookie-ok' ).focus();
+	busy.win.eval( SOURCE );
+	assert.equal( busy.doc.activeElement, busy.doc.getElementById( 'cookie-ok' ), 'a theme that already placed focus keeps it' );
+} );
+
+test( 'committed IME text submits on compositionend', () => {
+	const p = page( form() );
+	const input = p.doc.querySelector( '[name="bfrc_s"]' );
+	input.value = '寿司';
+	input.dispatchEvent( new p.win.InputEvent( 'input', { bubbles: true, isComposing: true } ) ); // Chrome/Safari: the last input of a composition still says composing
+	assert.deepEqual( p.submits, [] );
+	input.dispatchEvent( new p.win.CompositionEvent( 'compositionend', { bubbles: true, data: '寿司' } ) );
+	assert.equal( p.submits.length, 1, 'the committed word searches' );
+	assert.match( p.win.sessionStorage.getItem( 'bfrcFocus' ), /^bfrc_s:\d+$/ );
+} );
+
+test( 'a field named "action" does not shadow the form action', () => {
+	// No action attribute at all, but a field named "action": form.action is then that element (truthy),
+	// and a script reading it would cancel the submit and navigate to "[object HTMLInputElement]".
+	// The attribute is what counts: absent, the script leaves the submit alone.
+	const p = page( form().replace( ' action="https://example.com/recipes/"', '' ).replace( '<button type="submit">', '<input type="hidden" name="action" value="injected"><button type="submit">' ), { navigate: true, query: '?bfrc_filter%5Bdiet%5D=vegan' } );
+	// jsdom does not implement the named-field shadowing browsers do, so it is reproduced on the instance.
+	Object.defineProperty( p.form, 'action', { value: p.form.querySelector( '[name=action]' ), configurable: true } );
+	assert.equal( typeof p.form.action, 'object', 'the harness reproduces the shadowing' );
+	let prevented = null;
+	p.form.addEventListener( 'submit', ( e ) => { prevented = e.defaultPrevented; } ); // Registered after the script's listener, so it sees its decision.
+	p.form.requestSubmit();
+	assert.equal( prevented, false, 'not cancelled: the form submits itself' );
+
+	const real = page( form(), { navigate: true, query: '?bfrc_filter%5Bdiet%5D=vegan' } );
+	let preventedReal = null;
+	real.form.addEventListener( 'submit', ( e ) => { preventedReal = e.defaultPrevented; } );
+	real.form.requestSubmit();
+	assert.equal( preventedReal, true, 'with an action attribute and nothing to send, the script takes over' );
 } );
 
 test( 'Filter with every field empty goes to the plain archive URL instead of submitting a bare "?"', () => {

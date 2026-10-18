@@ -86,6 +86,11 @@ final class MetaTest extends TestCase {
 
 		bfrc_test_add_post( [ 'ID' => 42, 'post_type' => 'bfrc_recipe' ] );
 		$this->assertSame( $meta, Meta::hide_protected_meta( $make(), get_post( 42 ), new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/42' ) )->get_data()['meta'], 'no password, nothing to hide' );
+		$GLOBALS['bfrc_test_password_unlocked'][41] = true;
+		$this->assertSame( $meta, Meta::hide_protected_meta( $make(), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) )->get_data()['meta'], 'the unlock cookie counts, as it does for content' );
+		$GLOBALS['bfrc_test_password_unlocked'] = [];
+		$other = Meta::hide_protected_meta( new \WP_REST_Response( [ 'id' => 41, 'meta' => [ 'other_plugin_key' => 'kept' ] ] ), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) )->get_data();
+		$this->assertSame( [ 'other_plugin_key' => 'kept' ], $other['meta'], 'keys absent from the item (a _fields selection) are not added' );
 		$bare = Meta::hide_protected_meta( new \WP_REST_Response( [ 'id' => 41 ] ), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) );
 		$this->assertSame( [ 'id' => 41 ], $bare->get_data(), 'an item without meta (a context that omits it) passes through' );
 	}
