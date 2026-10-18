@@ -21,4 +21,5 @@
   Rank Math and All in One SEO canonicals, custom pagination bases and plain permalinks;
   Recipe Writers can reach the dashboard on WooCommerce sites; keyboard focus returns to the
   filter control that was used; pagination lays out as a row; filters fill the width on phones;
-  the stylesheet loads on recipe views only.
+  the stylesheet loads on recipe views only; the recipe blocks render only on recipe pages,
+  never inside feeds or API items; a password-protected recipe's API item is never cached.

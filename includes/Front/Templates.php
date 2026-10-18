@@ -399,11 +399,21 @@ final class Templates {
 				break;
 			}
 		}
-		if ( ! $in_query || $query->is_feed() || ! Writers::uses_permalinks() ) {
+		if ( ! $in_query || ! Writers::uses_permalinks() ) {
 			return;
 		}
 		$url = $this->canonical_url( $query );
 		if ( '' === $url ) {
+			return;
+		}
+		if ( $query->is_feed() ) {
+			// A feed's URL is core's, so a pretty feed is never redirected; but `?author_name=` on a
+			// writer's feed URL would serve another writer's items there, so that override goes to
+			// the resolved writer's own feed.
+			if ( (bool) $query->get( Writers::QUERY_VAR ) && ( isset( $_GET['author_name'] ) || isset( $_POST['author_name'] ) ) ) {
+				wp_safe_redirect( trailingslashit( $url ) . 'feed/', 301, 'BlueFairy Recipes' );
+				exit;
+			}
 			return;
 		}
 		$keep = [];
@@ -548,11 +558,31 @@ final class Templates {
 	/**
 	 * Recipes take no comments (Pro reviews use their own type).
 	 *
-	 * @param bool $open    Whether comments are open.
-	 * @param int  $post_id The post.
+	 * @param mixed $open    Whether comments are open (a bool unless another filter changed it).
+	 * @param mixed $post_id The post.
 	 */
-	public function comments_closed( bool $open, int $post_id ): bool {
-		return get_post_type( $post_id ) === PostType::NAME ? false : $open;
+	public function comments_closed( mixed $open, mixed $post_id ): bool {
+		return get_post_type( (int) $post_id ) === PostType::NAME ? false : (bool) $open;
+	}
+
+	/**
+	 * May a view block render here? On a recipe view of the main query (a
+	 * visitor's page), or in the Site Editor's preview. Never in a feed, a
+	 * REST item's `content.rendered`, or another post type's page: a writer
+	 * who pastes a view block into a body must not make the public feeds and
+	 * the REST collection carry a whole recipe page or grid per item.
+	 *
+	 * @param \WP_Query|null $wp_query The main query.
+	 * @param bool           $single   Require the single recipe view (else any recipe view).
+	 */
+	private function view_block_allowed( ?\WP_Query $wp_query, bool $single ): bool {
+		if ( self::is_editor_preview() ) {
+			return true;
+		}
+		if ( ! $wp_query instanceof \WP_Query || $wp_query->is_feed() || ( function_exists( 'wp_is_serving_rest_request' ) && wp_is_serving_rest_request() ) ) {
+			return false;
+		}
+		return $single ? $wp_query->is_singular( PostType::NAME ) && $wp_query->is_main_query() : $this->is_recipe_query( $wp_query );
 	}
 
 	/**
@@ -596,6 +626,10 @@ final class Templates {
 	 * The single-recipe view block.
 	 */
 	public function render_single_block(): string {
+		global $wp_query;
+		if ( ! $this->view_block_allowed( $wp_query instanceof \WP_Query ? $wp_query : null, true ) ) {
+			return '';
+		}
 		$post = get_post(); // Inside a recipe's own body Renderer::single() returns '' (its re-entrancy guard).
 		if ( ! $post instanceof \WP_Post || PostType::NAME !== $post->post_type ) {
 			if ( ! self::is_editor_preview() ) {
@@ -647,7 +681,7 @@ final class Templates {
 	 */
 	public function render_archive_block( mixed $attributes = [] ): string {
 		global $wp_query;
-		if ( ! $wp_query instanceof \WP_Query || Renderer::is_rendering_single() ) {
+		if ( ! $wp_query instanceof \WP_Query || Renderer::is_rendering_single() || ! $this->view_block_allowed( $wp_query, false ) ) {
 			return '';
 		}
 		if ( self::is_editor_preview() && is_array( $attributes ) && 'writers' === ( $attributes['view'] ?? '' ) ) {

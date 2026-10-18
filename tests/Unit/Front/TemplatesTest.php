@@ -301,9 +301,16 @@ final class TemplatesTest extends TestCase {
 		}
 		$feed          = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann', 'feed' => 'rss2' ], 'author' );
 		$feed->is_feed = true;
-		$_GET          = [ 'bfrc_writer' => '1', 'author_name' => 'ann', 'feed' => 'rss2' ];
+		$_GET          = [ 'bfrc_writer' => '1', 'feed' => 'rss2' ];
 		$this->templates->guard();
-		$this->assertFalse( $feed->is_404(), 'a feed is never redirected' );
+		$this->assertFalse( $feed->is_404(), 'a pretty feed is never redirected (its URL is core\'s)' );
+		$_GET = [ 'author_name' => 'ann' ]; // /recipes/chef/someone-else/feed/?author_name=ann would carry Ann's items at the other writer's address.
+		try {
+			$this->templates->guard();
+			$this->fail( 'expected a redirect' );
+		} catch ( \BfrcTestExit $e ) {
+			$this->assertSame( 'https://example.com/recipes/chef/ann/feed/', $e->payload, 'the override goes to the resolved writer\'s own feed' );
+		}
 		$GLOBALS['wp_rewrite']->permalink_structure = '';
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
 		$_GET = [ 'bfrc_writer' => '1', 'author_name' => 'ann' ];
@@ -581,12 +588,27 @@ final class TemplatesTest extends TestCase {
 	public function test_view_blocks_render_from_the_main_query_and_enqueue_the_assets(): void {
 		$t                                   = $this->templates;
 		$GLOBALS['post']                     = get_post( 41 );
+		$single                              = bfrc_test_front_query( [], 'single' );
+		$single->queried_object              = get_post( 41 );
 		$html                                = $t->render_single_block();
 		$this->assertStringContainsString( 'class="bfrc-recipe__title">Soup<', $html );
 		$this->assertSame( [ 'bfrc-recipes' ], $GLOBALS['bfrc_test_enqueued']['style'] );
 		$GLOBALS['post'] = bfrc_test_add_post( [ 'ID' => 50, 'post_type' => 'post' ] );
 		$this->assertSame( '', $t->render_single_block(), 'not a recipe' );
 		$this->assertFalse( Templates::is_editor_preview() );
+		$GLOBALS['post'] = get_post( 41 );
+		$feed            = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'feed' => 'rss2' ] );
+		$feed->is_feed   = true;
+		$this->assertSame( '', $t->render_single_block(), 'a feed item never carries a whole recipe page' );
+		$feed->posts = [ get_post( 41 ) ];
+		$this->assertSame( '', $t->render_archive_block(), 'nor a grid' );
+		$page                 = bfrc_test_front_query( [], 'single' );
+		$page->queried_object = bfrc_test_add_post( [ 'ID' => 51, 'post_type' => 'page', 'post_title' => 'About' ] );
+		$page->posts          = [ get_post( 51 ) ];
+		$this->assertSame( '', $t->render_archive_block(), 'the archive block on a page does not list the page as a recipe card' );
+		$GLOBALS['post'] = get_post( 51 );
+		$this->assertSame( '', $t->render_single_block() );
+		$GLOBALS['post'] = get_post( 50 ); // Not a recipe: the editor has no recipe in context.
 		$GLOBALS['bfrc_test_serving_rest'] = true;
 		$GLOBALS['wp']->query_vars['rest_route'] = '/wp/v2/pages/5';
 		$this->assertFalse( Templates::is_editor_preview(), 'a page\'s content.rendered over REST renders as on the site' );
@@ -599,6 +621,7 @@ final class TemplatesTest extends TestCase {
 		$GLOBALS['bfrc_test_posts'][41]->post_status = 'draft';
 		$this->assertStringContainsString( '<article class="bfrc-recipe bfrc-recipe--placeholder"><p>The recipe shows here', $t->render_single_block(), 'no published recipe yet: say what the block is, never an empty canvas' );
 		$GLOBALS['bfrc_test_serving_rest'] = false;
+		bfrc_test_front_query( [], 'single' )->queried_object = get_post( 50 );
 		$this->assertSame( '', $t->render_single_block(), 'a visitor\'s page never previews another recipe' );
 		$GLOBALS['bfrc_test_posts'][41]->post_status = 'publish';
 		$q        = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );

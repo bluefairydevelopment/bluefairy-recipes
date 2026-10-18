@@ -64,7 +64,9 @@ final class MetaTest extends TestCase {
 		$make = static fn(): \WP_REST_Response => new \WP_REST_Response( [ 'id' => 41, 'title' => [ 'rendered' => 'Protected: Soup' ], 'meta' => $meta ] );
 		$post = get_post( 41 );
 
-		$locked = Meta::hide_protected_meta( $make(), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) )->get_data();
+		$locked_response = Meta::hide_protected_meta( $make(), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) );
+		$this->assertSame( 'no-store', $locked_response->get_headers()['Cache-Control'], 'a shared cache must not serve one caller\'s locked or unlocked item to the next' );
+		$locked          = $locked_response->get_data();
 		$this->assertSame( 0, $locked['meta'][ Meta::PREP_MINUTES ] );
 		$this->assertSame( [], $locked['meta'][ Meta::INGREDIENTS ] );
 		$this->assertSame( [], $locked['meta'][ Meta::STEPS ] );
@@ -78,14 +80,18 @@ final class MetaTest extends TestCase {
 		$this->assertSame( [], Meta::hide_protected_meta( $make(), $post, $wrong )->get_data()['meta'][ Meta::INGREDIENTS ], 'a wrong password unlocks nothing' );
 		$right = new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' );
 		$right->set_param( 'password', 'hunter2' );
-		$this->assertSame( $meta, Meta::hide_protected_meta( $make(), $post, $right )->get_data()['meta'], 'core\'s own rule: the right ?password= reads the item' );
+		$unlocked = Meta::hide_protected_meta( $make(), $post, $right );
+		$this->assertSame( $meta, $unlocked->get_data()['meta'], 'core\'s own rule: the right ?password= reads the item' );
+		$this->assertSame( 'no-store', $unlocked->get_headers()['Cache-Control'], 'the unlocked item even more so' );
 
 		$GLOBALS['bfrc_test_caps']['edit_post'] = static fn( array $args ): bool => 41 === ( $args[0] ?? 0 );
 		$this->assertSame( $meta, Meta::hide_protected_meta( $make(), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) )->get_data()['meta'], 'the recipe\'s editor sees it (the block editor needs it)' );
 		$GLOBALS['bfrc_test_caps'] = [];
 
 		bfrc_test_add_post( [ 'ID' => 42, 'post_type' => 'bfrc_recipe' ] );
-		$this->assertSame( $meta, Meta::hide_protected_meta( $make(), get_post( 42 ), new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/42' ) )->get_data()['meta'], 'no password, nothing to hide' );
+		$open = Meta::hide_protected_meta( $make(), get_post( 42 ), new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/42' ) );
+		$this->assertSame( $meta, $open->get_data()['meta'], 'no password, nothing to hide' );
+		$this->assertArrayNotHasKey( 'Cache-Control', $open->get_headers(), 'an open recipe caches as core decides' );
 		$GLOBALS['bfrc_test_password_unlocked'][41] = true;
 		$this->assertSame( $meta, Meta::hide_protected_meta( $make(), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) )->get_data()['meta'], 'the unlock cookie counts, as it does for content' );
 		$GLOBALS['bfrc_test_password_unlocked'] = [];

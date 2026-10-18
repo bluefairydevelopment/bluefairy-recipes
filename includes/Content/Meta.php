@@ -392,6 +392,11 @@ final class Meta {
 	 * @param \WP_REST_Request  $request  The request.
 	 */
 	public static function hide_protected_meta( \WP_REST_Response $response, \WP_Post $post, \WP_REST_Request $request ): \WP_REST_Response {
+		if ( '' !== (string) $post->post_password ) {
+			// Whether this item comes out locked or unlocked depends on the caller's cookie or password:
+			// no shared cache may store it for the next caller.
+			$response->header( 'Cache-Control', 'no-store' );
+		}
 		if ( ! post_password_required( $post ) || current_user_can( 'edit_post', $post->ID ) ) {
 			return $response;
 		}
