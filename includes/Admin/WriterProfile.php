@@ -204,6 +204,12 @@ final class WriterProfile {
 	/**
 	 * An absolute http(s) URL with a host, or ''.
 	 *
+	 * A syntactic check only. `wp_http_validate_url()` is not used: it resolves
+	 * the host with a DNS lookup on every save and refuses private and
+	 * unresolvable hosts, which is right for a server-side fetch and wrong for
+	 * a link a writer publishes (found on the dev site, where `example.test`
+	 * was silently dropped).
+	 *
 	 * @param mixed $value Raw input.
 	 */
 	public static function sanitize_link( mixed $value ): string {
@@ -211,8 +217,12 @@ final class WriterProfile {
 		if ( '' === $url ) {
 			return '';
 		}
-		$url = esc_url_raw( $url, [ 'http', 'https' ] );
-		return false === wp_http_validate_url( $url ) ? '' : $url;
+		$url   = esc_url_raw( $url, [ 'http', 'https' ] );
+		$parts = wp_parse_url( $url );
+		if ( ! is_array( $parts ) || ! in_array( strtolower( (string) ( $parts['scheme'] ?? '' ) ), [ 'http', 'https' ], true ) || '' === trim( (string) ( $parts['host'] ?? '' ), '.' ) ) {
+			return '';
+		}
+		return $url;
 	}
 
 	/**

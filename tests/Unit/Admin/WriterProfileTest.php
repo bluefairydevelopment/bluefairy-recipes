@@ -168,7 +168,10 @@ final class WriterProfileTest extends TestCase {
 	public function test_sanitize_link(): void {
 		$this->assertSame( 'https://example.test/a?b=1', WriterProfile::sanitize_link( ' https://example.test/a?b=1 ' ) );
 		$this->assertSame( 'http://example.test', WriterProfile::sanitize_link( 'http://example.test' ) );
-		foreach ( [ 'javascript:alert(1)', 'ftp://x.test', '//x.test', 'example.test', 'https://', '', null, [ 'a' ], 12 ] as $bad ) {
+		$this->assertSame( 'https://example.test/jenny', WriterProfile::sanitize_link( 'https://example.test/jenny' ), 'an unresolvable host is still a valid link: no DNS lookup' );
+		$this->assertSame( 'http://10.0.0.5/intranet', WriterProfile::sanitize_link( 'http://10.0.0.5/intranet' ), 'a private address is a link, not a fetch target' );
+		$this->assertSame( 'HTTPS://Example.test', WriterProfile::sanitize_link( 'HTTPS://Example.test' ), 'scheme case is not a reason to refuse' );
+		foreach ( [ 'javascript:alert(1)', 'ftp://x.test', '//x.test', 'example.test', 'https://', 'https:///path', 'https://./', '', null, [ 'a' ], 12 ] as $bad ) {
 			$this->assertSame( '', WriterProfile::sanitize_link( $bad ), var_export( $bad, true ) );
 		}
 	}
