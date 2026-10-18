@@ -83,11 +83,15 @@ if ( ! function_exists( 'wp_set_object_terms' ) ) {
 	function wp_dropdown_categories( array $args = [] ): string {
 		$GLOBALS['bfrc_test_dropdowns'][ (string) ( $args['name'] ?? 'cat' ) ] = $args;
 		$out = '<select name="' . esc_attr( (string) ( $args['name'] ?? 'cat' ) ) . '">';
-		if ( ! empty( $args['show_option_all'] ) ) {
-			$out .= '<option value="">' . esc_html( (string) $args['show_option_all'] ) . '</option>';
-		}
 		$terms = get_terms( [ 'taxonomy' => (string) ( $args['taxonomy'] ?? 'category' ), 'hide_empty' => false ] );
-		foreach ( is_wp_error( $terms ) ? [] : $terms as $term ) { // core: an unregistered taxonomy lists no terms.
+		$terms = is_wp_error( $terms ) ? [] : $terms;
+		if ( [] === $terms && ! empty( $args['hide_if_empty'] ) ) {
+			return ''; // As core.
+		}
+		if ( ! empty( $args['show_option_all'] ) && [] !== $terms ) {
+			$out .= '<option value="0">' . esc_html( (string) $args['show_option_all'] ) . '</option>'; // As core: value 0, only when there are terms.
+		}
+		foreach ( $terms as $term ) {
 			$term = (object) $term;
 			$sel  = ( (string) ( $args['selected'] ?? '' ) === $term->slug ) ? ' selected' : '';
 			$out .= '<option value="' . esc_attr( $term->slug ) . '"' . $sel . '>' . esc_html( $term->name ) . '</option>';
@@ -185,4 +189,41 @@ function bfrc_test_add_attachment( int $id, string $mime = 'image/jpeg', string 
 		'url'  => '' !== $url ? $url : 'https://example.test/uploads/' . $id . '.jpg',
 	];
 	return bfrc_test_add_post( [ 'ID' => $id, 'post_type' => 'attachment', 'post_status' => 'inherit' ] );
+}
+
+if ( ! function_exists( 'update_post_thumbnail_cache' ) ) {
+	function update_post_thumbnail_cache( mixed $wp_query = null ): void {
+		$GLOBALS['bfrc_test_thumbnail_cache_calls'][] = $wp_query;
+	}
+}
+if ( ! function_exists( 'metadata_exists' ) ) {
+	function metadata_exists( string $meta_type, int $object_id, string $meta_key ): bool {
+		$bag = 'post' === $meta_type ? 'bfrc_test_post_meta' : 'bfrc_test_user_meta';
+		return isset( $GLOBALS[ $bag ][ $object_id ] ) && array_key_exists( $meta_key, $GLOBALS[ $bag ][ $object_id ] );
+	}
+}
+if ( ! function_exists( '_prime_post_caches' ) ) {
+	function _prime_post_caches( array $ids, bool $update_term_cache = true, bool $update_meta_cache = true ): void {
+		$GLOBALS['bfrc_test_primed'][] = $ids;
+	}
+}
+if ( ! function_exists( 'get_posts' ) ) {
+	/** Enough of get_posts() for an ids lookup by post type and one meta key/value. */
+	function get_posts( array $args = [] ): array {
+		$GLOBALS['bfrc_test_get_posts_calls'][] = $args;
+		$out = [];
+		foreach ( $GLOBALS['bfrc_test_posts'] as $post ) {
+			if ( isset( $args['post_type'] ) && $post->post_type !== $args['post_type'] ) {
+				continue;
+			}
+			if ( isset( $args['meta_key'] ) ) {
+				$value = $GLOBALS['bfrc_test_post_meta'][ $post->ID ][ $args['meta_key'] ] ?? null;
+				if ( null === $value || ( isset( $args['meta_value'] ) && (string) ( is_bool( $value ) ? ( $value ? '1' : '' ) : $value ) !== (string) $args['meta_value'] ) ) {
+					continue;
+				}
+			}
+			$out[] = ( $args['fields'] ?? '' ) === 'ids' ? $post->ID : $post;
+		}
+		return $out;
+	}
 }

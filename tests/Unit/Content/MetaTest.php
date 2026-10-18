@@ -43,6 +43,23 @@ final class MetaTest extends TestCase {
 		$m = new Meta();
 		$m->register_hooks();
 		$this->assertSame( 7, has_action( 'init', [ $m, 'register' ] ) );
+		$this->assertSame( 5, has_action( 'save_post_bfrc_recipe', [ Meta::class, 'ensure_featured_key' ] ) );
+	}
+
+	public function test_ensure_featured_key_writes_a_false_row_once_for_real_recipes_only(): void {
+		$recipe = bfrc_test_add_post( [ 'ID' => 41, 'post_type' => 'bfrc_recipe', 'post_status' => 'draft' ] );
+		Meta::ensure_featured_key( 41, $recipe );
+		$this->assertTrue( metadata_exists( 'post', 41, Meta::FEATURED ) );
+		$this->assertFalse( get_post_meta( 41, Meta::FEATURED, true ) );
+		update_post_meta( 41, Meta::FEATURED, true );
+		Meta::ensure_featured_key( 41, $recipe );
+		$this->assertTrue( get_post_meta( 41, Meta::FEATURED, true ), 'an existing value is never touched' );
+		$auto = bfrc_test_add_post( [ 'ID' => 42, 'post_type' => 'bfrc_recipe', 'post_status' => 'auto-draft' ] );
+		Meta::ensure_featured_key( 42, $auto );
+		$this->assertFalse( metadata_exists( 'post', 42, Meta::FEATURED ), 'auto-drafts are skipped' );
+		$post = bfrc_test_add_post( [ 'ID' => 43, 'post_type' => 'post' ] );
+		Meta::ensure_featured_key( 43, $post );
+		$this->assertFalse( metadata_exists( 'post', 43, Meta::FEATURED ) );
 	}
 
 	public function test_can_edit_asks_for_edit_post_on_that_recipe_for_the_user_core_names(): void {
@@ -53,6 +70,11 @@ final class MetaTest extends TestCase {
 		bfrc_test_add_user( 9, [ 'roles' => [ 'tester' ] ] );
 		bfrc_test_add_user( 10, [ 'roles' => [ 'subscriber' ] ] );
 		$this->assertTrue( Meta::can_edit( false, Meta::STEPS, 41, 9 ) );
+		$this->assertFalse( Meta::can_edit( false, Meta::FEATURED, 41, 9 ), 'Featured is curation: edit_post alone is not enough' );
+		$this->assertFalse( Meta::can_edit( false, Meta::FEATURED, 41 ) );
+		bfrc_test_grant( Meta::CURATE_CAP );
+		$this->assertTrue( Meta::can_edit( false, Meta::FEATURED, 41 ), 'the current user with edit_others_bfrc_recipes may' );
+		$this->assertFalse( Meta::can_edit( false, Meta::FEATURED, 41, 9 ), 'a named user is judged by their own roles, not the current user\'s grant' );
 		$this->assertFalse( Meta::can_edit( true, Meta::STEPS, 41, 10 ), 'the named user, not the current one' );
 	}
 

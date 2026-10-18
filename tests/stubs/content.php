@@ -173,6 +173,7 @@ if ( ! function_exists( 'get_post_meta' ) ) {
 	}
 	/** As core: fires updated_post_meta (existing key) or added_post_meta (new key) with (meta_id, object_id, key, value). */
 	function update_post_meta( int $post_id, string $key, mixed $value, mixed $prev = '' ): int|bool {
+		$value = wp_unslash( $value ); // As core's update_metadata(): callers pass slashed data.
 		$existed = array_key_exists( $key, $GLOBALS['bfrc_test_post_meta'][ $post_id ] ?? [] );
 		if ( $existed && $GLOBALS['bfrc_test_post_meta'][ $post_id ][ $key ] === $value ) {
 			return false; // As core: an unchanged value is not written and fires nothing.
@@ -182,6 +183,7 @@ if ( ! function_exists( 'get_post_meta' ) ) {
 		return $existed ? true : 1;
 	}
 	function add_post_meta( int $post_id, string $key, mixed $value, bool $unique = false ): int|false {
+		$value = wp_unslash( $value ); // As core.
 		if ( $unique && array_key_exists( $key, $GLOBALS['bfrc_test_post_meta'][ $post_id ] ?? [] ) ) {
 			return false;
 		}

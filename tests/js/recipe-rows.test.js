@@ -33,3 +33,19 @@ test( 'videoRejected warns only when something was typed and nothing was kept', 
 	assert.equal( rows.videoRejected( '', '' ), false, 'a deliberate clear' );
 	assert.equal( rows.videoRejected( '   ', '' ), false );
 } );
+
+test( 'rowLabel and format substitute literally, including $& in the value', () => {
+	assert.equal( rows.rowLabel( 'Step %d', 2 ), 'Step 3' );
+	assert.equal( rows.rowLabel( 'Ingredient %1$d %2$s', 0, 'Product' ), 'Ingredient 1 Product' );
+	assert.equal( rows.rowLabel( undefined, 0 ), '' );
+	assert.equal( rows.format( 'URL "%s" refused', 'x$&y$1' ), 'URL "x$&y$1" refused', 'no replacement-pattern surprises' );
+	assert.equal( rows.format( 'Moved to %d.', 4 ), 'Moved to 4.' );
+} );
+
+test( 'tooManyFields warns before PHP would truncate, and never when the ceiling is unknown', () => {
+	assert.equal( rows.tooManyFields( 800, 1000 ), false );
+	assert.equal( rows.tooManyFields( 881, 1000 ), true, '881 + 120 margin > 1000' );
+	assert.equal( rows.tooManyFields( 5000, 0 ), false );
+	assert.equal( rows.tooManyFields( 10, 100, 0 ), false );
+	assert.equal( rows.tooManyFields( 101, 100, 0 ), true );
+} );

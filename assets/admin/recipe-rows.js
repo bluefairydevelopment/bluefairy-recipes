@@ -62,7 +62,50 @@
 		return String( typed || '' ).trim() !== '' && String( stored || '' ).trim() === '';
 	}
 
-	var api = { renumber: renumber, move: move, canAdd: canAdd, videoRejected: videoRejected };
+	/**
+	 * Fill a label template: `%d` or `%1$d` with the 1-based row number,
+	 * `%2$s` or `%s` with a field label. Replacement is literal (no `$&`).
+	 *
+	 * @param {string} template The translated template.
+	 * @param {number} index    0-based row index.
+	 * @param {string} [extra]  A field label.
+	 * @return {string} The label.
+	 */
+	function rowLabel( template, index, extra ) {
+		var n = String( index + 1 );
+		return String( template || '' )
+			.replace( /%1\$d|%d/g, function () { return n; } )
+			.replace( /%2\$s|%s/g, function () { return String( extra || '' ); } );
+	}
+
+	/**
+	 * Literal `%s` / `%d` substitution for a single value.
+	 *
+	 * @param {string} template The translated template.
+	 * @param {string|number} value The value.
+	 * @return {string} The text.
+	 */
+	function format( template, value ) {
+		return String( template || '' ).replace( /%[sd]/, function () { return String( value ); } );
+	}
+
+	/**
+	 * Will this many posted fields, plus a margin for the rest of the form,
+	 * exceed PHP's ceiling? An unknown ceiling (0) never warns.
+	 *
+	 * @param {number} fields   Named, enabled controls in our boxes.
+	 * @param {number} max      PHP max_input_vars (0 = unknown).
+	 * @param {number} [margin] Fields core posts outside our boxes (default 120).
+	 * @return {boolean} Whether to warn.
+	 */
+	function tooManyFields( fields, max, margin ) {
+		if ( ! ( max > 0 ) ) {
+			return false;
+		}
+		return fields + ( margin === undefined ? 120 : margin ) > max;
+	}
+
+	var api = { renumber: renumber, move: move, canAdd: canAdd, videoRejected: videoRejected, rowLabel: rowLabel, format: format, tooManyFields: tooManyFields };
 
 	if ( typeof module !== 'undefined' && module.exports ) {
 		module.exports = api;

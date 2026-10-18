@@ -2,12 +2,16 @@
 .bfrc-rows__table { margin-bottom: 8px; }
 .bfrc-rows__table th, .bfrc-rows__table td { vertical-align: middle; }
 .bfrc-rows__handle { width: 1.5em; cursor: grab; color: #8c8f94; text-align: center; user-select: none; }
-.bfrc-rows__list { margin: 0 0 8px; padding-left: 1.5em; }
-.bfrc-rows__list .bfrc-rows__row { display: grid; grid-template-columns: 1.5em 1fr auto; gap: 6px; align-items: start; margin-bottom: 6px; }
-.bfrc-rows__list .bfrc-rows__row textarea { min-height: 3.5em; }
+.bfrc-rows__list { margin: 0 0 8px; padding-left: 1.75em; }
+.bfrc-rows__list .bfrc-rows__row { display: list-item; margin-bottom: 6px; }
+.bfrc-rows__grid { display: grid; grid-template-columns: 1.5em 1fr auto; gap: 6px; align-items: start; }
+.bfrc-rows__grid textarea { min-height: 3.5em; }
 .bfrc-rows__actions { white-space: nowrap; }
 .bfrc-rows__actions .button-link { padding: 0 2px; text-decoration: none; color: #50575e; }
 .bfrc-rows__actions .button-link:hover, .bfrc-rows__actions .button-link:focus { color: #d63638; }
 .bfrc-rows__extra { margin-top: 4px; }
+.bfrc-rows__limit:empty { display: none; }
+.bfrc-editor .notice.inline { margin: 0 0 8px; }
 .bfrc-editor--nutrition p { display: inline-block; width: 24%; min-width: 9em; margin-right: 1%; }
 .bfrc-editor .bfrc-unit { color: #646970; font-weight: normal; }
+.bfrc-editor__readonly { color: #50575e; }

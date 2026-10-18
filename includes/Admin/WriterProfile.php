@@ -16,11 +16,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Avatar and header image (existing image attachments the saving user can
- * read; anything else keeps the old value), an "about" paragraph, a website
- * and four social links (http/https only), and "listed" (default true for the
- * Writer role). Save: `edit_user` on the target first, then the nonce. The
- * section shows only for users who can edit recipes.
+ * Avatar and header image (an existing image attachment the saving user
+ * uploaded or may edit; anything else keeps the old value), an "about"
+ * paragraph, a website and four social links (http/https only), and
+ * "listed" (default true for the Writer role). Save: `edit_user` on the
+ * target first, then the nonce. The section shows only for users who can
+ * edit recipes; the image pickers only for a saver who can upload files.
  */
 final class WriterProfile {
 
@@ -28,6 +29,8 @@ final class WriterProfile {
 	public const NONCE_FIELD  = 'bfrc_writer_profile_nonce';
 	public const FIELD        = 'bfrc_writer';
 	public const SCRIPT       = 'bfrc-writer-profile';
+	public const ABOUT_MAX    = 5000;
+	public const LINK_MAX     = 2048;
 
 	public const AVATAR_ID = 'bfrc_avatar_id';
 	public const HEADER_ID = 'bfrc_header_image_id';
@@ -88,25 +91,36 @@ final class WriterProfile {
 	}
 
 	/**
+	 * Does this user have a writer profile section at all?
+	 *
+	 * @param int|\WP_User $user The user.
+	 */
+	public static function has_profile( int|\WP_User $user ): bool {
+		return user_can( $user, 'edit_bfrc_recipes' );
+	}
+
+	/**
 	 * The fields, for users who can write recipes.
 	 *
 	 * @param \WP_User $user The user being edited.
 	 */
 	public function render( \WP_User $user ): void {
-		if ( ! user_can( $user, 'edit_bfrc_recipes' ) ) {
+		if ( ! self::has_profile( $user ) ) {
 			return;
 		}
-		wp_nonce_field( self::NONCE_ACTION, self::NONCE_FIELD );
+		wp_nonce_field( self::NONCE_ACTION, self::NONCE_FIELD, false );
 		echo '<h2>' . esc_html__( 'Recipe writer profile', 'bluefairy-recipes' ) . '</h2>';
 		echo '<table class="form-table bfrc-writer-profile" role="presentation">';
-		$this->image_row( self::AVATAR_ID, __( 'Profile photo', 'bluefairy-recipes' ), (int) get_user_meta( $user->ID, self::AVATAR_ID, true ) );
-		$this->image_row( self::HEADER_ID, __( 'Header image', 'bluefairy-recipes' ), (int) get_user_meta( $user->ID, self::HEADER_ID, true ) );
+		if ( current_user_can( 'upload_files' ) ) {
+			$this->image_row( self::AVATAR_ID, __( 'Profile photo', 'bluefairy-recipes' ), (int) get_user_meta( $user->ID, self::AVATAR_ID, true ) );
+			$this->image_row( self::HEADER_ID, __( 'Header image', 'bluefairy-recipes' ), (int) get_user_meta( $user->ID, self::HEADER_ID, true ) );
+		}
 		echo '<tr><th><label for="bfrc-about">' . esc_html__( 'About', 'bluefairy-recipes' ) . '</label></th><td>';
-		echo '<textarea id="bfrc-about" class="large-text" rows="5" name="' . esc_attr( self::FIELD . '[' . self::ABOUT . ']' ) . '">' . esc_textarea( (string) get_user_meta( $user->ID, self::ABOUT, true ) ) . '</textarea>';
+		echo '<textarea id="bfrc-about" class="large-text" rows="5" maxlength="' . esc_attr( (string) self::ABOUT_MAX ) . '" name="' . esc_attr( self::FIELD . '[' . self::ABOUT . ']' ) . '">' . esc_textarea( (string) get_user_meta( $user->ID, self::ABOUT, true ) ) . '</textarea>';
 		echo '<p class="description">' . esc_html__( 'Shown on your writer page. Basic formatting is kept.', 'bluefairy-recipes' ) . '</p></td></tr>';
 		foreach ( self::url_labels() as $key => $label ) {
 			echo '<tr><th><label for="bfrc-' . esc_attr( $key ) . '">' . esc_html( $label ) . '</label></th><td>';
-			echo '<input type="url" id="bfrc-' . esc_attr( $key ) . '" class="regular-text" name="' . esc_attr( self::FIELD . '[' . $key . ']' ) . '" value="' . esc_attr( (string) get_user_meta( $user->ID, $key, true ) ) . '" placeholder="https://"></td></tr>';
+			echo '<input type="text" inputmode="url" id="bfrc-' . esc_attr( $key ) . '" class="regular-text" maxlength="' . esc_attr( (string) self::LINK_MAX ) . '" name="' . esc_attr( self::FIELD . '[' . $key . ']' ) . '" value="' . esc_attr( (string) get_user_meta( $user->ID, $key, true ) ) . '" placeholder="https://"></td></tr>';
 		}
 		echo '<tr><th>' . esc_html__( 'Writer listing', 'bluefairy-recipes' ) . '</th><td><label>';
 		echo '<input type="checkbox" name="' . esc_attr( self::FIELD . '[' . self::LISTED . ']' ) . '" value="1"' . checked( self::is_listed( $user->ID ), true, false ) . '> ';
@@ -130,12 +144,22 @@ final class WriterProfile {
 	}
 
 	/**
-	 * The media picker on profile.php and user-edit.php.
+	 * The media picker, only where it will be used: profile.php and
+	 * user-edit.php, for a user who has a writer profile, when the viewer may
+	 * upload files. (`wp_enqueue_media()` loads the whole media stack and
+	 * scans the library's months, so it is not loaded for everyone.)
 	 *
 	 * @param string $hook The admin page hook.
 	 */
 	public function enqueue( string $hook ): void {
-		if ( ! in_array( $hook, [ 'profile.php', 'user-edit.php' ], true ) ) {
+		if ( ! in_array( $hook, [ 'profile.php', 'user-edit.php' ], true ) || ! current_user_can( 'upload_files' ) ) {
+			return;
+		}
+		$target = get_current_user_id();
+		if ( 'user-edit.php' === $hook && isset( $_GET['user_id'] ) && is_scalar( $_GET['user_id'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only: which profile is open.
+			$target = absint( wp_unslash( $_GET['user_id'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- as above.
+		}
+		if ( $target <= 0 || ! self::has_profile( $target ) ) {
 			return;
 		}
 		wp_enqueue_media();
@@ -158,13 +182,14 @@ final class WriterProfile {
 	 * @param int $user_id The user being saved.
 	 */
 	public function save( int $user_id ): void {
-		if ( ! current_user_can( 'edit_user', $user_id ) ) {
+		if ( ! current_user_can( 'edit_user', $user_id ) || ! self::has_profile( $user_id ) ) {
 			return;
 		}
 		if ( ! isset( $_POST[ self::NONCE_FIELD ] ) ) {
 			return; // The section was not on the form.
 		}
-		if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( (string) $_POST[ self::NONCE_FIELD ] ) ), self::NONCE_ACTION ) ) {
+		$nonce = $_POST[ self::NONCE_FIELD ]; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput,WordPress.Security.NonceVerification.Missing -- this IS the nonce; type-checked, unslashed and verified on the next line.
+		if ( ! is_string( $nonce ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $nonce ) ), self::NONCE_ACTION ) ) {
 			return;
 		}
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each field is sanitised by kind below.
@@ -176,22 +201,23 @@ final class WriterProfile {
 			$value = $raw[ $key ] ?? null;
 			switch ( $kind ) {
 				case 'attachment':
-					if ( ! array_key_exists( $key, $raw ) ) {
-						break; // The picker was not on this form: keep the old value.
+					if ( ! array_key_exists( $key, $raw ) || ! is_string( $value ) ) {
+						break; // The picker was not on this form (or junk was posted): keep the old value.
 					}
-					$id = is_scalar( $value ) ? absint( $value ) : 0;
-					if ( 0 === $id ) {
+					$value = trim( $value );
+					if ( '0' === $value || '' === $value ) {
 						delete_user_meta( $user_id, $key );
-					} elseif ( self::usable_image( $id ) ) {
-						update_user_meta( $user_id, $key, $id );
+					} elseif ( ctype_digit( $value ) && self::usable_image( (int) $value ) ) {
+						update_user_meta( $user_id, $key, (int) $value );
 					}
 					// Anything else: the old value stays.
 					break;
 				case 'html':
-					update_user_meta( $user_id, $key, wp_kses_post( is_scalar( $value ) ? trim( (string) $value ) : '' ) );
+					$text = is_scalar( $value ) ? trim( (string) $value ) : '';
+					update_user_meta( $user_id, $key, wp_slash( wp_kses_post( mb_substr( $text, 0, self::ABOUT_MAX ) ) ) );
 					break;
 				case 'url':
-					update_user_meta( $user_id, $key, self::sanitize_link( $value ) );
+					update_user_meta( $user_id, $key, wp_slash( self::sanitize_link( $value ) ) );
 					break;
 				case 'bool':
 					$ticked = is_scalar( $value ) && '1' === (string) $value;
@@ -214,7 +240,7 @@ final class WriterProfile {
 	 */
 	public static function sanitize_link( mixed $value ): string {
 		$url = is_scalar( $value ) ? trim( (string) $value ) : '';
-		if ( '' === $url ) {
+		if ( '' === $url || mb_strlen( $url ) > self::LINK_MAX ) {
 			return '';
 		}
 		$url   = esc_url_raw( $url, [ 'http', 'https' ] );
@@ -226,12 +252,18 @@ final class WriterProfile {
 	}
 
 	/**
-	 * An existing image attachment the current user may read.
+	 * An existing image attachment the current user uploaded or may edit
+	 * (the Media Library's own rule; `read_post` would let anyone pick any
+	 * unattached upload by guessing its id).
 	 *
 	 * @param int $id Attachment id.
 	 */
 	private static function usable_image( int $id ): bool {
-		return 'attachment' === get_post_type( $id ) && wp_attachment_is_image( $id ) && current_user_can( 'read_post', $id );
+		$attachment = get_post( $id );
+		if ( ! $attachment instanceof \WP_Post || 'attachment' !== $attachment->post_type || ! wp_attachment_is_image( $id ) ) {
+			return false;
+		}
+		return get_current_user_id() === (int) $attachment->post_author || current_user_can( 'edit_post', $id );
 	}
 
 	/**
@@ -245,8 +277,10 @@ final class WriterProfile {
 		echo '<tr><th>' . esc_html( $label ) . '</th><td class="bfrc-image-picker" data-bfrc-picker="' . esc_attr( $key ) . '">';
 		echo '<input type="hidden" class="bfrc-image-picker__id" name="' . esc_attr( self::FIELD . '[' . $key . ']' ) . '" value="' . esc_attr( (string) $id ) . '">';
 		echo '<span class="bfrc-image-picker__preview">' . ( $id > 0 ? wp_get_attachment_image( $id, [ 96, 96 ] ) : '' ) . '</span> '; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- core builds the tag.
-		echo '<button type="button" class="button bfrc-image-picker__choose">' . esc_html__( 'Choose image', 'bluefairy-recipes' ) . '</button> ';
-		echo '<button type="button" class="button-link bfrc-image-picker__remove"' . ( $id > 0 ? '' : ' hidden' ) . '>' . esc_html__( 'Remove', 'bluefairy-recipes' ) . '</button>';
+		/* translators: %s: the image's purpose, e.g. "Profile photo" */
+		echo '<button type="button" class="button bfrc-image-picker__choose" aria-label="' . esc_attr( sprintf( __( 'Choose %s', 'bluefairy-recipes' ), $label ) ) . '">' . esc_html__( 'Choose image', 'bluefairy-recipes' ) . '</button> ';
+		/* translators: %s: the image's purpose, e.g. "Profile photo" */
+		echo '<button type="button" class="button-link bfrc-image-picker__remove" aria-label="' . esc_attr( sprintf( __( 'Remove %s', 'bluefairy-recipes' ), $label ) ) . '"' . ( $id > 0 ? '' : ' hidden' ) . '>' . esc_html__( 'Remove', 'bluefairy-recipes' ) . '</button>';
 		echo '</td></tr>';
 	}
 }

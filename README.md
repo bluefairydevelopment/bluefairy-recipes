@@ -31,6 +31,11 @@ release tag.
   same choices and picks up where it stopped).
 - After an uninstall and reinstall, recipes and writer profiles are intact, but users must
   be given the Recipe Writer role again (uninstall removes the plugin's roles).
+- **Very long recipes** post many form fields. PHP's `max_input_vars` (usually 1000) allows a
+  recipe of 200 ingredients and 200 steps; the editor warns before a recipe outgrows the limit,
+  and a panel that was cut off keeps its previous values rather than being emptied.
+- On a multisite network, writer profiles are shared across sites (user meta) while the
+  chosen profile images are attachments of one site; pick them on the site that hosts them.
 
 ## Development
 
@@ -40,7 +45,8 @@ vendor/bin/phpunit
 vendor/bin/phpcs
 vendor/bin/phpstan analyse --memory-limit=1G
 php bin/method-coverage.php
-node --test tests/js/*.test.js
+npm install        # once: jsdom for the DOM tests (dev only, not shipped)
+npm test           # node --test tests/js/*.test.js
 ```
 
 Architecture and extension seams: `docs/ARCHITECTURE.md`.

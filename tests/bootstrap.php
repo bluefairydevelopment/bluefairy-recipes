@@ -131,6 +131,9 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_attachments']      = []; // id => url, or id => [ 'mime', 'url' ].
 	$GLOBALS['bfrc_test_count_calls']      = [];
 	$GLOBALS['bfrc_test_dropdowns']        = [];
+	$GLOBALS['bfrc_test_primed']           = [];
+	$GLOBALS['bfrc_test_thumbnail_cache_calls'] = [];
+	$GLOBALS['bfrc_test_get_posts_calls']  = [];
 	unset( $GLOBALS['post'] );
 	$GLOBALS['bfrc_test_object_terms']     = []; // post id => taxonomy => list<WP_Term>.
 	$GLOBALS['bfrc_test_media_enqueued']   = false;
@@ -464,7 +467,10 @@ function is_email( mixed $email ): string|false {
 }
 /** As core's sanitize_title_with_dashes: lower-cased, non-ASCII percent-encoded (utf8_uri_encode), everything else but [a-z0-9-%] becomes a dash. */
 function sanitize_title( mixed $title ): string {
-	$title = is_scalar( $title ) ? mb_strtolower( (string) $title ) : '';
+	if ( ! is_scalar( $title ) ) {
+		throw new TypeError( 'preg_match(): Argument #2 ($subject) must be of type string, ' . gettype( $title ) . ' given' ); // As core: remove_accents() has no scalar guard.
+	}
+	$title = mb_strtolower( (string) $title );
 	if ( ! empty( $GLOBALS['bfrc_test_sanitize_title_raw'] ) ) {
 		return trim( preg_replace( '/[^\p{L}\p{N}%_\-]+/u', '-', $title ) ?? '', '-' );
 	}
@@ -551,6 +557,12 @@ function bfrc_test_echo( string $text ): void {
 }
 function absint( mixed $maybeint ): int {
 	return abs( (int) $maybeint );
+}
+function wp_slash( mixed $value ): mixed {
+	if ( is_array( $value ) ) {
+		return array_map( 'wp_slash', $value );
+	}
+	return is_string( $value ) ? addslashes( $value ) : $value;
 }
 function wp_unslash( mixed $value ): mixed {
 	if ( is_array( $value ) ) {
@@ -955,6 +967,7 @@ function get_user_meta( int $user_id, string $key = '', bool $single = false ): 
 	return $single ? $value : [ $value ];
 }
 function update_user_meta( int $user_id, string $meta_key, mixed $meta_value, mixed $prev_value = '' ): int|bool {
+	$meta_value = wp_unslash( $meta_value ); // As core.
 	$GLOBALS['bfrc_test_user_meta'][ $user_id ][ $meta_key ] = $meta_value;
 	return true;
 }
@@ -1379,6 +1392,11 @@ function wp_register_style( string $handle, mixed $src, array $deps = [], mixed 
 	return true;
 }
 function wp_localize_script( string $handle, string $object_name, array $l10n ): bool {
+	foreach ( $l10n as $k => $v ) {
+		if ( is_scalar( $v ) ) {
+			$l10n[ $k ] = (string) $v; // As core: top-level scalars reach the browser as strings.
+		}
+	}
 	$GLOBALS['bfrc_test_enqueued']['localize'][ $handle ][ $object_name ] = $l10n;
 	return true;
 }
@@ -1392,7 +1410,14 @@ function get_current_screen(): ?object {
 	return $GLOBALS['bfrc_test_screen'];
 }
 function bfrc_test_set_screen( ?string $id ): void {
-	$GLOBALS['bfrc_test_screen'] = null === $id ? null : (object) [ 'id' => $id, 'base' => $id ];
+	if ( null === $id ) {
+		$GLOBALS['bfrc_test_screen'] = null;
+		return;
+	}
+	$screen                      = new WP_Screen();
+	$screen->id                  = $id;
+	$screen->base                = $id;
+	$GLOBALS['bfrc_test_screen'] = $screen;
 }
 function register_setting( string $option_group, string $option_name, array $args = [] ): void {}
 function add_settings_error( string $setting, string $code, string $message, string $type = 'error' ): void {

@@ -1,7 +1,8 @@
 /**
- * Image pickers on the writer profile: open the media library, keep the
- * chosen attachment id in the hidden field and show a preview. The pure part
- * (what to write for a selection) is exported for `node --test`.
+ * Image pickers on the writer profile: open the media library (one frame per
+ * picker, reused), keep the chosen attachment id in the hidden field and show
+ * a preview. The pure part (what to write for a selection) is exported for
+ * `node --test`.
  *
  * @package BlueFairy\Recipes
  */
@@ -23,12 +24,22 @@
 		return { id: String( attachment.id ), src: src };
 	}
 
-	function apply( picker, state ) {
+	/**
+	 * Write a selection into a picker's DOM.
+	 *
+	 * @param {Element} picker The `.bfrc-image-picker` cell.
+	 * @param {{id: string, src: string}} state From `selection()`.
+	 * @param {Document} doc The document (for tests).
+	 */
+	function apply( picker, state, doc ) {
+		doc = doc || document;
 		picker.querySelector( '.bfrc-image-picker__id' ).value = state.id;
 		var preview = picker.querySelector( '.bfrc-image-picker__preview' );
-		preview.innerHTML = '';
+		while ( preview.firstChild ) {
+			preview.removeChild( preview.firstChild );
+		}
 		if ( state.src ) {
-			var img = document.createElement( 'img' );
+			var img = doc.createElement( 'img' );
 			img.src = state.src;
 			img.width = 96;
 			img.height = 96;
@@ -38,7 +49,7 @@
 		picker.querySelector( '.bfrc-image-picker__remove' ).hidden = ! state.src;
 	}
 
-	var api = { selection: selection };
+	var api = { selection: selection, apply: apply };
 	if ( typeof module !== 'undefined' && module.exports ) {
 		module.exports = api;
 		return;
@@ -46,6 +57,7 @@
 	root.bfrcWriterProfileRows = api;
 
 	var config = root.bfrcWriterProfile || { i18n: {} };
+	var frames = {};
 	document.addEventListener( 'click', function ( event ) {
 		var picker = event.target.closest && event.target.closest( '.bfrc-image-picker' );
 		if ( ! picker || ! root.wp || ! root.wp.media ) {
@@ -58,16 +70,19 @@
 		if ( ! event.target.classList.contains( 'bfrc-image-picker__choose' ) ) {
 			return;
 		}
-		var frame = root.wp.media( {
-			title: config.i18n.choose || '',
-			library: { type: 'image' },
-			multiple: false,
-			button: { text: config.i18n.use || '' }
-		} );
-		frame.on( 'select', function () {
-			var chosen = frame.state().get( 'selection' ).first();
-			apply( picker, selection( chosen ? chosen.toJSON() : null ) );
-		} );
-		frame.open();
+		var key = picker.getAttribute( 'data-bfrc-picker' ) || 'default';
+		if ( ! frames[ key ] ) {
+			frames[ key ] = root.wp.media( {
+				title: config.i18n.choose || '',
+				library: { type: 'image' },
+				multiple: false,
+				button: { text: config.i18n.use || '' }
+			} );
+			frames[ key ].on( 'select', function () {
+				var chosen = frames[ key ].state().get( 'selection' ).first();
+				apply( picker, selection( chosen ? chosen.toJSON() : null ) );
+			} );
+		}
+		frames[ key ].open();
 	} );
 }( typeof window !== 'undefined' ? window : this ) );

@@ -1,0 +1,22 @@
+# Files left out of the distributable zip (WordPress.org and the download build).
+/.git
+/.github
+/.gitignore
+/.distignore
+/.cache
+/.phpunit.cache
+/.phpunit.result.cache
+/node_modules
+/vendor
+/tests
+/bin
+/docs/screenshots
+/coverage
+/package.json
+/package-lock.json
+/composer.json
+/composer.lock
+/phpcs.xml.dist
+/phpstan.neon
+/phpunit.xml.dist
+/.DS_Store

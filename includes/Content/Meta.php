@@ -41,9 +41,11 @@ final class Meta {
 	public const SERVINGS_MIN = '_bfrc_servings_min';
 	public const SERVINGS_MAX = '_bfrc_servings_max';
 	public const FEATURED     = '_bfrc_featured';
-	public const INGREDIENTS  = '_bfrc_ingredients';
-	public const STEPS        = '_bfrc_steps';
-	public const NUTRITION    = '_bfrc_nutrition';
+	/** The capability that may set Featured. */
+	public const CURATE_CAP  = 'edit_others_bfrc_recipes';
+	public const INGREDIENTS = '_bfrc_ingredients';
+	public const STEPS       = '_bfrc_steps';
+	public const NUTRITION   = '_bfrc_nutrition';
 
 	public const MAX_MINUTES   = 6000;
 	public const MAX_SERVINGS  = 999;
@@ -91,6 +93,25 @@ final class Meta {
 		add_action( 'init', [ $this, 'register' ], 7 );
 		add_action( 'added_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
 		add_action( 'updated_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
+		add_action( 'save_post_' . PostType::NAME, [ self::class, 'ensure_featured_key' ], 5, 2 );
+	}
+
+	/**
+	 * Every recipe carries a `_bfrc_featured` row from its first save on any
+	 * path (editor, REST, WP-CLI, an importer calling `wp_insert_post`), so the
+	 * list's featured sort and filter have a value to look at. Auto-drafts are
+	 * skipped (every "Add New" visit creates one).
+	 *
+	 * @param int      $post_id The recipe.
+	 * @param \WP_Post $post    The recipe.
+	 */
+	public static function ensure_featured_key( int $post_id, \WP_Post $post ): void {
+		if ( PostType::NAME !== $post->post_type || 'auto-draft' === $post->post_status || wp_is_post_revision( $post_id ) ) {
+			return;
+		}
+		if ( ! metadata_exists( 'post', $post_id, self::FEATURED ) ) {
+			add_post_meta( $post_id, self::FEATURED, false, true );
+		}
 	}
 
 	/**
@@ -303,8 +324,13 @@ final class Meta {
 	 * @param int    $user_id   The user being checked.
 	 */
 	public static function can_edit( bool $allowed, string $meta_key, int $object_id, int $user_id = 0 ): bool {
-		unset( $allowed, $meta_key );
-		return $user_id > 0 ? user_can( $user_id, 'edit_post', $object_id ) : current_user_can( 'edit_post', $object_id );
+		unset( $allowed );
+		$can = $user_id > 0 ? user_can( $user_id, 'edit_post', $object_id ) : current_user_can( 'edit_post', $object_id );
+		if ( $can && self::FEATURED === $meta_key ) {
+			// Featured is curation: Recipe Managers, Editors and Administrators, not the recipe's own writer.
+			$can = $user_id > 0 ? user_can( $user_id, self::CURATE_CAP ) : current_user_can( self::CURATE_CAP );
+		}
+		return $can;
 	}
 
 	/**
