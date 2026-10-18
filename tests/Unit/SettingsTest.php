@@ -160,6 +160,7 @@ final class SettingsTest extends TestCase {
 
 	public function test_sanitize_slug_normalises_and_never_returns_empty(): void {
 		$this->assertSame( 'our-recipes', Settings::sanitize_slug( ' Our Recipes! ' ) );
+		$this->assertSame( 'my_recipes', Settings::sanitize_slug( 'my_recipes' ), 'core keeps underscores; so do we' );
 		$this->assertSame( 'recipes', Settings::sanitize_slug( '' ) );
 		$this->assertSame( 'recipes', Settings::sanitize_slug( '!!!' ) );
 		$this->assertSame( 'recipes', Settings::sanitize_slug( 42 ) );

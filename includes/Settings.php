@@ -364,8 +364,9 @@ final class Settings {
 			return $fallback;
 		}
 		// Octets may spell what sanitize_title() would never let through (a slash, a dot, a space, `<`, a control
-		// character, an upper-case letter): decoded, only non-ASCII, digits, lower-case letters and dashes may remain.
-		if ( 1 === preg_match( '/[^\x80-\xff0-9a-z\-]/', $decoded ) ) {
+		// character, an upper-case letter): decoded, only non-ASCII, digits, lower-case letters, dashes and
+		// underscores (core keeps them) may remain.
+		if ( 1 === preg_match( '/[^\x80-\xff0-9a-z_\-]/', $decoded ) ) {
 			return $fallback;
 		}
 		foreach ( [ $slug, mb_strtolower( $decoded ) ] as $form ) {

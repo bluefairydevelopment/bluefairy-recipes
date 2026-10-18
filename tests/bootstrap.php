@@ -451,10 +451,10 @@ function is_email( mixed $email ): string|false {
 function sanitize_title( mixed $title ): string {
 	$title = is_scalar( $title ) ? mb_strtolower( (string) $title ) : '';
 	if ( ! empty( $GLOBALS['bfrc_test_sanitize_title_raw'] ) ) {
-		return trim( preg_replace( '/[^\p{L}\p{N}%\-]+/u', '-', $title ) ?? '', '-' );
+		return trim( preg_replace( '/[^\p{L}\p{N}%_\-]+/u', '-', $title ) ?? '', '-' );
 	}
 	$encoded = preg_replace_callback( '/[^\x00-\x7F]+/u', static fn( array $m ): string => strtolower( rawurlencode( $m[0] ) ), $title ) ?? '';
-	return trim( preg_replace( '/[^a-z0-9%\-]+/', '-', $encoded ) ?? '', '-' );
+	return trim( preg_replace( '/[^a-z0-9%_\-]+/', '-', $encoded ) ?? '', '-' ); // core keeps underscores
 }
 function esc_url_raw( mixed $url, ?array $protocols = null ): string {
 	$url = is_scalar( $url ) ? trim( (string) $url ) : '';
