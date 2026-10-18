@@ -120,4 +120,58 @@
 	} );
 
 	document.querySelectorAll( '.bfrc-rows__row' ).forEach( showExtras );
+
+	/*
+	 * Block editor: the meta boxes are posted in the background and the page
+	 * is not reloaded, so the server's admin notice never shows. After each
+	 * meta-box save, read the stored video URL back and warn inline when a
+	 * typed URL was refused.
+	 */
+	function videoNotice( field, show ) {
+		var box = field.closest( '.bfrc-editor--media' );
+		var existing = box.querySelector( '.bfrc-video-notice' );
+		if ( ! show ) {
+			if ( existing ) {
+				existing.remove();
+			}
+			return;
+		}
+		if ( ! existing ) {
+			existing = document.createElement( 'div' );
+			existing.className = 'notice notice-warning inline bfrc-video-notice';
+			existing.setAttribute( 'role', 'alert' );
+			box.insertBefore( existing, field.closest( 'p' ).nextSibling );
+		}
+		existing.textContent = ( config.i18n.videoRejected || '' ).replace( '%s', field.value.trim() );
+	}
+
+	function checkVideo() {
+		var field = document.getElementById( 'bfrc-video-url' );
+		if ( ! field ) {
+			return;
+		}
+		if ( field.value.trim() === '' ) {
+			videoNotice( field, false );
+			return;
+		}
+		window.wp.apiFetch( { path: config.restPath + '?context=edit&_fields=meta' } ).then( function ( post ) {
+			var stored = post && post.meta ? post.meta[ config.videoKey ] : '';
+			videoNotice( field, rows.videoRejected( field.value, stored ) );
+		} );
+	}
+
+	if ( config.restPath && window.wp && window.wp.data && window.wp.apiFetch ) {
+		var wasSaving = false;
+		window.wp.data.subscribe( function () {
+			var store = window.wp.data.select( 'core/edit-post' );
+			if ( ! store || typeof store.isSavingMetaBoxes !== 'function' ) {
+				return;
+			}
+			var saving = store.isSavingMetaBoxes();
+			if ( wasSaving && ! saving ) {
+				checkVideo();
+			}
+			wasSaving = saving;
+		} );
+	}
 }() );

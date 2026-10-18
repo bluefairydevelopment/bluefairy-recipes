@@ -120,7 +120,24 @@ final class RecipeEditorTest extends TestCase {
 		$e->enqueue( 'post-new.php' );
 		$this->assertSame( [ 'bfrc-recipe-editor-rows', 'bfrc-recipe-editor' ], $GLOBALS['bfrc_test_enqueued']['script'] );
 		$this->assertSame( [ 'bfrc-recipe-editor' ], $GLOBALS['bfrc_test_enqueued']['style'] );
-		$this->assertSame( 200, $GLOBALS['bfrc_test_enqueued']['localize']['bfrc-recipe-editor']['bfrcRecipeEditor']['maxRows'] );
+		$config = $GLOBALS['bfrc_test_enqueued']['localize']['bfrc-recipe-editor']['bfrcRecipeEditor'];
+		$this->assertSame( 200, $config['maxRows'] );
+		$this->assertSame( '', $config['restPath'], 'classic editor: no read-back, the reload shows the notice' );
+		$this->assertSame( [ 'bfrc-recipe-editor-rows' ], $GLOBALS['bfrc_test_enqueued']['deps']['bfrc-recipe-editor'] );
+	}
+
+	public function test_enqueue_in_the_block_editor_adds_the_read_back_path_and_its_dependencies(): void {
+		$screen                      = bfrc_test_screen_for( 'bfrc_recipe' );
+		$screen->is_block_editor     = true;
+		$GLOBALS['bfrc_test_screen'] = $screen;
+		$GLOBALS['post']             = $this->recipe;
+		( new RecipeEditor() )->enqueue( 'post.php' );
+		$config = $GLOBALS['bfrc_test_enqueued']['localize']['bfrc-recipe-editor']['bfrcRecipeEditor'];
+		$this->assertSame( '/wp/v2/bfrc_recipe/41', $config['restPath'] );
+		$this->assertSame( '_bfrc_video_url', $config['videoKey'] );
+		$this->assertStringContainsString( '%s', $config['i18n']['videoRejected'] );
+		$this->assertSame( RecipeEditor::video_rejected_message(), $config['i18n']['videoRejected'], 'the script and the server notice say the same thing' );
+		$this->assertSame( [ 'bfrc-recipe-editor-rows', 'wp-data', 'wp-api-fetch' ], $GLOBALS['bfrc_test_enqueued']['deps']['bfrc-recipe-editor'] );
 	}
 
 	public function test_save_writes_every_field_through_the_sanitisers(): void {
@@ -187,6 +204,7 @@ final class RecipeEditorTest extends TestCase {
 	}
 
 	public function test_a_rejected_video_url_is_not_stored_and_the_writer_is_told_once(): void {
+		$GLOBALS['bfrc_test_screen'] = bfrc_test_screen_for( 'bfrc_recipe' );
 		bfrc_test_grant( 'edit_post' );
 		update_post_meta( 41, Meta::VIDEO_URL, 'https://vimeo.com/123456789' );
 		$this->post_form( [ 'video_url' => 'https://example.com/my-video' ] );
@@ -201,6 +219,27 @@ final class RecipeEditorTest extends TestCase {
 		$this->post_form( [ 'video_url' => '' ] );
 		$e->save( 41, $this->recipe );
 		$this->assertSame( '', bfrc_test_render( fn() => $e->notices() ), 'an empty field is a deliberate clear, not an error' );
+	}
+
+	public function test_the_notice_is_held_for_the_recipe_screen_and_skipped_for_a_background_meta_box_save(): void {
+		bfrc_test_grant( 'edit_post' );
+		$e = new RecipeEditor();
+		$this->post_form( [ 'video_url' => 'https://example.com/my-video' ] );
+		$e->save( 41, $this->recipe );
+		$this->assertIsArray( get_transient( 'bfrc_editor_notice_9' ) );
+		$this->assertSame( '', bfrc_test_render( fn() => $e->notices() ), 'no screen: held' );
+		$GLOBALS['bfrc_test_screen'] = bfrc_test_screen_for( 'post' );
+		$this->assertSame( '', bfrc_test_render( fn() => $e->notices() ), 'another edit screen: held' );
+		$GLOBALS['bfrc_test_screen'] = bfrc_test_screen_for( 'bfrc_recipe', 'edit' );
+		$this->assertSame( '', bfrc_test_render( fn() => $e->notices() ), 'the recipes list: held' );
+		$GLOBALS['bfrc_test_screen'] = bfrc_test_screen_for( 'bfrc_recipe' );
+		$this->assertStringContainsString( 'my-video', bfrc_test_render( fn() => $e->notices() ), 'the recipe edit screen: shown' );
+		$_REQUEST['meta-box-loader'] = '1';
+		$this->post_form( [ 'video_url' => 'https://example.com/my-video' ] );
+		$e->save( 41, $this->recipe );
+		$this->assertSame( '', get_post_meta( 41, Meta::VIDEO_URL, true ), 'still refused' );
+		$this->assertFalse( get_transient( 'bfrc_editor_notice_9' ), 'block editor background save: the script reports it, no transient is left for a later screen' );
+		unset( $_REQUEST['meta-box-loader'] );
 	}
 
 	public function test_nutrition_labels_cover_every_field(): void {

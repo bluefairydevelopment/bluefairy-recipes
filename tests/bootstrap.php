@@ -131,6 +131,7 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_attachments']      = []; // id => url, or id => [ 'mime', 'url' ].
 	$GLOBALS['bfrc_test_count_calls']      = [];
 	$GLOBALS['bfrc_test_dropdowns']        = [];
+	unset( $GLOBALS['post'] );
 	$GLOBALS['bfrc_test_object_terms']     = []; // post id => taxonomy => list<WP_Term>.
 	$GLOBALS['bfrc_test_media_enqueued']   = false;
 	$GLOBALS['bfrc_test_group_flushes']    = [];
@@ -1316,6 +1317,10 @@ function get_post( mixed $post = null, string $output = OBJECT ): ?WP_Post {
 	if ( $post instanceof WP_Post ) {
 		return $post;
 	}
+	if ( null === $post ) {
+		$post = $GLOBALS['post'] ?? null; // core: the global post.
+		return $post instanceof WP_Post ? $post : null;
+	}
 	return $GLOBALS['bfrc_test_posts'][ (int) $post ] ?? null;
 }
 function get_post_type( mixed $post = null ): string|false {
@@ -1364,7 +1369,8 @@ function wp_enqueue_style( string $handle, string $src = '', array $deps = [], m
 	$GLOBALS['bfrc_test_enqueued']['style'][] = $handle;
 }
 function wp_enqueue_script( string $handle, string $src = '', array $deps = [], mixed $ver = false, mixed $args = [] ): void {
-	$GLOBALS['bfrc_test_enqueued']['script'][] = $handle;
+	$GLOBALS['bfrc_test_enqueued']['script'][]        = $handle;
+	$GLOBALS['bfrc_test_enqueued']['deps'][ $handle ] = $deps;
 }
 function wp_register_script( string $handle, mixed $src, array $deps = [], mixed $ver = false, mixed $args = [] ): bool {
 	return true;

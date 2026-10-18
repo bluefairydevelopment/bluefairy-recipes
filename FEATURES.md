@@ -19,6 +19,18 @@ A recipe is a post of type `bfrc_recipe`, edited in the block editor. The post t
 | Nutrition | calories (kcal), fat, saturated fat, carbohydrates, sugar, fiber, protein (g), sodium (mg) | numbers up to 100,000 with two decimals; `12,5` is read as 12.5 but `1,200` is refused as ambiguous; an empty field is not shown |
 | Servings | | max is never below min: whichever you change last, the other follows |
 
+### Editing a recipe
+
+The recipe fields are edited in five panels on the recipe screen, in both the block editor and the classic editor: **Recipe Details** (times, servings, Featured), **Recipe Video** (photo or video, and the video URL), **Ingredients**, **Steps** and **Nutrition**. Ingredient and step rows can be added, removed, moved with the arrow buttons or dragged into order; a recipe can hold up to 200 of each. A video URL that is not a YouTube or Vimeo video is not saved, and a notice on the reloaded screen tells you which URL was refused. Fields are saved only by the recipe form itself: a quick edit, an autosave or a REST request never clears them.
+
+### The Recipes list
+
+The list shows the photo, prep and cook time, servings and a featured star for each recipe, plus a column for every enabled filter type. Above the list you can filter by any filter type and by featured or not, and sort by the Featured column. Two bulk actions, **Mark featured** and **Unmark featured**, apply to the recipes you may edit and report how many changed.
+
+### Writer profiles
+
+Every user who can edit recipes has a **Recipe writer profile** section on their profile screen: a profile photo and a header image from the media library, an About paragraph (basic formatting kept), a website and YouTube, Facebook, Instagram and Snapchat links (http or https only; anything else is cleared), and **List this writer on the public writers page**, which is on by default for the Recipe Writer role and off for everyone else. Only an image attachment you can view is accepted as a photo; any other choice keeps the previous image. Only someone who may edit that user can save the section.
+
 A published recipe's slug may not be `chef`, `submit`, `page`, `embed`, `trackback`, a feed name or a filter type's name: such a slug gets a numeric suffix (`chef-2`) when the recipe is published.
 
 ## Filter types (taxonomies)
@@ -71,6 +83,7 @@ Administrators can always change settings.
 | `bfrc_ingredient_types` | filter | Add ingredient row types beyond `plain` |
 | `bfrc_ingredient_row_fields` | filter | Extra fields, with sanitisers, for an ingredient row type |
 | `bfrc_reserved_slugs` | filter | More recipe slugs to refuse |
+| `bfrc_recipe_meta_boxes` | action | Add your own panels to the recipe edit screen (receives the post) |
 
 ## Differences from the Magento extension
 

@@ -108,6 +108,7 @@ if ( ! class_exists( 'WP_Screen' ) ) {
 		public string $id        = '';
 		public string $base      = '';
 		public string $post_type = '';
+		public bool $is_block_editor = false;
 	}
 }
 

@@ -9,12 +9,15 @@ release tag.
 - WordPress 6.7 or newer, with pretty permalinks
 - PHP 8.1 or newer
 
-## What is in the tree today (milestones A1–A2)
+## What is in the tree today (milestones A1–A3)
 
 - Plugin bootstrap, settings model, roles and capabilities, activation, deactivation and
   uninstall.
 - The content model: the `bfrc_recipe` post type, the four filter taxonomies with starter
-  terms, the registered recipe fields, reserved recipe slugs. No admin screens or front end yet.
+  terms, the registered recipe fields, reserved recipe slugs.
+- Admin editing: the recipe edit screen (five panels, repeatable rows, block and classic
+  editors), the Recipes list (columns, filters, bulk featured) and the writer profile fields.
+  No front end yet.
 
 ## Notes for site owners
 
@@ -37,6 +40,7 @@ vendor/bin/phpunit
 vendor/bin/phpcs
 vendor/bin/phpstan analyse --memory-limit=1G
 php bin/method-coverage.php
+node --test tests/js/*.test.js
 ```
 
 Architecture and extension seams: `docs/ARCHITECTURE.md`.

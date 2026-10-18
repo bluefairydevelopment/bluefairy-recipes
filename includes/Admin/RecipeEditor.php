@@ -215,19 +215,32 @@ final class RecipeEditor {
 		if ( ! $screen instanceof \WP_Screen || PostType::NAME !== $screen->post_type ) {
 			return;
 		}
+		// The block editor posts the meta boxes in the background and never reloads, so the
+		// server's notice about a refused video URL cannot reach the writer; the script reads
+		// the stored value back after each meta-box save instead. Classic editor: full reload.
+		$block = $screen->is_block_editor;
+		$post  = get_post();
+		$deps  = [ self::SCRIPT . '-rows' ];
+		if ( $block ) {
+			$deps[] = 'wp-data';
+			$deps[] = 'wp-api-fetch';
+		}
 		wp_enqueue_style( self::SCRIPT, BFRC_URL . 'assets/admin/recipe-editor.css', [], BFRC_VERSION );
 		wp_enqueue_script( self::SCRIPT . '-rows', BFRC_URL . 'assets/admin/recipe-rows.js', [], BFRC_VERSION, true );
-		wp_enqueue_script( self::SCRIPT, BFRC_URL . 'assets/admin/recipe-editor.js', [ self::SCRIPT . '-rows' ], BFRC_VERSION, true );
+		wp_enqueue_script( self::SCRIPT, BFRC_URL . 'assets/admin/recipe-editor.js', $deps, BFRC_VERSION, true );
 		wp_localize_script(
 			self::SCRIPT,
 			'bfrcRecipeEditor',
 			[
-				'maxRows' => Meta::MAX_ROWS,
-				'i18n'    => [
-					'remove'  => __( 'Remove', 'bluefairy-recipes' ),
-					'up'      => __( 'Move up', 'bluefairy-recipes' ),
-					'down'    => __( 'Move down', 'bluefairy-recipes' ),
-					'maxRows' => __( 'No more rows can be added.', 'bluefairy-recipes' ),
+				'maxRows'  => Meta::MAX_ROWS,
+				'restPath' => $block && $post instanceof \WP_Post ? '/wp/v2/' . PostType::NAME . '/' . $post->ID : '',
+				'videoKey' => Meta::VIDEO_URL,
+				'i18n'     => [
+					'remove'        => __( 'Remove', 'bluefairy-recipes' ),
+					'up'            => __( 'Move up', 'bluefairy-recipes' ),
+					'down'          => __( 'Move down', 'bluefairy-recipes' ),
+					'maxRows'       => __( 'No more rows can be added.', 'bluefairy-recipes' ),
+					'videoRejected' => self::video_rejected_message(),
 				],
 			]
 		);
@@ -273,7 +286,9 @@ final class RecipeEditor {
 		update_post_meta( $post_id, Meta::INGREDIENTS, Meta::sanitize_ingredients( $raw['ingredients'] ?? [] ) );
 		update_post_meta( $post_id, Meta::STEPS, Meta::sanitize_steps( $raw['steps'] ?? [] ) );
 		update_post_meta( $post_id, Meta::NUTRITION, Meta::sanitize_nutrition( $raw['nutrition'] ?? [] ) );
-		if ( '' !== $video_raw && '' === $video ) {
+		// A background meta-box save (block editor, `meta-box-loader`) never reloads the page:
+		// the editor script reports the refusal there, so no transient is left behind.
+		if ( '' !== $video_raw && '' === $video && ! isset( $_REQUEST['meta-box-loader'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- the nonce was verified above; this only picks the channel for the notice.
 			set_transient( self::notice_key(), [ 'video_url' => $video_raw ], self::NOTICE_TTL );
 		}
 	}
@@ -282,6 +297,10 @@ final class RecipeEditor {
 	 * Tell the writer what was not stored, once, on the reloaded screen.
 	 */
 	public function notices(): void {
+		$screen = get_current_screen();
+		if ( ! $screen instanceof \WP_Screen || 'post' !== $screen->base || PostType::NAME !== $screen->post_type ) {
+			return; // Only on the recipe edit screen the writer was sent back to.
+		}
 		$notice = get_transient( self::notice_key() );
 		if ( ! is_array( $notice ) ) {
 			return;
@@ -289,10 +308,17 @@ final class RecipeEditor {
 		delete_transient( self::notice_key() );
 		if ( isset( $notice['video_url'] ) ) {
 			echo '<div class="notice notice-warning is-dismissible"><p>';
-			/* translators: %s: the URL that was typed */
-			echo esc_html( sprintf( __( 'The video URL "%s" is not a YouTube or Vimeo video, so it was not saved. Paste the video’s own page URL.', 'bluefairy-recipes' ), (string) $notice['video_url'] ) );
+			echo esc_html( sprintf( self::video_rejected_message(), (string) $notice['video_url'] ) );
 			echo '</p></div>';
 		}
+	}
+
+	/**
+	 * The warning for a refused video URL; %s is the URL that was typed.
+	 */
+	public static function video_rejected_message(): string {
+		/* translators: %s: the URL that was typed */
+		return __( 'The video URL "%s" is not a YouTube or Vimeo video, so it was not saved. Paste the video’s own page URL.', 'bluefairy-recipes' );
 	}
 
 	/**

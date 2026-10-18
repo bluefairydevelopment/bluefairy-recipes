@@ -25,3 +25,11 @@ test( 'canAdd stops exactly at the ceiling', () => {
 	assert.equal( rows.canAdd( 200, 200 ), false );
 	assert.equal( rows.canAdd( 0, 1 ), true );
 } );
+
+test( 'videoRejected warns only when something was typed and nothing was kept', () => {
+	assert.equal( rows.videoRejected( 'https://example.com/x', '' ), true );
+	assert.equal( rows.videoRejected( 'https://example.com/x', null ), true );
+	assert.equal( rows.videoRejected( 'https://youtu.be/dQw4w9WgXcQ', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' ), false );
+	assert.equal( rows.videoRejected( '', '' ), false, 'a deliberate clear' );
+	assert.equal( rows.videoRejected( '   ', '' ), false );
+} );

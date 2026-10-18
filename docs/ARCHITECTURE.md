@@ -98,6 +98,18 @@ core's 32-character taxonomy-name limit); at most `MAX_CUSTOM_TAXONOMIES` (50) a
 `Installer::OPTIONS` must equal the option list in `uninstall.php` in both directions, as
 must the capability list, the role list and the core-role list (one test enforces all four).
 
+## Admin editing (milestone A3)
+
+All admin classes live in `includes/Admin/` and are wired by `Plugin::boot()` only when
+`is_admin()` is true (services `admin.editor`, `admin.list_table`, `admin.writer_profile`).
+
+| What | Where | Notes |
+|---|---|---|
+| Recipe edit screen | `Admin\RecipeEditor` | Five PHP meta boxes (`bfrc-details`, `bfrc-media`, `bfrc-ingredients`, `bfrc-steps`, `bfrc-nutrition`) registered on `add_meta_boxes_bfrc_recipe`, so they work in the block and the classic editor alike; then `do_action( 'bfrc_recipe_meta_boxes', $post )` for the add-on. Repeatable rows are a `<template>` per box plus `assets/admin/recipe-editor.js`; the DOM-free logic (renumbering `bfrc[ingredients][N][…]`, moving, the row ceiling) is `assets/admin/recipe-rows.js`, tested with `node --test tests/js`. A row type selector and its extra fields appear only when `bfrc_ingredient_types` adds a type; each extra field is tagged with its type and shown for that type only. Assets load on `post.php`/`post-new.php` for `bfrc_recipe` only. |
+| Save handler | `RecipeEditor::save()` on `save_post_bfrc_recipe` | Returns on another post type, autosaves and revisions, and when the nonce field is absent (REST, quick edit, a programmatic save: nothing is wiped by a request that did not post the boxes). Then **capability first** (`edit_post`), then the nonce (`bfrc_recipe_meta`), then every field through the same `Content\Meta` sanitisers REST uses, then `update_post_meta` (so the servings reconciliation runs here too). Form semantics apply: an unticked Featured box and a box with every row removed clear the stored value. A non-empty video URL that normalises to `''` is still stored as `''` (the writer asked for a change) and a per-user transient (`bfrc_editor_notice_{uid}`, 5 minutes) puts a warning on the reloaded screen naming the URL; an empty field is a deliberate clear and raises nothing. |
+| Recipes list | `Admin\ListTable` | Columns `bfrc_photo` (after the checkbox), `bfrc_times`, `bfrc_servings`, `bfrc_featured` (before the date); taxonomy columns come from core (`show_admin_column`). Filters above the table: one `wp_dropdown_categories` per enabled taxonomy (named by the taxonomy, so core's query var does the filtering) and a featured select (`bfrc_featured` = `1`/`0`). `pre_get_posts` touches only the admin main query for `bfrc_recipe`: the featured filter becomes a meta query (`0` = `NOT EXISTS` or `!= 1`, so never-saved recipes count as not featured) and `orderby=bfrc_featured` becomes `meta_value_num`. Bulk actions `bfrc_feature`/`bfrc_unfeature`: core verifies the bulk nonce; the handler checks `edit_post` on every id, skips other post types, writes the bool through `update_post_meta`, and redirects with `bfrc_featured_changed=N` (replacing a stale value) which `admin_notices` reports on `edit-bfrc_recipe` only. |
+| Writer profile | `Admin\WriterProfile` on `show_user_profile`/`edit_user_profile` and `personal_options_update`/`edit_user_profile_update` | Rendered only for users with `edit_bfrc_recipes`. User meta exactly as listed in `uninstall.php` (`WriterProfile::keys()`, drift-tested): `bfrc_avatar_id`, `bfrc_header_image_id` (an existing image attachment the **saving** user can `read_post`; `0` clears; anything else keeps the old value; a form without the picker keeps it too), `bfrc_about` (`wp_kses_post`), `bfrc_website`, `bfrc_youtube`, `bfrc_facebook`, `bfrc_instagram`, `bfrc_snapchat` (`esc_url_raw` http/https + `wp_http_validate_url`, else `''`), `bfrc_listed` (stored `'1'`/`'0'`; absent or unreadable falls back to the role default via `is_listed()`: Writers yes, everyone else no). Save: `current_user_can( 'edit_user', $user_id )` first, then the nonce `bfrc_writer_profile`, and nothing when the section's nonce field is absent. The pickers use `wp.media` through `assets/admin/writer-profile.js`; the pure selection rule is exported for `node --test`. |
+
 ## Activation, deactivation, uninstall
 
 - **Activation** (`Installer::provision_site()`): roles, `sanitize( DEFAULTS )` when no
@@ -138,8 +150,9 @@ must the capability list, the role list and the core-role list (one test enforce
 | `bfrc_ingredient_types` | filter (list) | 1.0.0 | add ingredient row types beyond `plain` |
 | `bfrc_ingredient_row_fields` | filter (array, $type) | 1.0.0 | extra row fields for a type, each a sanitiser callable |
 | `bfrc_reserved_slugs` | filter (list) | 1.0.0 | more recipe slugs to refuse |
+| `bfrc_recipe_meta_boxes` | action ($post) | 1.0.0 | fired after the five base boxes are registered on the recipe edit screen; add yours |
 
-Seams added by later milestones (`bfrc_render_ingredient_actions`, `bfrc_recipe_meta_boxes`,
+Seams added by later milestones (`bfrc_render_ingredient_actions`,
 `bfrc_schema_data`, `bfrc_single_after_steps`, `bfrc_single_after_nutrition`,
 `bfrc_single_footer`, `bfrc_settings_tabs`, `bfrc_settings_page_footer`,
 `bfrc_settings_saved`, `bfrc_admin_menu_items`, `bfrc_archive_query_args`,

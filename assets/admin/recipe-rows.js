@@ -50,7 +50,19 @@
 		return count < max;
 	}
 
-	var api = { renumber: renumber, move: move, canAdd: canAdd };
+	/**
+	 * After a save: was a typed video URL refused by the server? True when the
+	 * writer typed something and the stored value came back empty.
+	 *
+	 * @param {string} typed  The field's value.
+	 * @param {string} stored The value the server kept.
+	 * @return {boolean} Whether to warn.
+	 */
+	function videoRejected( typed, stored ) {
+		return String( typed || '' ).trim() !== '' && String( stored || '' ).trim() === '';
+	}
+
+	var api = { renumber: renumber, move: move, canAdd: canAdd, videoRejected: videoRejected };
 
 	if ( typeof module !== 'undefined' && module.exports ) {
 		module.exports = api;
