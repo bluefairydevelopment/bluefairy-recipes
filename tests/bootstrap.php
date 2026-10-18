@@ -1441,9 +1441,6 @@ function map_deep( mixed $value, callable $callback ): mixed {
 	}
 	return $callback( $value );
 }
-function rest_get_route_for_user( int $user_id ): string {
-	return $user_id > 0 ? '/wp/v2/users/' . $user_id : '';
-}
 function wp_localize_script( string $handle, string $object_name, array $l10n ): bool {
 	foreach ( $l10n as $k => $v ) {
 		if ( is_scalar( $v ) ) {

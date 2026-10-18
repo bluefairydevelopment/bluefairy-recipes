@@ -100,7 +100,7 @@ final class Templates {
 			return '';
 		}
 		$writer = $this->writers->public_writer( (string) $wp_query->get( 'author_name' ) );
-		return null === $writer ? '' : (string) rest_get_route_for_user( $writer->ID );
+		return null === $writer ? '' : sprintf( '/wp/v2/users/%d', $writer->ID ); // The route core builds for a WP_User (there is no rest_get_route_for_user()).
 	}
 
 	/**

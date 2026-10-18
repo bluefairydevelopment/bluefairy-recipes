@@ -13,14 +13,3 @@ define( 'BFRC_URL', 'https://example.com/wp-content/plugins/bluefairy-recipes/' 
 define( 'BFRC_VERSION', '1.0.0' );
 define( 'BFRC_DB_VERSION', '1.0.0' );
 define( 'WP_UNINSTALL_PLUGIN', true );
-
-if ( ! function_exists( 'rest_get_route_for_user' ) ) {
-	/**
-	 * Core 5.5+ (missing from the stubs package in use).
-	 *
-	 * @param int|\WP_User $user The user.
-	 */
-	function rest_get_route_for_user( int|\WP_User $user ): string {
-		return '';
-	}
-}
