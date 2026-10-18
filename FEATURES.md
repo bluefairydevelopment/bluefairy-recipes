@@ -17,7 +17,7 @@ until then the values below are the defaults the plugin installs.
 | Recipes per page | 12 | 1–100 |
 | Social share | On | Facebook, X and Pinterest each have their own switch |
 | Writer listing | On | |
-| Grant core roles | On | Authors can write recipes, Editors and Administrators can manage them; turning it off takes those capabilities back |
+| Grant core roles | On | Authors can write recipes and Editors can manage them; turning it off takes those capabilities back. Administrators can always do everything |
 | Delete all data on uninstall | Off | |
 
 ## Roles

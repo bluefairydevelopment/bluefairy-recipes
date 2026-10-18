@@ -42,6 +42,10 @@ if ( ! function_exists( 'get_users' ) ) {
 			$users = array_slice( $users, ( $paged - 1 ) * $number, $number );
 		}
 		$GLOBALS['bfrc_test_get_users_calls'][] = $args;
+		$role_calls = count( array_filter( $GLOBALS['bfrc_test_get_users_calls'], static fn( array $a ): bool => ( $a['role'] ?? null ) === ( $args['role'] ?? null ) ) );
+		if ( $role_calls > 50 ) {
+			throw new RuntimeException( 'get_users() called more than 50 times for one role: a loop is spinning' ); // fail fast instead of hanging the suite
+		}
 		if ( 'ID' === ( $args['fields'] ?? '' ) ) {
 			return array_map( static fn( WP_User $u ): string => (string) $u->ID, $users ); // core returns numeric strings
 		}
@@ -89,5 +93,12 @@ if ( ! function_exists( 'wp_suspend_cache_invalidation' ) ) {
 	function wp_suspend_cache_invalidation( bool $suspend = true ): bool {
 		$GLOBALS['bfrc_test_suspended_invalidation'][] = $suspend;
 		return ! $suspend;
+	}
+}
+
+if ( ! function_exists( 'wp_cache_flush_runtime' ) ) {
+	function wp_cache_flush_runtime(): bool {
+		$GLOBALS['bfrc_test_runtime_flushes'] = ( $GLOBALS['bfrc_test_runtime_flushes'] ?? 0 ) + 1;
+		return true;
 	}
 }

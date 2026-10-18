@@ -20,6 +20,11 @@ declare(strict_types=1);
 // phpcs:ignoreFile -- developer tooling, not shipped.
 
 $root = dirname( __DIR__ );
+foreach ( $argv as $i => $arg ) {
+	if ( '--root' === $arg && isset( $argv[ $i + 1 ] ) ) {
+		$root = $argv[ $i + 1 ]; // the self-check points the scan at an empty tree to prove it exits 1
+	}
+}
 
 /**
  * @return array<string, array{visibility: string, file: string}> "Class::method" => details.
@@ -122,10 +127,13 @@ if ( in_array( '--self-check', $argv, true ) ) {
 	file_put_contents( $scratch . '/Kinds.php', "<?php\nfinal readonly class Kinds {\n\tfinal public static function a(): void {}\n\tstatic protected function b(): void {}\n\tprivate function c(): void {}\n}\n" );
 	$kinds = bfrc_cov_methods( $scratch );
 	$ok    = $ok && isset( $kinds['Kinds::a'], $kinds['Kinds::b'], $kinds['Kinds::c'] ) && 'protected' === $kinds['Kinds::b']['visibility'];
-	// 4. An empty tree is a failure, not a pass.
+	// 4. An empty tree is a failure, not a pass: the script itself, pointed at an empty root, must exit 1.
 	$empty = $scratch . '/empty';
 	mkdir( $empty );
-	$ok = $ok && [] === bfrc_cov_methods( $empty );
+	mkdir( $empty . '/includes' );
+	exec( escapeshellarg( PHP_BINARY ) . ' ' . escapeshellarg( __FILE__ ) . ' --root ' . escapeshellarg( $empty ) . ' 2>&1', $empty_out, $empty_status );
+	$ok = $ok && 1 === $empty_status;
+	rmdir( $empty . '/includes' );
 	array_map( 'unlink', glob( $scratch . '/*.php' ) ?: [] );
 	rmdir( $empty );
 	rmdir( $scratch );

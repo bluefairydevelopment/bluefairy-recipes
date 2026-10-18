@@ -78,7 +78,8 @@ final class CapabilitiesTest extends TestCase {
 		Capabilities::revoke_core_roles();
 		$this->assertFalse( get_role( 'author' )->has_cap( 'edit_bfrc_recipes' ) );
 		$this->assertFalse( get_role( 'editor' )->has_cap( 'edit_others_bfrc_recipes' ) );
-		$this->assertFalse( get_role( 'administrator' )->has_cap( 'manage_bfrc_terms' ) );
+		$this->assertTrue( get_role( 'administrator' )->has_cap( 'manage_bfrc_terms' ), 'administrators keep everything: the setting is about authors and editors' );
+		$this->assertTrue( get_role( 'administrator' )->has_cap( 'edit_bfrc_recipes' ) );
 		$this->assertTrue( get_role( 'administrator' )->has_cap( Capabilities::MANAGE ), 'MANAGE on administrators belongs to add_roles(), not the core grant' );
 		$this->assertTrue( get_role( 'author' )->has_cap( 'read' ), 'core caps are never revoked' );
 	}

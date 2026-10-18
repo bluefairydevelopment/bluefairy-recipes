@@ -32,16 +32,25 @@ function add_action( string $hook, mixed $callback, int $priority = 10, int $arg
 
 $bfrc_entry = dirname( __DIR__, 2 ) . '/bluefairy-recipes.php';
 require $bfrc_entry;
-$bfrc_first = [ 'version' => BFRC_VERSION, 'db' => BFRC_DB_VERSION, 'dir' => BFRC_DIR, 'fn' => function_exists( 'bfrc_plugin' ) ? bfrc_plugin() : null ];
+$bfrc_first  = [ 'version' => BFRC_VERSION, 'db' => BFRC_DB_VERSION, 'dir' => BFRC_DIR, 'fn' => function_exists( 'bfrc_plugin' ) ? bfrc_plugin() : null ];
+$bfrc_before = count( $bfrc_probe['actions'] );
 // A second load (a duplicate copy) must be a no-op, not a fatal.
 require $bfrc_entry;
-$bfrc_probe['first']          = $bfrc_first;
-$bfrc_probe['second_load_ok'] = true;
-$bfrc_probe['autoload']       = [
-	'own_class'  => class_exists( 'BlueFairy\\Recipes\\Settings' ),
-	'own_trait'  => trait_exists( 'BlueFairy\\Recipes\\Support\\WritesOptions' ),
-	'foreign'    => class_exists( 'Some\\Other\\Thing' ),
-	'traversal'  => class_exists( 'BlueFairy\\Recipes\\..\\tests\\fixtures\\Planted' ),
-	'bad_chars'  => class_exists( 'BlueFairy\\Recipes\\Sett-ings' ),
+$bfrc_probe['first']           = $bfrc_first;
+$bfrc_probe['second_load_ok']  = count( $bfrc_probe['actions'] ) === $bfrc_before;
+
+// Every crafted name points at tests/fixtures/Planted.php (which exists and
+// sets a marker when loaded) or at a file inside includes/ with illegal
+// characters. The marker must stay unset: the autoloader refuses the name.
+$GLOBALS['bfrc_planted_loaded'] = 0;
+foreach ( [ 'BlueFairy\\Recipes\\..\\tests\\fixtures\\Planted', 'BlueFairy\\Recipes\\../tests/fixtures/Planted', 'BlueFairy\\Recipes\\Support\\..\\..\\tests\\fixtures\\Planted', "BlueFairy\\Recipes\\..\\tests\\fixtures\\Planted\n" ] as $bfrc_name ) {
+	spl_autoload_call( $bfrc_name );
+}
+$bfrc_probe['autoload'] = [
+	'own_class'      => class_exists( 'BlueFairy\\Recipes\\Settings' ),
+	'own_trait'      => trait_exists( 'BlueFairy\\Recipes\\Support\\WritesOptions' ),
+	'foreign'        => class_exists( 'Some\\Other\\Thing' ),
+	'planted_loaded' => $GLOBALS['bfrc_planted_loaded'],
+	'planted_exists' => is_file( __DIR__ . '/Planted.php' ),
 ];
 echo json_encode( $bfrc_probe );

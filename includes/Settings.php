@@ -14,7 +14,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * The single `bfrc_settings` option, read once per request.
+ * The single `bfrc_settings` option, read once per request through the shared
+ * instance `Plugin::service( 'settings' )` (a second instance has its own
+ * per-request cache and does not see another's write until it re-reads).
  *
  * Every reader goes through get() so the defaults live in exactly one place,
  * and every read is normalised (typed, bounded), so a value written around
@@ -78,6 +80,11 @@ final class Settings {
 		'wp-json',
 		'wp-login',
 		'feed',
+		'rss',
+		'rss2',
+		'rdf',
+		'atom',
+		'trackback',
 		'page',
 		'author',
 		'search',
@@ -200,7 +207,13 @@ final class Settings {
 	 * @return array<string, mixed> What was meant to be stored.
 	 */
 	public function patch( array $values ): array {
-		return $this->store( $this->normalise( array_merge( $this->all(), $values ), false ) );
+		$current = $this->all();
+		$merged  = array_merge( $current, $values );
+		if ( isset( $values['taxonomies'] ) && is_array( $values['taxonomies'] ) ) {
+			// One level down too: patching one taxonomy's switch keeps every other code (the add-on's included) and its other field.
+			$merged['taxonomies'] = array_replace_recursive( $current['taxonomies'], $values['taxonomies'] );
+		}
+		return $this->store( $this->normalise( $merged, false ) );
 	}
 
 	/**
@@ -278,7 +291,7 @@ final class Settings {
 				$clean[ $key ] = self::to_bool( $value );
 			} elseif ( is_int( $default ) ) {
 				[ $min, $max ] = self::BOUNDS[ $key ] ?? [ 0, PHP_INT_MAX ];
-				$clean[ $key ] = is_numeric( $value ) ? max( $min, min( $max, (int) $value ) ) : $default;
+				$clean[ $key ] = is_numeric( $value ) && is_finite( (float) $value ) ? max( $min, min( $max, (int) $value ) ) : $default;
 			} elseif ( 'archive_slug' === $key ) {
 				$clean[ $key ] = self::sanitize_slug( $value );
 			} elseif ( 'taxonomies' === $key ) {
@@ -312,26 +325,48 @@ final class Settings {
 
 	/**
 	 * The archive slug: `sanitize_title()` of the input, at most
-	 * SLUG_MAX_LENGTH bytes, cut on a whole percent-encoded character (core
-	 * percent-encodes non-ASCII, and a byte cut inside `%xx` or inside a
-	 * multibyte character would never match a request path), never empty,
-	 * never a reserved route or a four-digit year (the default stands in).
+	 * SLUG_MAX_LENGTH bytes, never empty, never a reserved route or a
+	 * four-digit year (the default stands in).
+	 *
+	 * Core percent-encodes non-ASCII, and a plugin filtering `sanitize_title`
+	 * may keep raw UTF-8 instead, so the length is enforced on the INPUT: raw
+	 * characters are dropped from the end until the encoded form fits. That
+	 * is a loop over at most SLUG_MAX_LENGTH characters, so it always ends,
+	 * and the cut never lands inside `%xx` or inside a multibyte character.
+	 * A result that still does not decode to valid UTF-8 (a literal `%ff`
+	 * typed by the administrator) is refused rather than stored.
 	 *
 	 * @param mixed $value Raw value.
 	 */
 	public static function sanitize_slug( mixed $value ): string {
 		$fallback = (string) self::DEFAULTS['archive_slug'];
-		$slug     = is_string( $value ) ? sanitize_title( mb_substr( trim( $value ), 0, self::SLUG_MAX_LENGTH ) ) : '';
-		if ( strlen( $slug ) > self::SLUG_MAX_LENGTH ) {
-			$slug = substr( $slug, 0, self::SLUG_MAX_LENGTH );
-			// Strip percent fragments until what is left decodes to valid UTF-8 with no dangling escape.
-			while ( '' !== $slug && ( 1 === preg_match( '/%[0-9a-f]?$/i', $slug ) || ! mb_check_encoding( rawurldecode( $slug ), 'UTF-8' ) ) ) {
-				$slug = (string) preg_replace( '/%[0-9a-f]{0,2}$/i', '', $slug );
-			}
+		if ( ! is_string( $value ) ) {
+			return $fallback;
+		}
+		$chars  = mb_str_split( mb_substr( trim( $value ), 0, self::SLUG_MAX_LENGTH ) );
+		$slug   = sanitize_title( implode( '', $chars ) );
+		$length = strlen( $slug );
+		while ( $length > self::SLUG_MAX_LENGTH && [] !== $chars ) {
+			array_pop( $chars );
+			$slug   = sanitize_title( implode( '', $chars ) );
+			$length = strlen( $slug );
 		}
 		$slug = trim( $slug, '-' );
-		if ( '' === $slug || in_array( $slug, self::RESERVED_SLUGS, true ) || 1 === preg_match( '/^\d{4}\z/', $slug ) ) {
+		if ( '' === $slug || strlen( $slug ) > self::SLUG_MAX_LENGTH ) {
 			return $fallback;
+		}
+		// Every `%` must open a full `%xx` octet, and the octets must decode to UTF-8 (a typed `%ff` or a lone `%` is refused).
+		if ( 1 === preg_match( '/%(?![0-9a-f]{2})/i', $slug ) ) {
+			return $fallback;
+		}
+		$decoded = rawurldecode( $slug );
+		if ( ! mb_check_encoding( $decoded, 'UTF-8' ) || ! mb_check_encoding( $slug, 'UTF-8' ) ) {
+			return $fallback;
+		}
+		foreach ( [ $slug, $decoded ] as $form ) {
+			if ( in_array( $form, self::RESERVED_SLUGS, true ) || 1 === preg_match( '/^\d{4}\z/', $form ) ) {
+				return $fallback;
+			}
 		}
 		return $slug;
 	}

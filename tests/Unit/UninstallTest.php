@@ -139,14 +139,15 @@ final class UninstallTest extends TestCase {
 		$this->assertStringContainsString( "post_type = 'bfrc_recipe' AND ID > 0 ORDER BY ID LIMIT 100", $selects[0] );
 		$this->assertStringContainsString( 'AND ID > 1100 ORDER BY ID LIMIT 100', $selects[1], 'keyset paging: the second page starts after the last id seen' );
 		$this->assertSame( [ true, false ], $GLOBALS['bfrc_test_suspended_invalidation'], 'cache invalidation suspended for the loop, restored after' );
+		$this->assertSame( 2, $GLOBALS['bfrc_test_runtime_flushes'], 'the runtime cache is dropped once per batch so memory does not grow with the recipes' );
 
 		$term_selects = $this->wpdb->queries_matching( 'SELECT term_taxonomy_id, term_id FROM bfw_term_taxonomy' );
 		$this->assertCount( 1, $term_selects, 'three rows is a short page' );
-		$this->assertStringContainsString( "taxonomy LIKE 'bfrc\\\\_%' ORDER BY term_taxonomy_id LIMIT 100", $term_selects[0] );
+		$this->assertStringContainsString( "taxonomy LIKE 'bfrc\\\\_%' LIMIT 100", $term_selects[0], 'no ORDER BY: each batch deletes what it read' );
 		$this->assertCount( 1, $this->wpdb->queries_matching( 'DELETE FROM bfw_term_relationships WHERE term_taxonomy_id IN (7,8,9)' ) );
 		$this->assertCount( 1, $this->wpdb->queries_matching( 'DELETE FROM bfw_term_taxonomy WHERE term_taxonomy_id IN (7,8,9)' ) );
-		$this->assertCount( 1, $this->wpdb->queries_matching( 'DELETE FROM bfw_termmeta WHERE term_id IN (70,91) AND term_id NOT IN (SELECT term_id FROM bfw_term_taxonomy)' ), 'term meta of our terms, only where no other taxonomy still uses the term' );
-		$this->assertCount( 1, $this->wpdb->queries_matching( 'DELETE FROM bfw_terms WHERE term_id IN (70,91) AND term_id NOT IN (SELECT term_id FROM bfw_term_taxonomy)' ), 'only our terms, never every orphan on the site' );
+		$this->assertCount( 1, $this->wpdb->queries_matching( 'DELETE FROM bfw_termmeta WHERE term_id IN (70,91) AND NOT EXISTS (SELECT 1 FROM bfw_term_taxonomy tt WHERE tt.term_id = bfw_termmeta.term_id)' ), 'term meta of our terms, only where no other taxonomy still uses the term' );
+		$this->assertCount( 1, $this->wpdb->queries_matching( 'DELETE FROM bfw_terms WHERE term_id IN (70,91) AND NOT EXISTS (SELECT 1 FROM bfw_term_taxonomy tt WHERE tt.term_id = bfw_terms.term_id)' ), 'only our terms, never every orphan on the site' );
 		$this->assertSame( [], $this->wpdb->queries_matching( 'LEFT JOIN' ) );
 
 		foreach ( $this->listed_user_meta() as $key ) {
@@ -154,6 +155,7 @@ final class UninstallTest extends TestCase {
 		}
 		$this->assertSame( 'keep', get_user_meta( 5, 'other_plugin_meta', true ), 'only our keys' );
 		$this->assertSame( 1, $GLOBALS['bfrc_test_cache_flushes'], 'one full flush at the end, not one per post' );
+		$this->assertSame( [ 'bfrc' ], $GLOBALS['bfrc_test_group_flushes'], 'the plugin\'s cache group is flushed' );
 		$this->assertFalse( get_option( 'bfrc_settings' ) );
 	}
 
@@ -166,6 +168,7 @@ final class UninstallTest extends TestCase {
 		}
 		$this->wpdb->queue( 'get_results', $page );
 		$this->wpdb->queue( 'get_results', [ [ 'term_taxonomy_id' => '101', 'term_id' => '601' ] ] );
+		$this->wpdb->always( 'query', 100 );
 		$this->run_uninstall();
 		$this->assertCount( 2, $this->wpdb->queries_matching( 'SELECT term_taxonomy_id, term_id FROM bfw_term_taxonomy' ), 'a full page, then the short page that ends the loop' );
 		$this->assertCount( 2, $this->wpdb->queries_matching( 'DELETE FROM bfw_term_taxonomy WHERE' ) );
@@ -220,6 +223,44 @@ final class UninstallTest extends TestCase {
 		$this->assertNull( get_role( Capabilities::ROLE_WRITER ), 'the role itself is still removed' );
 	}
 
+	public function test_term_loop_stops_when_a_full_batch_could_not_be_deleted(): void {
+		$this->seed( true );
+		$this->wpdb->queue( 'get_col', [] );
+		$page = [];
+		for ( $i = 1; $i <= 100; $i++ ) {
+			$page[] = [ 'term_taxonomy_id' => (string) $i, 'term_id' => (string) ( 500 + $i ) ];
+		}
+		$this->wpdb->always( 'get_results', $page ); // the same full page for ever
+		$this->wpdb->always( 'query', false );        // every DELETE refused (locked table, read-only user)
+		$this->run_uninstall();
+		$this->assertCount( 1, $this->wpdb->queries_matching( 'SELECT term_taxonomy_id, term_id FROM bfw_term_taxonomy' ), 'one pass: a batch that did not delete ends the loop instead of re-reading it for ever' );
+	}
+
+	public function test_cache_group_is_not_flushed_on_a_cache_without_flush_group_support(): void {
+		$this->seed( false );
+		$GLOBALS['bfrc_test_cache_supports'] = [];
+		$this->run_uninstall();
+		$this->assertSame( [], $GLOBALS['bfrc_test_group_flushes'], 'a drop-in without flush_group() would fatal; wp_cache_supports() is asked first' );
+	}
+
+	public function test_profiles_are_removed_before_any_site_is_cleaned_so_an_interrupted_run_has_honoured_the_choice(): void {
+		$this->seed( true );
+		$this->wpdb->queue(
+			'get_col',
+			static function (): never {
+				throw new \RuntimeException( 'db gone' );
+			}
+		);
+		try {
+			$this->run_uninstall();
+			$this->fail( 'expected the exception to propagate' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'db gone', $e->getMessage() );
+		}
+		$this->assertSame( '', get_user_meta( 5, 'bfrc_about', true ), 'profiles went first' );
+		$this->assertSame( Settings::DEFAULTS['per_page'], get_option( 'bfrc_settings' )['per_page'], 'the settings option is still there, so a repeated run reads the same choice' );
+	}
+
 	public function test_on_multisite_every_site_is_cleaned_only_opted_in_sites_lose_content_and_profiles_survive_unless_all_opted_in(): void {
 		$GLOBALS['bfrc_test_multisite'] = true;
 		$GLOBALS['bfrc_test_sites']     = [ 1, 2, 3 ];
@@ -237,7 +278,7 @@ final class UninstallTest extends TestCase {
 
 		$this->run_uninstall();
 
-		$this->assertSame( [ 1, 2, 3 ], $GLOBALS['bfrc_test_switched'], 'every site visited, in order' );
+		$this->assertSame( [ 1, 2, 3, 1, 2, 3 ], $GLOBALS['bfrc_test_switched'], 'every site visited twice, in order: the decisions pass, then the cleanup pass' );
 		$this->assertSame( 1, get_current_blog_id(), 'restored to the main site' );
 		$this->assertSame( [ [ 9, true ] ], $GLOBALS['bfrc_test_deleted_posts'], 'only site 2 opted in' );
 		$this->assertSame( 'Cooks on sites 1 and 2.', get_user_meta( 5, 'bfrc_about', true ), 'user meta is network-wide: one opted-in site cannot delete profiles sites 1 and 3 kept' );

@@ -42,8 +42,8 @@ final class EntryFileTest extends TestCase {
 
 	public function test_a_second_copy_loading_is_a_no_op_not_a_fatal(): void {
 		$probe = $this->probe();
-		$this->assertTrue( $probe['second_load_ok'] );
-		$this->assertCount( 1, $probe['actions'], 'the second load registered nothing' );
+		$this->assertTrue( $probe['second_load_ok'], 'the second load registered nothing' );
+		$this->assertCount( 1, $probe['actions'] );
 	}
 
 	public function test_the_autoloader_resolves_only_well_formed_names_in_its_own_namespace(): void {
@@ -51,7 +51,7 @@ final class EntryFileTest extends TestCase {
 		$this->assertTrue( $probe['autoload']['own_class'] );
 		$this->assertTrue( $probe['autoload']['own_trait'] );
 		$this->assertFalse( $probe['autoload']['foreign'] );
-		$this->assertFalse( $probe['autoload']['traversal'], 'a class name carrying .. never becomes a path' );
-		$this->assertFalse( $probe['autoload']['bad_chars'] );
+		$this->assertTrue( $probe['autoload']['planted_exists'], 'the planted file is there to be loaded: the check has a specimen' );
+		$this->assertSame( 0, $probe['autoload']['planted_loaded'], 'four traversal names pointing at a real file outside includes/ loaded nothing' );
 	}
 }

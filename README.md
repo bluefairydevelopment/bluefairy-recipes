@@ -21,8 +21,9 @@ release tag.
   release process exercises it.
 - **Uninstall keeps your recipes** unless "Delete all data on uninstall" is on. With it on,
   a site with thousands of recipes may not finish inside one web request; run
-  `wp plugin uninstall bluefairy-recipes` instead, or simply repeat the uninstall (it picks
-  up where it stopped).
+  `wp plugin uninstall bluefairy-recipes` instead, or simply repeat the uninstall (profiles
+  are removed first and each site's settings are removed last, so a repeated run makes the
+  same choices and picks up where it stopped).
 - After an uninstall and reinstall, recipes and writer profiles are intact, but users must
   be given the Recipe Writer role again (uninstall removes the plugin's roles).
 

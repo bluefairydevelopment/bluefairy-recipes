@@ -51,7 +51,11 @@ one autoloaded option read on `init` 99 (the flush flag). Nothing is written.
 
 ## Settings
 
-One option, `bfrc_settings` (autoloaded). `Settings::DEFAULTS` is the whole vocabulary.
+One option, `bfrc_settings` (autoloaded), read through the shared instance
+`Plugin::service( 'settings' )`. `Settings::DEFAULTS` is the whole vocabulary (an add-on
+keeps its own option; keys outside the vocabulary are dropped). `patch()` merges the
+`taxonomies` map one level down too. The settings screen (a later milestone) must save
+through `update()`, not through `options.php`, so the side effects below run.
 Every read is normalised (typed, bounded, system taxonomies always present), so a value
 written around the class cannot reach a consumer as the wrong type. Two writers:
 `update()` has form semantics (an absent checkbox is unticked) for the settings screen;
@@ -72,7 +76,7 @@ core's 32-character taxonomy-name limit); at most `MAX_CUSTOM_TAXONOMIES` (50) a
 | Settings | option `bfrc_settings` (autoload) | see above |
 | Versions | options `bfrc_version`, `bfrc_db_version` (autoload) | `Installer::maybe_upgrade()` compares on every boot |
 | Rewrite flag | option `bfrc_flush_rewrite` (autoload, always present, `0`/`1`) | raised by activation and by a changed `archive_slug` (only when the version write succeeded); consumed once on `init` 99. An option rather than a transient: free to read, cannot be evicted or expire |
-| Roles | `bfrc_writer`, `bfrc_recipe_manager` | `Capabilities::WRITER_CAPS`, `MANAGER_EXTRA_CAPS`; core roles granted per `core_grants()` while `grant_core_roles` is on; administrators always hold `bfrc_manage_recipes` |
+| Roles | `bfrc_writer`, `bfrc_recipe_manager` | `Capabilities::WRITER_CAPS`, `MANAGER_EXTRA_CAPS`; core roles granted per `core_grants()` while `grant_core_roles` is on (turning it off takes the capabilities back from Authors and Editors; administrators keep everything) |
 
 `Installer::OPTIONS` must equal the option list in `uninstall.php` in both directions, as
 must the capability list, the role list and the core-role list (one test enforces all four).
@@ -87,7 +91,9 @@ must the capability list, the role list and the core-role list (one test enforce
   them on the next request without this plugin's (a flush during deactivation would write
   them back, the post type being still registered). Roles, settings, versions and content
   stay.
-- **Uninstall** (`uninstall.php`, standalone): always removes the listed options, every
+- **Uninstall** (`uninstall.php`, standalone): reads every site's choice first, removes the
+  writer profiles next (when every site opted in), then cleans each site with its options
+  last, so an interrupted run can be repeated. Always removes the listed options, every
   other `bfrc_…` option (core's taxonomy `_children` caches, dynamic transients), the stored
   rewrite rules, the two roles (users keep a role: `subscriber` when it was their only one;
   a pass that makes no progress ends the loop), the recipe capabilities on core roles, and
@@ -96,8 +102,13 @@ must the capability list, the role list and the core-role list (one test enforce
   own routine with cache invalidation suspended and one flush at the end), the terms of
   every `bfrc_*` taxonomy with their meta (only those terms, and only where no other
   taxonomy still uses them), and the writer profile user meta. User meta is shared by a
-  whole network, so profiles are removed only when every site opted in. After a reinstall
-  recipes and profiles are intact; writers must be given the Recipe Writer role again.
+  whole network, so profiles are removed only when every site opted in (a site that never
+  ran the plugin has no settings and counts as "no"). The term loop stops when a batch could
+  not be deleted; the recipe loop pages by id. After a reinstall recipes and profiles are
+  intact; writers must be given the Recipe Writer role again.
+- **Known limit:** a database that refuses the `bfrc_db_version` write makes every request
+  re-run `provision_site()` (role caps re-asserted, three option writes attempted); the
+  rewrite flush is not repeated. Such a site is broken in ways this plugin cannot fix.
 
 ## Extension seams (this list is mirrored in FEATURES.md "Extending")
 

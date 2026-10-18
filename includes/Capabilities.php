@@ -135,11 +135,13 @@ final class Capabilities {
 				continue;
 			}
 			foreach ( $caps as $cap ) {
-				$existing->add_cap( $cap );
+				if ( ! $existing->has_cap( $cap ) ) {
+					$existing->add_cap( $cap ); // Each add_cap() rewrites the roles option: only the missing ones.
+				}
 			}
 		}
 		$admin = get_role( 'administrator' );
-		if ( $admin instanceof \WP_Role ) {
+		if ( $admin instanceof \WP_Role && ! $admin->has_cap( self::MANAGE ) ) {
 			$admin->add_cap( self::MANAGE );
 		}
 	}
@@ -154,17 +156,24 @@ final class Capabilities {
 				continue;
 			}
 			foreach ( $caps as $cap ) {
-				$object->add_cap( $cap );
+				if ( ! $object->has_cap( $cap ) ) {
+					$object->add_cap( $cap );
+				}
 			}
 		}
 	}
 
 	/**
-	 * Take the recipe capabilities back from the core roles. MANAGE stays on
-	 * administrators (add_roles() owns that grant; remove_roles() revokes it).
+	 * Take the recipe capabilities back from Authors and Editors. Administrators
+	 * keep everything: the setting decides whether a site's existing authors
+	 * and editors may work on recipes, never whether an administrator may
+	 * (MANAGE on administrators belongs to add_roles(); uninstall.php revokes it).
 	 */
 	public static function revoke_core_roles(): void {
 		foreach ( self::core_grants() as $role => $caps ) {
+			if ( 'administrator' === $role ) {
+				continue;
+			}
 			$object = get_role( $role );
 			if ( ! $object instanceof \WP_Role ) {
 				continue;

@@ -71,6 +71,15 @@ final class SettingsTest extends TestCase {
 		$this->assertSame( 5, $settings->get( 'per_page' ) );
 	}
 
+	public function test_patch_merges_one_taxonomy_entry_without_touching_the_others(): void {
+		$settings = new Settings();
+		$settings->update( array_merge( Settings::DEFAULTS, [ 'taxonomies' => array_merge( Settings::DEFAULTS['taxonomies'], [ 'meal_type' => [ 'enabled' => false, 'sort_order' => 5 ], 'occasion' => [ 'enabled' => true, 'sort_order' => 50 ] ] ) ] ) );
+		$stored = $settings->patch( [ 'taxonomies' => [ 'diet' => [ 'enabled' => false ] ] ] );
+		$this->assertSame( [ 'enabled' => false, 'sort_order' => 20 ], $stored['taxonomies']['diet'], 'the patched switch changed, its sort order kept' );
+		$this->assertSame( [ 'enabled' => false, 'sort_order' => 5 ], $stored['taxonomies']['meal_type'], 'a sibling system code keeps its stored values' );
+		$this->assertSame( [ 'enabled' => true, 'sort_order' => 50 ], $stored['taxonomies']['occasion'], 'the add-on\'s code survives a one-entry patch' );
+	}
+
 	public function test_a_refused_write_is_reported_and_implies_nothing(): void {
 		$GLOBALS['bfrc_test_option_write_fails'][] = 'bfrc_settings';
 		$settings = new Settings();
@@ -125,7 +134,7 @@ final class SettingsTest extends TestCase {
 		$this->assertSame( 100, $s->sanitize( [ 'per_page' => 100 ] )['per_page'], 'the bound itself is allowed' );
 		$this->assertSame( 37, $s->sanitize( [ 'per_page' => '37' ] )['per_page'] );
 		$this->assertSame( 12, $s->sanitize( [ 'per_page' => 12.9 ] )['per_page'] );
-		foreach ( [ '', 'abc', null, true, [ 3 ] ] as $garbage ) {
+		foreach ( [ '', 'abc', null, true, [ 3 ], '1e1000', INF, NAN ] as $garbage ) {
 			$this->assertSame( 12, $s->sanitize( [ 'per_page' => $garbage ] )['per_page'], var_export( $garbage, true ) . ' is not a number: the default, not 1' );
 		}
 	}
@@ -156,6 +165,37 @@ final class SettingsTest extends TestCase {
 		$this->assertSame( 'recipes', Settings::sanitize_slug( 42 ) );
 		$this->assertSame( str_repeat( 'a', 64 ), Settings::sanitize_slug( str_repeat( 'a', 70 ) ), 'cut to 64' );
 		$this->assertSame( str_repeat( 'a', 63 ), Settings::sanitize_slug( str_repeat( 'a', 63 ) . '-b' ), 'a dash left dangling by the cut is trimmed' );
+	}
+
+	public function test_sanitize_slug_terminates_and_refuses_a_typed_invalid_octet_before_a_multibyte_tail(): void {
+		// Reproduced against real core in review: the previous cure looped for ever on this input.
+		$started = microtime( true );
+		$this->assertSame( 'recipes', Settings::sanitize_slug( '%ff' . 'aaaaa' . str_repeat( '日', 10 ) ), 'a slug that cannot decode to UTF-8 is refused, not stored' );
+		$this->assertSame( 'recipes', Settings::sanitize_slug( '%ffab' . str_repeat( '世', 20 ) ) );
+		$this->assertSame( 'recipes', Settings::sanitize_slug( str_repeat( 'a', 58 ) . '%e6%97' ), 'full octets that do not decode to a character are refused' );
+		$this->assertLessThan( 1.0, microtime( true ) - $started, 'finite' );
+	}
+
+	public function test_sanitize_slug_refuses_a_lone_or_dangling_percent(): void {
+		foreach ( [ '%', '%%%', '50%', 'a%zz', str_repeat( '%', 200 ) ] as $bad ) {
+			$this->assertSame( 'recipes', Settings::sanitize_slug( $bad ), var_export( $bad, true ) );
+		}
+		$this->assertSame( '%e4%b8%ad', Settings::sanitize_slug( '%e4%b8%ad' ), 'a typed full octet sequence that decodes is kept' );
+	}
+
+	public function test_sanitize_slug_terminates_when_sanitize_title_keeps_raw_utf8(): void {
+		$GLOBALS['bfrc_test_sanitize_title_raw'] = true; // a plugin's filter (the Cyrillic/unicode slug family) returns raw multibyte text
+		$started = microtime( true );
+		$slug    = Settings::sanitize_slug( 'a' . str_repeat( 'é', 60 ) );
+		$this->assertLessThanOrEqual( 64, strlen( $slug ) );
+		$this->assertTrue( mb_check_encoding( $slug, 'UTF-8' ), 'never cut inside a multibyte character: ' . $slug );
+		$this->assertSame( 'a' . str_repeat( 'é', 31 ), $slug, '1 + 31 × 2 bytes = 63 bytes; a 32nd é would be 65' );
+		$this->assertLessThan( 1.0, microtime( true ) - $started, 'finite' );
+	}
+
+	public function test_sanitize_slug_refuses_a_reserved_route_typed_as_octets(): void {
+		$this->assertSame( 'recipes', Settings::sanitize_slug( '%66eed' ), 'decodes to feed' );
+		$this->assertSame( 'recipes', Settings::sanitize_slug( '%77p-admin' ) );
 	}
 
 	public function test_sanitize_slug_cuts_percent_encoded_slugs_on_a_whole_character(): void {

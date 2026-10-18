@@ -119,6 +119,9 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_role_removal_blocked'] = false; // true models a plugin vetoing WP_User::remove_role().
 	$GLOBALS['bfrc_test_activation_hooks'] = []; // register_(de)activation_hook() calls.
 	$GLOBALS['bfrc_test_cache_flushes']    = 0;
+	$GLOBALS['bfrc_test_group_flushes']    = [];
+	$GLOBALS['bfrc_test_runtime_flushes']  = 0;
+	$GLOBALS['bfrc_test_sanitize_title_raw'] = false; // true: a plugin's filter keeps raw UTF-8 instead of percent-encoding.
 	$GLOBALS['bfrc_test_suspended_invalidation'] = [];
 	$GLOBALS['bfrc_test_posts']         = [];
 	$GLOBALS['bfrc_test_db_delta']      = [];
@@ -307,6 +310,7 @@ function wp_cache_incr( int|string $key, int $offset = 1, string $group = '' ): 
 	return $GLOBALS['bfrc_test_cache'][ $group ][ $key ];
 }
 function wp_cache_flush_group( string $group ): bool {
+	$GLOBALS['bfrc_test_group_flushes'][] = $group;
 	unset( $GLOBALS['bfrc_test_cache'][ $group ], $GLOBALS['bfrc_test_cache_expires'][ $group ] );
 	return true;
 }
@@ -445,7 +449,10 @@ function is_email( mixed $email ): string|false {
 }
 /** As core's sanitize_title_with_dashes: lower-cased, non-ASCII percent-encoded (utf8_uri_encode), everything else but [a-z0-9-%] becomes a dash. */
 function sanitize_title( mixed $title ): string {
-	$title   = is_scalar( $title ) ? mb_strtolower( (string) $title ) : '';
+	$title = is_scalar( $title ) ? mb_strtolower( (string) $title ) : '';
+	if ( ! empty( $GLOBALS['bfrc_test_sanitize_title_raw'] ) ) {
+		return trim( preg_replace( '/[^\p{L}\p{N}%\-]+/u', '-', $title ) ?? '', '-' );
+	}
 	$encoded = preg_replace_callback( '/[^\x00-\x7F]+/u', static fn( array $m ): string => strtolower( rawurlencode( $m[0] ) ), $title ) ?? '';
 	return trim( preg_replace( '/[^a-z0-9%\-]+/', '-', $encoded ) ?? '', '-' );
 }
