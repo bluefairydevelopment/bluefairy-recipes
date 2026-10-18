@@ -73,9 +73,9 @@ final class SettingsTest extends TestCase {
 
 	public function test_patch_merges_one_taxonomy_entry_without_touching_the_others(): void {
 		$settings = new Settings();
-		$settings->update( array_merge( Settings::DEFAULTS, [ 'taxonomies' => array_merge( Settings::DEFAULTS['taxonomies'], [ 'meal_type' => [ 'enabled' => false, 'sort_order' => 5 ], 'occasion' => [ 'enabled' => true, 'sort_order' => 50 ] ] ) ] ) );
+		$settings->update( array_merge( Settings::DEFAULTS, [ 'taxonomies' => array_merge( Settings::DEFAULTS['taxonomies'], [ 'meal_type' => [ 'enabled' => false, 'sort_order' => 5 ], 'diet' => [ 'enabled' => true, 'sort_order' => 7 ], 'occasion' => [ 'enabled' => true, 'sort_order' => 50 ] ] ) ] ) );
 		$stored = $settings->patch( [ 'taxonomies' => [ 'diet' => [ 'enabled' => false ] ] ] );
-		$this->assertSame( [ 'enabled' => false, 'sort_order' => 20 ], $stored['taxonomies']['diet'], 'the patched switch changed, its sort order kept' );
+		$this->assertSame( [ 'enabled' => false, 'sort_order' => 7 ], $stored['taxonomies']['diet'], 'the patched switch changed; its non-default sort order kept (a shallow merge would refill the default 20)' );
 		$this->assertSame( [ 'enabled' => false, 'sort_order' => 5 ], $stored['taxonomies']['meal_type'], 'a sibling system code keeps its stored values' );
 		$this->assertSame( [ 'enabled' => true, 'sort_order' => 50 ], $stored['taxonomies']['occasion'], 'the add-on\'s code survives a one-entry patch' );
 	}
@@ -177,6 +177,7 @@ final class SettingsTest extends TestCase {
 	}
 
 	public function test_sanitize_slug_refuses_a_lone_or_dangling_percent(): void {
+		// Real core's sanitize_title() already drops a lone %, so this branch is defence in depth against a filtering plugin; the stub keeps the % to reach it.
 		foreach ( [ '%', '%%%', '50%', 'a%zz', str_repeat( '%', 200 ) ] as $bad ) {
 			$this->assertSame( 'recipes', Settings::sanitize_slug( $bad ), var_export( $bad, true ) );
 		}
@@ -196,6 +197,15 @@ final class SettingsTest extends TestCase {
 	public function test_sanitize_slug_refuses_a_reserved_route_typed_as_octets(): void {
 		$this->assertSame( 'recipes', Settings::sanitize_slug( '%66eed' ), 'decodes to feed' );
 		$this->assertSame( 'recipes', Settings::sanitize_slug( '%77p-admin' ) );
+		$this->assertSame( 'recipes', Settings::sanitize_slug( '%46eed' ), 'upper-case hex decodes to Feed: compared lower-cased' );
+		$this->assertSame( 'recipes', Settings::sanitize_slug( '%57p-admin' ) );
+		$this->assertSame( 'recipes', Settings::sanitize_slug( '%32%30%32%34' ), 'a year typed as octets' );
+	}
+
+	public function test_sanitize_slug_refuses_octets_that_decode_to_characters_a_slug_cannot_hold(): void {
+		foreach ( [ 'a%2fb', '%2e%2e', '%00x', 'a%0ab', 'a%20b', 'a%3cb', 'a%5cb' ] as $bad ) {
+			$this->assertSame( 'recipes', Settings::sanitize_slug( $bad ), var_export( $bad, true ) );
+		}
 	}
 
 	public function test_sanitize_slug_cuts_percent_encoded_slugs_on_a_whole_character(): void {

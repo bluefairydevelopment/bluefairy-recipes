@@ -140,7 +140,7 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_network_active'] = true;
 	$GLOBALS['bfrc_test_doing_cron']    = false;
 	$GLOBALS['bfrc_test_serving_rest']  = false; // As core: true only while WP_REST_Server serves the HTTP request (TF4).
-	$GLOBALS['bfrc_test_cache_supports'] = [ 'flush_group' ]; // Features wp_cache_supports() reports (TF6).
+	$GLOBALS['bfrc_test_cache_supports'] = [ 'flush_group', 'flush_runtime' ]; // Features wp_cache_supports() reports (TF6).
 	$GLOBALS['bfrc_test_suspended']     = []; // Every wp_suspend_cache_addition() call, in order.
 	$GLOBALS['bfrc_test_role_names']      = []; // add_role() display names.
 	$GLOBALS['bfrc_test_get_users_calls'] = []; // Every get_users() call's args.
@@ -321,7 +321,7 @@ function wp_cache_flush(): bool {
 	return true;
 }
 function wp_cache_supports( string $feature ): bool {
-	return in_array( $feature, $GLOBALS['bfrc_test_cache_supports'] ?? [ 'flush_group' ], true );
+	return in_array( $feature, $GLOBALS['bfrc_test_cache_supports'] ?? [ 'flush_group', 'flush_runtime' ], true );
 }
 function wp_using_ext_object_cache( ?bool $using = null ): ?bool {
 	// Mirrors core: $_wp_using_ext_object_cache is null on an install without a

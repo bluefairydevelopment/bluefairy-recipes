@@ -243,6 +243,27 @@ final class UninstallTest extends TestCase {
 		$this->assertSame( [], $GLOBALS['bfrc_test_group_flushes'], 'a drop-in without flush_group() would fatal; wp_cache_supports() is asked first' );
 	}
 
+	public function test_runtime_cache_is_not_flushed_on_a_cache_without_flush_runtime_support(): void {
+		$this->seed( true );
+		$GLOBALS['bfrc_test_cache_supports'] = [ 'flush_group' ];
+		$this->wpdb->queue( 'get_col', [ '41' ] );
+		$this->wpdb->queue( 'get_results', [] );
+		$this->run_uninstall();
+		$this->assertSame( [ [ 41, true ] ], $GLOBALS['bfrc_test_deleted_posts'] );
+		$this->assertSame( 0, $GLOBALS['bfrc_test_runtime_flushes'], 'core would _doing_it_wrong(): wp_cache_supports() is asked first' );
+	}
+
+	public function test_on_multisite_an_empty_site_list_deletes_nothing_and_never_counts_as_every_site_opting_in(): void {
+		$GLOBALS['bfrc_test_multisite'] = true;
+		$GLOBALS['bfrc_test_sites']     = [];
+		bfrc_test_add_user( 5, [ 'roles' => [ 'editor' ] ] );
+		update_user_meta( 5, 'bfrc_about', 'kept' );
+		$this->run_uninstall();
+		$this->assertSame( 'kept', get_user_meta( 5, 'bfrc_about', true ), 'no site examined: "every site opted in" is false, not vacuously true' );
+		$this->assertSame( [], $GLOBALS['bfrc_test_switched'] );
+		$this->assertSame( 0, $GLOBALS['bfrc_test_cache_flushes'] );
+	}
+
 	public function test_profiles_are_removed_before_any_site_is_cleaned_so_an_interrupted_run_has_honoured_the_choice(): void {
 		$this->seed( true );
 		$this->wpdb->queue(

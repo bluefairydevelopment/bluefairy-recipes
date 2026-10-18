@@ -14,7 +14,8 @@
  * such as a taxonomy's `_children` cache), the stored rewrite rules (so core
  * regenerates them without this plugin's), transients, the two roles (their
  * users keep a role: `subscriber` when it was their only one), the recipe
- * capabilities granted to core roles, and the object-cache group.
+ * capabilities granted to core roles, and the object-cache group (where the
+ * cache supports flushing a group).
  *
  * Removes the CONTENT — recipes with their meta and terms, the recipe
  * taxonomies' terms, and the writer profile fields on users — ONLY when the
@@ -137,7 +138,7 @@ $bfrc_uninstall_site = static function ( bool $delete_data ) use ( $bfrc_option_
 				// With invalidation suspended every deleted post stays in the in-memory
 				// cache; drop the runtime cache per batch so memory does not grow with
 				// the number of recipes (the persistent cache is flushed once, below).
-				if ( function_exists( 'wp_cache_flush_runtime' ) ) {
+				if ( function_exists( 'wp_cache_supports' ) && wp_cache_supports( 'flush_runtime' ) ) {
 					wp_cache_flush_runtime();
 				}
 			} while ( $bfrc_batch === $seen );

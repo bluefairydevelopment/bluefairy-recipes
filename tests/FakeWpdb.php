@@ -32,6 +32,12 @@ class FakeWpdb {
 	public string $term_relationships = 'bfw_term_relationships';
 	public string $termmeta = 'bfw_termmeta';
 	public string $usermeta = 'bfw_usermeta';
+	/** A statement repeated this often in one test is a spinning loop, not a plan. */
+	public const MAX_REPEATS = 50;
+
+	/** @var array<string, int> */
+	private array $repeats = [];
+
 	public int $insert_id   = 0;
 	public int $rows_affected = 0;
 	public string $last_error = '';
@@ -218,6 +224,10 @@ class FakeWpdb {
 	private function record( string $method, string $sql, mixed $default ): mixed {
 		$this->last_query = $sql;
 		$this->calls[]    = [ 'method' => $method, 'sql' => $sql ];
+		$this->repeats[ $sql ] = ( $this->repeats[ $sql ] ?? 0 ) + 1;
+		if ( $this->repeats[ $sql ] > self::MAX_REPEATS ) {
+			throw new \RuntimeException( 'FakeWpdb: the same statement ran more than ' . self::MAX_REPEATS . ' times — a loop is spinning: ' . $sql ); // fail fast instead of exhausting memory
+		}
 		return $this->next( $method, $default );
 	}
 

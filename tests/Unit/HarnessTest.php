@@ -136,7 +136,7 @@ final class HarnessTest extends TestCase {
 	public function test_rest_serving_defaults_false_and_cache_supports_is_switchable(): void {
 		$this->assertFalse( wp_is_serving_rest_request(), 'a test that needs the top-level REST request sets bfrc_test_serving_rest itself' );
 		$this->assertTrue( wp_cache_supports( 'flush_group' ) );
-		$this->assertFalse( wp_cache_supports( 'flush_runtime' ) );
+		$this->assertTrue( wp_cache_supports( 'flush_runtime' ) );
 		$GLOBALS['bfrc_test_cache_supports'] = [];
 		$this->assertFalse( wp_cache_supports( 'flush_group' ) );
 	}

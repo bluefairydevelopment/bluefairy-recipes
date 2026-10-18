@@ -363,7 +363,12 @@ final class Settings {
 		if ( ! mb_check_encoding( $decoded, 'UTF-8' ) || ! mb_check_encoding( $slug, 'UTF-8' ) ) {
 			return $fallback;
 		}
-		foreach ( [ $slug, $decoded ] as $form ) {
+		// Octets may spell what sanitize_title() would never let through (a slash, a dot, a space, `<`, a control
+		// character, an upper-case letter): decoded, only non-ASCII, digits, lower-case letters and dashes may remain.
+		if ( 1 === preg_match( '/[^\x80-\xff0-9a-z\-]/', $decoded ) ) {
+			return $fallback;
+		}
+		foreach ( [ $slug, mb_strtolower( $decoded ) ] as $form ) {
 			if ( in_array( $form, self::RESERVED_SLUGS, true ) || 1 === preg_match( '/^\d{4}\z/', $form ) ) {
 				return $fallback;
 			}
