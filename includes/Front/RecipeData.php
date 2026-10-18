@@ -20,40 +20,49 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Everything the templates, the JSON-LD and the REST item need from a
  * recipe's meta, read through the same sanitisers REST uses, so a value
  * written by any path renders the same way. One `get_post_meta()` per
- * recipe: the list query primes the meta cache for every card.
+ * recipe: the list query primes the meta cache for every card. The row
+ * fields (ingredients, steps, nutrition) are sanitised lazily, so a card,
+ * which never shows them, pays nothing for a 200-row recipe.
  */
 final class RecipeData {
 
 	/**
-	 * Ingredient rows.
+	 * The raw meta cache rows.
 	 *
-	 * @var array<int, array{measure: string, label: string, type: string}>
+	 * @var array<string, array<int, mixed>>
 	 */
-	public array $ingredients = [];
+	private array $raw;
 	/**
-	 * Steps.
+	 * Ingredient rows, once asked for.
 	 *
-	 * @var array<int, array{text: string}>
+	 * @var array<int, array{measure: string, label: string, type: string}>|null
 	 */
-	public array $steps = [];
+	private ?array $ingredients = null;
 	/**
-	 * Nutrition, null = not given.
+	 * Steps, once asked for.
 	 *
-	 * @var array<string, float|null>
+	 * @var array<int, array{text: string}>|null
 	 */
-	public array $nutrition = [];
+	private ?array $steps = null;
+	/**
+	 * Nutrition, once asked for.
+	 *
+	 * @var array<string, float|null>|null
+	 */
+	private ?array $nutrition = null;
 
 	/**
 	 * Built by for_post().
 	 *
-	 * @param int    $id           The recipe.
-	 * @param string $media_type   image|video.
-	 * @param string $video_url    Normalised video URL or ''.
-	 * @param int    $prep_minutes Prep minutes.
-	 * @param int    $cook_minutes Cook minutes.
-	 * @param int    $servings_min Servings min.
-	 * @param int    $servings_max Servings max.
-	 * @param bool   $featured     Featured.
+	 * @param int                              $id           The recipe.
+	 * @param string                           $media_type   image|video.
+	 * @param string                           $video_url    Normalised video URL or ''.
+	 * @param int                              $prep_minutes Prep minutes.
+	 * @param int                              $cook_minutes Cook minutes.
+	 * @param int                              $servings_min Servings min.
+	 * @param int                              $servings_max Servings max.
+	 * @param bool                             $featured     Featured.
+	 * @param array<string, array<int, mixed>> $raw          The raw meta rows, for the lazy fields.
 	 */
 	private function __construct(
 		public readonly int $id,
@@ -64,7 +73,10 @@ final class RecipeData {
 		public readonly int $servings_min,
 		public readonly int $servings_max,
 		public readonly bool $featured,
-	) {}
+		array $raw,
+	) {
+		$this->raw = $raw;
+	}
 
 	/**
 	 * Read a recipe.
@@ -72,11 +84,11 @@ final class RecipeData {
 	 * @param \WP_Post|int $post The recipe.
 	 */
 	public static function for_post( \WP_Post|int $post ): self {
-		$id                = $post instanceof \WP_Post ? $post->ID : $post;
-		$meta              = get_post_meta( $id );
-		$meta              = is_array( $meta ) ? $meta : [];
-		$one               = static fn( string $key ): mixed => isset( $meta[ $key ][0] ) ? maybe_unserialize( $meta[ $key ][0] ) : null;
-		$data              = new self(
+		$id   = $post instanceof \WP_Post ? $post->ID : $post;
+		$meta = get_post_meta( $id );
+		$meta = is_array( $meta ) ? $meta : [];
+		$one  = static fn( string $key ): mixed => isset( $meta[ $key ][0] ) ? maybe_unserialize( $meta[ $key ][0] ) : null;
+		return new self(
 			$id,
 			Meta::sanitize_media_type( $one( Meta::MEDIA_TYPE ) ?? 'image' ),
 			VideoUrl::normalise( $one( Meta::VIDEO_URL ) ),
@@ -85,11 +97,44 @@ final class RecipeData {
 			Meta::sanitize_servings( $one( Meta::SERVINGS_MIN ) ),
 			Meta::sanitize_servings( $one( Meta::SERVINGS_MAX ) ),
 			Meta::sanitize_bool( $one( Meta::FEATURED ) ),
+			$meta,
 		);
-		$data->ingredients = Meta::sanitize_ingredients( $one( Meta::INGREDIENTS ) );
-		$data->steps       = Meta::sanitize_steps( $one( Meta::STEPS ) );
-		$data->nutrition   = Meta::sanitize_nutrition( $one( Meta::NUTRITION ) );
-		return $data;
+	}
+
+	/**
+	 * Ingredient rows (sanitised on first use).
+	 *
+	 * @return array<int, array{measure: string, label: string, type: string}>
+	 */
+	public function ingredients(): array {
+		if ( null === $this->ingredients ) {
+			$this->ingredients = Meta::sanitize_ingredients( $this->raw_value( Meta::INGREDIENTS ) );
+		}
+		return $this->ingredients;
+	}
+
+	/**
+	 * Steps (sanitised on first use).
+	 *
+	 * @return array<int, array{text: string}>
+	 */
+	public function steps(): array {
+		if ( null === $this->steps ) {
+			$this->steps = Meta::sanitize_steps( $this->raw_value( Meta::STEPS ) );
+		}
+		return $this->steps;
+	}
+
+	/**
+	 * Nutrition, every field present, null = not given (sanitised on first use).
+	 *
+	 * @return array<string, float|null>
+	 */
+	public function nutrition(): array {
+		if ( null === $this->nutrition ) {
+			$this->nutrition = Meta::sanitize_nutrition( $this->raw_value( Meta::NUTRITION ) );
+		}
+		return $this->nutrition;
 	}
 
 	/**
@@ -162,11 +207,21 @@ final class RecipeData {
 	 */
 	public function nutrition_present(): array {
 		$out = [];
-		foreach ( Meta::NUTRITION_FIELDS as $field => $unit ) {
-			if ( isset( $this->nutrition[ $field ] ) ) {
-				$out[ $field ] = (float) $this->nutrition[ $field ];
+		foreach ( array_keys( Meta::NUTRITION_FIELDS ) as $field ) {
+			$value = $this->nutrition()[ $field ] ?? null;
+			if ( null !== $value ) {
+				$out[ $field ] = (float) $value;
 			}
 		}
 		return $out;
+	}
+
+	/**
+	 * One raw meta value (unserialised), or null.
+	 *
+	 * @param string $key Meta key.
+	 */
+	private function raw_value( string $key ): mixed {
+		return isset( $this->raw[ $key ][0] ) ? maybe_unserialize( $this->raw[ $key ][0] ) : null;
 	}
 }

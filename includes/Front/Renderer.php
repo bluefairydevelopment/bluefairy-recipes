@@ -10,8 +10,11 @@ declare(strict_types=1);
 namespace BlueFairy\Recipes\Front;
 
 use BlueFairy\Recipes\Admin\RecipeEditor;
+use BlueFairy\Recipes\Admin\WriterProfile;
+use BlueFairy\Recipes\Content\Meta;
 use BlueFairy\Recipes\Content\PostType;
 use BlueFairy\Recipes\Content\Taxonomies;
+use BlueFairy\Recipes\Plugin;
 use BlueFairy\Recipes\Settings;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -22,13 +25,15 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Every public view is built here and returned as a string, so the block
  * templates, the classic templates, the blocks and the shortcodes all show
  * the same markup, and every partial can be rendered in a test without a
- * theme. Nothing here runs a query per card: the writer links of a grid come
- * from one `count_many_users_posts()`, thumbnails from the primed cache.
+ * theme. Nothing here runs a query per card: a grid primes its thumbnails
+ * and its authors once, asks `count_many_users_posts()` once, and reads one
+ * `get_terms()` for every enabled taxonomy together.
  */
 final class Renderer {
 
-	public const GRID_IMAGE = 'medium_large';
-	public const HERO_IMAGE = 'large';
+	public const GRID_IMAGE  = 'medium_large';
+	public const HERO_IMAGE  = 'large';
+	public const TERMS_LIMIT = 200;
 
 	/**
 	 * Wire the dependencies.
@@ -58,7 +63,7 @@ final class Renderer {
 		$html  = '<div class="bfrc-archive">';
 		$html .= '<header class="bfrc-archive__header"><h1 class="bfrc-archive__title">' . esc_html( $title ) . '</h1>';
 		if ( $term instanceof \WP_Term && '' !== $term->description ) {
-			$html .= '<div class="bfrc-archive__description">' . wp_kses_post( $term->description ) . '</div>';
+			$html .= '<div class="bfrc-archive__description">' . wp_kses_post( term_description( $term->term_id ) ) . '</div>';
 		}
 		if ( $this->writers->listing_enabled() ) {
 			$html .= '<p class="bfrc-archive__writers-link"><a href="' . esc_url( $this->writers->listing_url() ) . '">' . esc_html__( 'Browse recipe writers', 'bluefairy-recipes' ) . '</a></p>';
@@ -74,41 +79,35 @@ final class Renderer {
 
 	/**
 	 * The filter form: one select per enabled taxonomy that has terms, a
-	 * title keyword, submit and reset. GET to the current archive URL, so
-	 * the filtered page is a plain link; the script auto-submits on change.
+	 * title keyword, submit and reset. GET to the current archive or term
+	 * URL with `bfrc_filter[{code}]` fields (not the taxonomies' own query
+	 * vars, which would turn the result into a term page). The terms of
+	 * every enabled taxonomy come from one `get_terms()`.
 	 *
 	 * @param \WP_Query $query The main query (for the current choices).
 	 */
 	public function filters( \WP_Query $query ): string {
-		$action = $query->is_tax() && $query->get_queried_object() instanceof \WP_Term ? get_term_link( $query->get_queried_object() ) : get_post_type_archive_link( PostType::NAME );
-		$action = is_string( $action ) ? $action : get_post_type_archive_link( PostType::NAME );
+		$term   = $query->is_tax() ? $query->get_queried_object() : null;
+		$action = $term instanceof \WP_Term ? get_term_link( $term ) : get_post_type_archive_link( PostType::NAME );
+		$action = is_string( $action ) ? $action : (string) get_post_type_archive_link( PostType::NAME );
 		$chosen = $this->current_filters();
 		$search = $this->current_search();
-		$html   = '<form class="bfrc-filters" method="get" action="' . esc_url( (string) $action ) . '" data-bfrc-filters role="search" aria-label="' . esc_attr__( 'Filter recipes', 'bluefairy-recipes' ) . '">';
+		$html   = '<form class="bfrc-filters" method="get" action="' . esc_url( $action ) . '" data-bfrc-filters role="search" aria-label="' . esc_attr__( 'Filter recipes', 'bluefairy-recipes' ) . '">';
+		$terms  = $this->terms_by_taxonomy();
 		foreach ( $this->taxonomies->enabled() as $code => $definition ) {
 			$name = Taxonomies::taxonomy_name( $code );
-			if ( $query->is_tax( $name ) ) {
+			if ( $term instanceof \WP_Term && $term->taxonomy === $name ) {
 				continue; // The URL already names this term.
 			}
-			$terms = get_terms(
-				[
-					'taxonomy'   => $name,
-					'hide_empty' => true,
-					'number'     => 200,
-					'orderby'    => 'name',
-				]
-			);
-			if ( ! is_array( $terms ) || [] === $terms ) {
+			$options = $terms[ $name ] ?? [];
+			if ( [] === $options ) {
 				continue;
 			}
 			$html .= '<label class="bfrc-filters__field"><span class="bfrc-filters__label">' . esc_html( $definition['singular'] ) . '</span>';
-			$html .= '<select name="' . esc_attr( $name ) . '">';
+			$html .= '<select name="' . esc_attr( Templates::FILTER_VAR . '[' . $code . ']' ) . '">';
 			$html .= '<option value="">' . esc_html( sprintf( /* translators: %s: filter type plural name */ __( 'All %s', 'bluefairy-recipes' ), $definition['label'] ) ) . '</option>';
-			foreach ( $terms as $term ) {
-				if ( ! $term instanceof \WP_Term ) {
-					continue;
-				}
-				$html .= '<option value="' . esc_attr( $term->slug ) . '"' . selected( $chosen[ $name ] ?? '', $term->slug, false ) . '>' . esc_html( $term->name ) . '</option>';
+			foreach ( $options as $option ) {
+				$html .= '<option value="' . esc_attr( $option->slug ) . '"' . selected( $chosen[ $name ] ?? '', $option->slug, false ) . '>' . esc_html( $option->name ) . '</option>';
 			}
 			$html .= '</select></label>';
 		}
@@ -116,14 +115,47 @@ final class Renderer {
 		$html .= '<input type="search" name="' . esc_attr( Templates::SEARCH_VAR ) . '" value="' . esc_attr( $search ) . '" maxlength="' . esc_attr( (string) Templates::SEARCH_MAX ) . '" placeholder="' . esc_attr__( 'Recipe title', 'bluefairy-recipes' ) . '"></label>';
 		$html .= '<div class="bfrc-filters__actions"><button type="submit" class="bfrc-button">' . esc_html__( 'Filter', 'bluefairy-recipes' ) . '</button>';
 		if ( [] !== $chosen || '' !== $search ) {
-			$html .= ' <a class="bfrc-filters__reset" href="' . esc_url( (string) $action ) . '">' . esc_html__( 'Reset', 'bluefairy-recipes' ) . '</a>';
+			$html .= ' <a class="bfrc-filters__reset" href="' . esc_url( $action ) . '">' . esc_html__( 'Reset', 'bluefairy-recipes' ) . '</a>';
 		}
 		$html .= '</div></form>';
 		return $html;
 	}
 
 	/**
-	 * The card grid, or a "no recipes" line.
+	 * The terms of every enabled taxonomy, one query, keyed by taxonomy
+	 * name, ≤ TERMS_LIMIT per taxonomy, name order.
+	 *
+	 * @return array<string, array<int, \WP_Term>>
+	 */
+	public function terms_by_taxonomy(): array {
+		$names = array_map( [ Taxonomies::class, 'taxonomy_name' ], array_keys( $this->taxonomies->enabled() ) );
+		if ( [] === $names ) {
+			return [];
+		}
+		$terms = get_terms(
+			[
+				'taxonomy'   => $names,
+				'hide_empty' => true,
+				'orderby'    => 'name',
+				'order'      => 'ASC',
+				'number'     => self::TERMS_LIMIT * count( $names ),
+			]
+		);
+		$out   = [];
+		if ( ! is_array( $terms ) ) {
+			return $out;
+		}
+		foreach ( $terms as $term ) {
+			if ( $term instanceof \WP_Term && count( $out[ $term->taxonomy ] ?? [] ) < self::TERMS_LIMIT ) {
+				$out[ $term->taxonomy ][] = $term;
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * The card grid, or a "no recipes" line. Thumbnails and authors are
+	 * primed once for the whole grid.
 	 *
 	 * @param array<int, \WP_Post> $posts The recipes.
 	 */
@@ -132,6 +164,7 @@ final class Renderer {
 		if ( [] === $posts ) {
 			return '<p class="bfrc-empty">' . esc_html__( 'No recipes match. Try fewer filters.', 'bluefairy-recipes' ) . '</p>';
 		}
+		$this->prime_thumbnails( $posts );
 		$links = $this->writer_links( $posts );
 		$html  = '<ul class="bfrc-grid">';
 		foreach ( $posts as $post ) {
@@ -141,7 +174,9 @@ final class Renderer {
 	}
 
 	/**
-	 * One recipe card.
+	 * One recipe card. A password-protected recipe shows core's protected
+	 * title and no excerpt (core withholds it); its photo shows, as core's
+	 * own loops do.
 	 *
 	 * @param \WP_Post    $post       The recipe.
 	 * @param string|null $writer_url The writer's public URL, or null when they have no page.
@@ -151,22 +186,15 @@ final class Renderer {
 		$url    = get_permalink( $post );
 		$title  = get_the_title( $post );
 		$html   = '<article class="bfrc-card' . ( $data->featured ? ' bfrc-card--featured' : '' ) . '">';
-		$thumb  = get_the_post_thumbnail(
-			$post,
-			self::GRID_IMAGE,
-			[
-				'class'   => 'bfrc-card__image',
-				'loading' => 'lazy',
-			]
-		);
+		$thumb  = get_the_post_thumbnail( $post, self::GRID_IMAGE, [ 'class' => 'bfrc-card__image' ] );
 		$html  .= '<a class="bfrc-card__media" href="' . esc_url( (string) $url ) . '" tabindex="-1" aria-hidden="true">' . ( '' !== $thumb ? $thumb : '<span class="bfrc-card__placeholder"></span>' ) . '</a>';
 		$html  .= '<div class="bfrc-card__body"><h2 class="bfrc-card__title"><a href="' . esc_url( (string) $url ) . '">' . esc_html( $title ) . '</a></h2>';
-		$badges = $this->badges( $data, false );
-		if ( '' !== $badges ) {
-			$html .= $badges;
+		$html  .= $this->badges( $data, false );
+		$author = $this->author_line( $post, $writer_url );
+		if ( '' !== $author ) {
+			$html .= '<p class="bfrc-card__writer">' . $author . '</p>';
 		}
-		$html .= '<p class="bfrc-card__writer">' . $this->author_line( $post, $writer_url ) . '</p>';
-		$text  = has_excerpt( $post ) ? get_the_excerpt( $post ) : '';
+		$text = has_excerpt( $post ) ? get_the_excerpt( $post ) : '';
 		if ( '' !== $text ) {
 			$html .= '<p class="bfrc-card__excerpt">' . esc_html( wp_trim_words( wp_strip_all_tags( $text ), 24, '…' ) ) . '</p>';
 		}
@@ -283,42 +311,54 @@ final class Renderer {
 	}
 
 	/**
-	 * The single recipe.
+	 * The single recipe. A password-protected recipe shows core's password
+	 * form and nothing else until the visitor unlocks it.
 	 *
 	 * @param \WP_Post $post The recipe.
 	 */
 	public function single( \WP_Post $post ): string {
-		$data    = RecipeData::for_post( $post );
-		$links   = $this->writer_links( [ $post ] );
-		$html    = '<article class="bfrc-recipe' . ( $data->featured ? ' bfrc-recipe--featured' : '' ) . '" id="bfrc-recipe-' . (int) $post->ID . '">';
-		$html   .= '<header class="bfrc-recipe__header"><h1 class="bfrc-recipe__title">' . esc_html( get_the_title( $post ) ) . '</h1>';
-		$html   .= '<p class="bfrc-recipe__writer">' . $this->author_line( $post, $links[ (int) $post->post_author ] ?? null ) . ' <span class="bfrc-recipe__date">' . esc_html( get_the_date( '', $post ) ) . '</span></p>';
-		$html   .= $this->badges( $data, true );
-		$html   .= $this->term_badges( $post );
-		$html   .= '</header>';
-		$html   .= '<div class="bfrc-recipe__hero">' . $this->hero( $post, $data ) . '</div>';
+		if ( post_password_required( $post ) ) {
+			return '<article class="bfrc-recipe bfrc-recipe--protected" id="bfrc-recipe-' . (int) $post->ID . '"><h1 class="bfrc-recipe__title">' . esc_html( get_the_title( $post ) ) . '</h1>' . get_the_password_form( $post ) . '</article>';
+		}
+		$data   = RecipeData::for_post( $post );
+		$links  = $this->writer_links( [ $post ] );
+		$html   = '<article class="bfrc-recipe' . ( $data->featured ? ' bfrc-recipe--featured' : '' ) . '" id="bfrc-recipe-' . (int) $post->ID . '">';
+		$html  .= '<header class="bfrc-recipe__header"><h1 class="bfrc-recipe__title">' . esc_html( get_the_title( $post ) ) . '</h1>';
+		$author = $this->author_line( $post, $links[ (int) $post->post_author ] ?? null );
+		$html  .= '<p class="bfrc-recipe__writer">' . ( '' !== $author ? $author . ' ' : '' ) . '<span class="bfrc-recipe__date">' . esc_html( get_the_date( '', $post ) ) . '</span></p>';
+		$html  .= $this->badges( $data, true );
+		$html  .= $this->term_badges( $post );
+		$html  .= '</header>';
+		$hero   = $this->hero( $post, $data );
+		if ( '' !== $hero ) {
+			$html .= '<div class="bfrc-recipe__hero">' . $hero . '</div>';
+		}
 		$excerpt = has_excerpt( $post ) ? get_the_excerpt( $post ) : '';
 		if ( '' !== $excerpt ) {
 			$html .= '<p class="bfrc-recipe__summary">' . esc_html( wp_strip_all_tags( $excerpt ) ) . '</p>';
 		}
 		if ( '' !== trim( $post->post_content ) ) {
 			// Only when the writer wrote something: `the_content` filters from other plugins append their
-			// own blocks (related products, share bars) and must not decorate an empty body.
+			// own blocks (related products, share bars) and must not decorate an empty body. A body of
+			// media alone (an image or gallery block) counts as written.
 			$content = (string) apply_filters( 'the_content', $post->post_content ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- core's own filter, applied as core does.
-			if ( '' !== trim( wp_strip_all_tags( $content ) ) ) {
+			if ( '' !== trim( $content ) ) {
 				$html .= '<div class="bfrc-recipe__content">' . $content . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- the_content output, as core prints it.
 			}
 		}
 		$html .= $this->ingredients( $data );
 		$html .= $this->steps( $data );
+		$html .= $this->seam( 'bfrc_single_after_steps', $post->ID );
 		$html .= $this->nutrition( $data );
+		$html .= $this->seam( 'bfrc_single_after_nutrition', $post->ID );
 		$html .= '<footer class="bfrc-recipe__footer">' . $this->share_buttons( $post ) . '<button type="button" class="bfrc-button bfrc-button--print" data-bfrc-print>' . esc_html__( 'Print recipe', 'bluefairy-recipes' ) . '</button>';
 		$html .= $this->seam( 'bfrc_single_footer', $post->ID );
 		return $html . '</footer></article>';
 	}
 
 	/**
-	 * Video embed when the recipe shows a video, else the recipe photo.
+	 * Video embed when the recipe shows a video, else the recipe photo; ''
+	 * when there is neither.
 	 *
 	 * @param \WP_Post   $post The recipe.
 	 * @param RecipeData $data Its fields.
@@ -388,54 +428,59 @@ final class Renderer {
 	}
 
 	/**
-	 * The ingredient list plus the add-on's actions seam.
+	 * The ingredient list plus the add-on's actions seam (both only when
+	 * there are ingredients).
 	 *
 	 * @param RecipeData $data The fields.
 	 */
 	public function ingredients( RecipeData $data ): string {
-		if ( [] === $data->ingredients ) {
+		$rows = $data->ingredients();
+		if ( [] === $rows ) {
 			return '';
 		}
 		$html = '<section class="bfrc-recipe__ingredients"><h2>' . esc_html__( 'Ingredients', 'bluefairy-recipes' ) . '</h2><ul class="bfrc-ingredients">';
-		foreach ( $data->ingredients as $row ) {
+		foreach ( $rows as $row ) {
 			$html .= '<li class="bfrc-ingredient bfrc-ingredient--' . esc_attr( sanitize_html_class( $row['type'] ) ) . '">';
 			if ( '' !== $row['measure'] ) {
 				$html .= '<span class="bfrc-ingredient__measure">' . esc_html( $row['measure'] ) . '</span> ';
 			}
 			/**
 			 * One ingredient row is rendered; filter its label markup (the
-			 * add-on links its product and affiliate rows).
+			 * add-on links its product and affiliate rows). The result is
+			 * passed through `wp_kses_post()`, so links survive and scripts do not.
 			 *
 			 * @since 1.0.0
 			 *
-			 * @param string                                             $label_html Escaped label markup.
-			 * @param array{measure: string, label: string, type: string} $row        The row.
-			 * @param int                                                $recipe_id  The recipe.
+			 * @param string               $label_html Escaped label markup.
+			 * @param array<string, mixed> $row        The row (measure, label, type, and the type's extra fields).
+			 * @param int                  $recipe_id  The recipe.
 			 */
-			$html .= '<span class="bfrc-ingredient__label">' . (string) apply_filters( 'bfrc_ingredient_label_html', esc_html( $row['label'] ), $row, $data->id ) . '</span></li>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped before the filter; the add-on returns escaped markup.
+			$label = (string) apply_filters( 'bfrc_ingredient_label_html', esc_html( $row['label'] ), $row, $data->id );
+			$html .= '<span class="bfrc-ingredient__label">' . wp_kses_post( $label ) . '</span></li>';
 		}
 		$html .= '</ul>' . $this->seam( 'bfrc_render_ingredient_actions', $data->id );
 		return $html . '</section>';
 	}
 
 	/**
-	 * The numbered steps plus the after-steps seam.
+	 * The numbered steps.
 	 *
 	 * @param RecipeData $data The fields.
 	 */
 	public function steps( RecipeData $data ): string {
-		if ( [] === $data->steps ) {
+		$rows = $data->steps();
+		if ( [] === $rows ) {
 			return '';
 		}
 		$html = '<section class="bfrc-recipe__steps"><h2>' . esc_html__( 'Method', 'bluefairy-recipes' ) . '</h2><ol class="bfrc-steps">';
-		foreach ( $data->steps as $step ) {
+		foreach ( $rows as $step ) {
 			$html .= '<li class="bfrc-step">' . wp_kses_post( $step['text'] ) . '</li>';
 		}
-		return $html . '</ol>' . $this->seam( 'bfrc_single_after_steps', $data->id ) . '</section>';
+		return $html . '</ol></section>';
 	}
 
 	/**
-	 * The nutrition facts table plus the after-nutrition seam.
+	 * The nutrition facts table.
 	 *
 	 * @param RecipeData $data The fields.
 	 */
@@ -448,10 +493,10 @@ final class Renderer {
 		$html   = '<section class="bfrc-recipe__nutrition"><h2>' . esc_html__( 'Nutrition', 'bluefairy-recipes' ) . '</h2>';
 		$html  .= '<p class="bfrc-nutrition__note">' . esc_html__( 'Per serving', 'bluefairy-recipes' ) . '</p><table class="bfrc-nutrition"><tbody>';
 		foreach ( $present as $field => $value ) {
-			$unit  = \BlueFairy\Recipes\Content\Meta::NUTRITION_FIELDS[ $field ];
+			$unit  = Meta::NUTRITION_FIELDS[ $field ];
 			$html .= '<tr><th scope="row">' . esc_html( $labels[ $field ] ?? $field ) . '</th><td>' . esc_html( self::format_amount( $value ) . ' ' . $unit ) . '</td></tr>';
 		}
-		return $html . '</tbody></table>' . $this->seam( 'bfrc_single_after_nutrition', $data->id ) . '</section>';
+		return $html . '</tbody></table></section>';
 	}
 
 	/**
@@ -464,7 +509,7 @@ final class Renderer {
 			return '';
 		}
 		$url   = (string) get_permalink( $post );
-		$title = get_the_title( $post );
+		$title = html_entity_decode( wp_strip_all_tags( get_the_title( $post ) ), ENT_QUOTES, 'UTF-8' );
 		$links = [];
 		if ( (bool) $this->settings->get( 'share_facebook' ) ) {
 			$links['facebook'] = [ __( 'Share on Facebook', 'bluefairy-recipes' ), 'https://www.facebook.com/sharer/sharer.php?u=' . rawurlencode( $url ) ];
@@ -479,11 +524,11 @@ final class Renderer {
 		if ( [] === $links ) {
 			return '';
 		}
-		$html = '<div class="bfrc-share" aria-label="' . esc_attr__( 'Share this recipe', 'bluefairy-recipes' ) . '">';
+		$html = '<nav class="bfrc-share" aria-label="' . esc_attr__( 'Share this recipe', 'bluefairy-recipes' ) . '">';
 		foreach ( $links as $network => [ $label, $href ] ) {
-			$html .= '<a class="bfrc-share__link bfrc-share__link--' . esc_attr( $network ) . '" href="' . esc_url( $href ) . '" target="_blank" rel="noopener nofollow">' . esc_html( $label ) . '</a>';
+			$html .= '<a class="bfrc-share__link bfrc-share__link--' . esc_attr( $network ) . '" href="' . esc_url( $href ) . '" target="_blank" rel="noopener nofollow">' . esc_html( $label ) . self::new_tab_hint() . '</a>';
 		}
-		return $html . '</div>';
+		return $html . '</nav>';
 	}
 
 	/**
@@ -510,13 +555,14 @@ final class Renderer {
 		$out     = [];
 		foreach ( $ids as $id ) {
 			$user       = get_userdata( $id );
-			$out[ $id ] = $enabled && $user instanceof \WP_User && ( (int) ( $counts[ $id ] ?? 0 ) ) > 0 && \BlueFairy\Recipes\Admin\WriterProfile::is_listed( $id ) ? $this->writers->url( $user ) : null;
+			$out[ $id ] = $enabled && $user instanceof \WP_User && ( (int) ( $counts[ $id ] ?? 0 ) ) > 0 && WriterProfile::is_listed( $id ) ? $this->writers->url( $user ) : null;
 		}
 		return $out;
 	}
 
 	/**
-	 * "By Name", linked when the writer has a public page.
+	 * "By Name", linked when the writer has a public page; '' when the
+	 * author no longer exists.
 	 *
 	 * @param \WP_Post    $post       The recipe.
 	 * @param string|null $writer_url The writer's URL or null.
@@ -540,6 +586,32 @@ final class Renderer {
 	public static function format_amount( float $value ): string {
 		$decimals = fmod( $value, 1.0 ) === 0.0 ? 0 : ( fmod( $value * 10, 1.0 ) === 0.0 ? 1 : 2 );
 		return number_format_i18n( $value, $decimals );
+	}
+
+	/**
+	 * Screen-reader text for a link that opens a new tab.
+	 */
+	public static function new_tab_hint(): string {
+		return '<span class="screen-reader-text"> ' . esc_html__( '(opens in a new tab)', 'bluefairy-recipes' ) . '</span>';
+	}
+
+	/**
+	 * Prime the thumbnail attachments of a grid in one go (core primes them
+	 * only inside the loop, and the view blocks render outside it).
+	 *
+	 * @param array<int, \WP_Post> $posts The recipes.
+	 */
+	private function prime_thumbnails( array $posts ): void {
+		$ids = [];
+		foreach ( $posts as $post ) {
+			$thumb = (int) get_post_thumbnail_id( $post );
+			if ( $thumb > 0 ) {
+				$ids[ $thumb ] = true;
+			}
+		}
+		if ( [] !== $ids && function_exists( '_prime_post_caches' ) ) {
+			_prime_post_caches( array_keys( $ids ), false, true );
+		}
 	}
 
 	/**
@@ -568,20 +640,21 @@ final class Renderer {
 	}
 
 	/**
-	 * The writer's links as a list.
+	 * The writer's links as a list (http/https only, re-checked here).
 	 *
 	 * @param array<string, string> $links key => URL.
 	 */
 	private function social_links( array $links ): string {
-		if ( [] === $links ) {
-			return '';
-		}
-		$labels = \BlueFairy\Recipes\Admin\WriterProfile::url_labels();
-		$html   = '<ul class="bfrc-writer__links">';
+		$labels = WriterProfile::url_labels();
+		$items  = '';
 		foreach ( $links as $key => $url ) {
-			$html .= '<li><a class="bfrc-writer__link bfrc-writer__link--' . esc_attr( sanitize_html_class( str_replace( 'bfrc_', '', $key ) ) ) . '" href="' . esc_url( $url ) . '" rel="noopener nofollow me" target="_blank">' . esc_html( $labels[ $key ] ?? $key ) . '</a></li>';
+			$href = esc_url( $url, [ 'http', 'https' ] );
+			if ( '' === $href ) {
+				continue;
+			}
+			$items .= '<li><a class="bfrc-writer__link bfrc-writer__link--' . esc_attr( sanitize_html_class( str_replace( 'bfrc_', '', $key ) ) ) . '" href="' . $href . '" rel="noopener nofollow me" target="_blank">' . esc_html( $labels[ $key ] ?? $key ) . self::new_tab_hint() . '</a></li>';
 		}
-		return $html . '</ul>';
+		return '' === $items ? '' : '<ul class="bfrc-writer__links">' . $items . '</ul>';
 	}
 
 	/**
@@ -592,7 +665,7 @@ final class Renderer {
 	private function prime_profile_images( array $user_ids ): void {
 		$ids = [];
 		foreach ( $user_ids as $user_id ) {
-			foreach ( [ \BlueFairy\Recipes\Admin\WriterProfile::AVATAR_ID, \BlueFairy\Recipes\Admin\WriterProfile::HEADER_ID ] as $key ) {
+			foreach ( [ WriterProfile::AVATAR_ID, WriterProfile::HEADER_ID ] as $key ) {
 				$id = (int) get_user_meta( $user_id, $key, true );
 				if ( $id > 0 ) {
 					$ids[] = $id;
@@ -622,7 +695,7 @@ final class Renderer {
 	 * @return array<string, string>
 	 */
 	private function current_filters(): array {
-		$templates = \BlueFairy\Recipes\Plugin::service( 'front.templates' );
+		$templates = Plugin::service( 'front.templates' );
 		return $templates instanceof Templates ? $templates->requested_filters() : [];
 	}
 
@@ -630,7 +703,7 @@ final class Renderer {
 	 * The keyword in the request, from the Templates service.
 	 */
 	private function current_search(): string {
-		$templates = \BlueFairy\Recipes\Plugin::service( 'front.templates' );
+		$templates = Plugin::service( 'front.templates' );
 		return $templates instanceof Templates ? $templates->requested_search() : '';
 	}
 }

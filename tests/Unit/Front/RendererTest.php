@@ -33,8 +33,9 @@ final class RendererTest extends TestCase {
 		$this->writers  = new Writers( $this->settings );
 		$this->renderer = new Renderer( $this->settings, $this->writers, $taxonomies );
 		Plugin::set( 'front.templates', new Templates( $this->settings, $this->writers, $this->renderer, $taxonomies ) );
-		$GLOBALS['bfrc_test_taxonomies']['bfrc_meal_type'] = [ 'object_type' => [ 'bfrc_recipe' ], 'args' => [] ];
-		$GLOBALS['bfrc_test_taxonomies']['bfrc_diet']      = [ 'object_type' => [ 'bfrc_recipe' ], 'args' => [] ];
+		foreach ( [ 'bfrc_meal_type', 'bfrc_diet', 'bfrc_season', 'bfrc_cuisine' ] as $tax ) {
+			$GLOBALS['bfrc_test_taxonomies'][ $tax ] = [ 'object_type' => [ 'bfrc_recipe' ], 'args' => [] ];
+		}
 		bfrc_test_add_user( 5, [ 'roles' => [ 'bfrc_writer' ], 'display_name' => 'Ann <b>Lee</b>', 'user_nicename' => 'ann' ] );
 		bfrc_test_add_user( 9, [ 'roles' => [ 'subscriber' ], 'display_name' => 'Eve', 'user_nicename' => 'eve' ] );
 		bfrc_test_add_post( [ 'ID' => 41, 'post_type' => 'bfrc_recipe', 'post_status' => 'publish', 'post_author' => 5, 'post_title' => 'Tomato "Soup"', 'post_name' => 'tomato-soup', 'post_excerpt' => 'A <em>warm</em> bowl & more.' ] );
@@ -42,12 +43,12 @@ final class RendererTest extends TestCase {
 	}
 
 	private function recipe_meta( int $id ): void {
+		add_filter( 'bfrc_ingredient_types', static fn( array $t ): array => array_merge( $t, [ 'internal' ] ) );
 		update_post_meta( $id, Meta::PREP_MINUTES, 20 );
 		update_post_meta( $id, Meta::COOK_MINUTES, 75 );
 		update_post_meta( $id, Meta::SERVINGS_MIN, 2 );
 		update_post_meta( $id, Meta::SERVINGS_MAX, 4 );
 		update_post_meta( $id, Meta::FEATURED, true );
-		add_filter( 'bfrc_ingredient_types', static fn( array $t ): array => array_merge( $t, [ 'internal' ] ) );
 		update_post_meta( $id, Meta::INGREDIENTS, [ [ 'measure' => '2 cups', 'label' => 'flour & co', 'type' => 'plain' ], [ 'measure' => '', 'label' => 'salt', 'type' => 'internal' ] ] );
 		update_post_meta( $id, Meta::STEPS, [ [ 'text' => 'Mix <em>well</em>' ], [ 'text' => 'Bake' ] ] );
 		update_post_meta( $id, Meta::NUTRITION, Meta::sanitize_nutrition( [ 'calories' => 250, 'protein' => 12.5, 'sodium' => 0.25 ] ) );
@@ -72,15 +73,22 @@ final class RendererTest extends TestCase {
 		$this->assertStringContainsString( 'bfrc-card__placeholder', $plain, 'no photo: placeholder' );
 		$this->assertStringContainsString( 'By <span>Eve</span>', $plain, 'an unlisted writer\'s recipe shows without an author link' );
 		$this->assertStringNotContainsString( 'bfrc-card__excerpt', $plain );
+		bfrc_test_add_post( [ 'ID' => 43, 'post_type' => 'bfrc_recipe', 'post_author' => 99999, 'post_title' => 'Orphan' ] );
+		$this->assertStringNotContainsString( 'bfrc-card__writer', $this->renderer->card( get_post( 43 ), null ), 'a deleted author: no empty writer line' );
 	}
 
-	public function test_grid_computes_writer_links_once_for_all_cards_and_handles_an_empty_set(): void {
+	public function test_grid_primes_thumbnails_and_writer_links_once_for_all_cards_and_handles_an_empty_set(): void {
+		update_post_meta( 41, '_thumbnail_id', 77 );
+		update_post_meta( 42, '_thumbnail_id', 78 );
+		bfrc_test_add_attachment( 77 );
+		bfrc_test_add_attachment( 78 );
 		$html = $this->renderer->grid( [ get_post( 41 ), get_post( 42 ), 'junk' ] );
 		$this->assertSame( 2, substr_count( $html, '<li class="bfrc-grid__item">' ) );
 		$this->assertStringContainsString( 'rel="author">Ann', $html, 'Ann: Writer role, published recipe' );
 		$this->assertStringContainsString( 'By <span>Eve</span>', $html, 'Eve: subscriber, not listed' );
 		$this->assertCount( 1, $GLOBALS['bfrc_test_count_calls'], 'one count query for the whole grid' );
 		$this->assertSame( [ [ 5, 9 ] ], $GLOBALS['bfrc_test_cached_users'], 'users primed in one go' );
+		$this->assertSame( [ [ 77, 78 ] ], $GLOBALS['bfrc_test_primed'], 'thumbnails primed in one go (core only primes inside the loop)' );
 		$this->assertStringContainsString( 'No recipes match', $this->renderer->grid( [] ) );
 	}
 
@@ -91,25 +99,43 @@ final class RendererTest extends TestCase {
 		$this->assertSame( [], $this->renderer->writer_links( [] ) );
 	}
 
-	public function test_filters_render_a_select_per_taxonomy_with_terms_the_keyword_and_reset_when_filtered(): void {
+	public function test_filters_use_their_own_field_names_one_terms_query_and_reset_when_filtered(): void {
 		wp_insert_term( 'Vegan', 'bfrc_diet' );
 		wp_insert_term( 'Dinner', 'bfrc_meal_type' );
-		$_GET = [ 'bfrc_diet' => 'vegan', 'bfrc_s' => 'soup' ];
+		$_GET = [ 'bfrc_filter' => [ 'diet' => 'vegan' ], 'bfrc_s' => 'soup' ];
 		$q    = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
 		$html = $this->renderer->filters( $q );
 		$this->assertStringContainsString( '<form class="bfrc-filters" method="get" action="https://example.com/recipes/" data-bfrc-filters role="search"', $html );
-		$this->assertStringContainsString( '<select name="bfrc_meal_type"><option value="">All Meal Types</option><option value="dinner">Dinner</option></select>', $html );
-		$this->assertStringContainsString( '<option value="vegan" selected="selected">Vegan</option>', $html );
-		$this->assertStringNotContainsString( 'name="bfrc_season"', $html, 'a taxonomy without terms has no select' );
+		$this->assertStringContainsString( '<select name="bfrc_filter[meal_type]"><option value="">All Meal Types</option><option value="dinner">Dinner</option></select>', $html, 'not the taxonomy\'s query var: core would turn the choice into a term page' );
+		$this->assertStringContainsString( '<select name="bfrc_filter[diet]"><option value="">All Diets</option><option value="vegan" selected="selected">Vegan</option></select>', $html );
+		$this->assertStringNotContainsString( 'bfrc_filter[season]', $html, 'a taxonomy without terms has no select' );
 		$this->assertStringContainsString( 'name="bfrc_s" value="soup" maxlength="100"', $html );
 		$this->assertStringContainsString( 'bfrc-filters__reset', $html );
+		$calls = $GLOBALS['bfrc_test_get_terms_calls'];
+		$this->assertCount( 1, $calls, 'one get_terms for every enabled taxonomy' );
+		$this->assertSame( [ 'bfrc_meal_type', 'bfrc_diet', 'bfrc_season', 'bfrc_cuisine' ], $calls[0]['taxonomy'] );
+		$this->assertTrue( $calls[0]['hide_empty'] );
+		$this->assertSame( Renderer::TERMS_LIMIT * 4, $calls[0]['number'], 'bounded' );
 		$_GET = [];
 		$this->assertStringNotContainsString( 'bfrc-filters__reset', $this->renderer->filters( $q ), 'nothing to reset' );
 		$tax                 = bfrc_test_front_query( [], 'tax' );
 		$tax->queried_object = new \WP_Term( [ 'term_id' => 3, 'taxonomy' => 'bfrc_diet', 'slug' => 'vegan', 'name' => 'Vegan' ] );
 		$html                = $this->renderer->filters( $tax );
 		$this->assertStringContainsString( 'action="https://example.com/recipes/diet/vegan/"', $html, 'a term page filters within the term' );
-		$this->assertStringNotContainsString( 'name="bfrc_diet"', $html, 'the URL\'s own taxonomy is not offered again' );
+		$this->assertStringNotContainsString( 'bfrc_filter[diet]', $html, 'the URL\'s own taxonomy is not offered again' );
+	}
+
+	public function test_terms_by_taxonomy_caps_each_taxonomy_and_copes_with_errors(): void {
+		for ( $i = 1; $i <= Renderer::TERMS_LIMIT + 5; $i++ ) {
+			wp_insert_term( 'Diet ' . str_pad( (string) $i, 3, '0', STR_PAD_LEFT ), 'bfrc_diet' );
+		}
+		wp_insert_term( 'Lunch', 'bfrc_meal_type' );
+		$terms = $this->renderer->terms_by_taxonomy();
+		$this->assertCount( Renderer::TERMS_LIMIT, $terms['bfrc_diet'] );
+		$this->assertCount( 1, $terms['bfrc_meal_type'] );
+		$this->assertArrayNotHasKey( 'bfrc_season', $terms );
+		unset( $GLOBALS['bfrc_test_taxonomies']['bfrc_meal_type'] );
+		$this->assertSame( [], $this->renderer->terms_by_taxonomy(), 'an unregistered taxonomy makes get_terms() return WP_Error: no filters, no fatal' );
 	}
 
 	public function test_archive_puts_header_filters_grid_and_pagination_together(): void {
@@ -129,10 +155,11 @@ final class RendererTest extends TestCase {
 		$this->assertStringNotContainsString( 'Browse recipe writers', $html );
 		$this->assertStringContainsString( 'Our &amp; Kitchen</h1>', $html );
 		$tax                 = bfrc_test_front_query( [], 'tax' );
-		$tax->queried_object = new \WP_Term( [ 'term_id' => 3, 'taxonomy' => 'bfrc_diet', 'slug' => 'vegan', 'name' => 'Vegan', 'description' => 'No <em>animal</em> products <script>x()</script>' ] );
+		$tax->queried_object = new \WP_Term( [ 'term_id' => 3, 'taxonomy' => 'bfrc_diet', 'slug' => 'vegan', 'name' => 'Vegan', 'description' => "No <em>animal</em> products <script>x()</script>\n\nNone at all." ] );
+		$GLOBALS['bfrc_test_terms']['bfrc_diet'][3] = $tax->queried_object; // term_description() looks the term up by id, as core does.
 		$html                = $this->renderer->archive( $tax );
 		$this->assertStringContainsString( '<h1 class="bfrc-archive__title">Vegan</h1>', $html );
-		$this->assertStringContainsString( 'No <em>animal</em> products', $html );
+		$this->assertStringContainsString( '<p>No <em>animal</em> products </p><p>None at all.</p>', $html, 'core\'s term_description() filters (paragraphs) apply, kses strips the script' );
 		$this->assertStringNotContainsString( '<script>', $html );
 		$this->assertSame( '', $this->renderer->pagination( bfrc_test_front_query( [] ) ), 'one page: no pagination' );
 	}
@@ -151,17 +178,21 @@ final class RendererTest extends TestCase {
 		$this->assertStringContainsString( 'nine…</p>', $list, 'about trimmed to 30 words' );
 		$this->assertStringNotContainsString( 'Eve', $list, 'not listed' );
 		$this->assertSame( [ [ 77 ] ], $GLOBALS['bfrc_test_primed'], 'profile images primed once' );
-		$q               = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
-		$q->posts        = [ get_post( 41 ) ];
+		$q        = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		$q->posts = [ get_post( 41 ) ];
 		update_user_meta( 5, 'bfrc_header_image_id', 78 );
 		update_user_meta( 5, 'bfrc_website', 'https://ann.test/?a=1&b=2' );
+		update_user_meta( 5, 'bfrc_youtube', 'javascript:alert(1)' );
 		bfrc_test_add_attachment( 78 );
+		$this->writers->reset();
 		$page = $this->renderer->archive( $q );
 		$this->assertSame( $page, $this->renderer->writer_page( get_userdata( 5 ), $q ), 'archive() delegates to writer_page()' );
 		$this->assertStringContainsString( '<div class="bfrc-writer__header"><img src="https://example.test/uploads/78.jpg"', $page );
 		$this->assertStringContainsString( '<h1 class="bfrc-writer__name">Ann &lt;b&gt;Lee&lt;/b&gt;</h1>', $page );
 		$this->assertStringContainsString( '<div class="bfrc-writer__about"><p>I bake <b>bread</b>', $page, 'about keeps post-safe HTML' );
-		$this->assertStringContainsString( 'href="https://ann.test/?a=1&amp;b=2" rel="noopener nofollow me" target="_blank">Website</a>', $page );
+		$this->assertStringContainsString( 'href="https://ann.test/?a=1&amp;b=2" rel="noopener nofollow me" target="_blank">Website<span class="screen-reader-text"> (opens in a new tab)</span></a>', $page );
+		$this->assertStringNotContainsString( 'javascript:', $page, 'a link that bypassed the profile sanitiser is dropped' );
+		$this->assertStringNotContainsString( 'YouTube', $page );
 		$this->assertStringContainsString( 'Recipes by Ann &lt;b&gt;Lee&lt;/b&gt;</h2>', $page );
 		$this->assertStringContainsString( 'bfrc-grid__item', $page );
 		$this->assertSame( '', $this->renderer->archive( bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'eve' ], 'author' ) ), 'no public page: nothing (the guard already 404ed)' );
@@ -174,6 +205,7 @@ final class RendererTest extends TestCase {
 			bfrc_test_add_user( 200 + $i, [ 'roles' => [ 'bfrc_writer' ], 'display_name' => sprintf( 'W%02d', $i ), 'user_nicename' => 'w' . $i ] );
 			bfrc_test_add_post( [ 'ID' => 300 + $i, 'post_type' => 'bfrc_recipe', 'post_status' => 'publish', 'post_author' => 200 + $i ] );
 		}
+		$this->writers->reset();
 		$html = $this->renderer->writers_list( 2 );
 		$this->assertSame( 1, substr_count( $html, '<li class="bfrc-writer-card">' ) );
 		$call = $GLOBALS['bfrc_test_paginate_calls'][0];
@@ -192,18 +224,18 @@ final class RendererTest extends TestCase {
 				echo '<i data-seam="' . esc_attr( $seam ) . '">' . $id . '</i>';
 			} );
 		}
-		add_filter( 'bfrc_ingredient_label_html', static fn( string $html, array $row ): string => 'internal' === $row['type'] ? '<a href="https://shop.test/salt">' . $html . '</a>' : $html, 10, 2 );
+		add_filter( 'bfrc_ingredient_label_html', static fn( string $html, array $row ): string => 'internal' === $row['type'] ? '<a href="https://shop.test/salt">' . $html . '</a><script>x()</script>' : $html, 10, 2 );
 		$html = $this->renderer->single( get_post( 41 ) );
 		$this->assertStringContainsString( '<article class="bfrc-recipe bfrc-recipe--featured" id="bfrc-recipe-41">', $html );
 		$this->assertStringContainsString( '<h1 class="bfrc-recipe__title">Tomato &quot;Soup&quot;</h1>', $html );
 		$this->assertStringContainsString( 'rel="author">Ann', $html );
 		$this->assertStringContainsString( '<dt>Total</dt><dd>1 hr 35 min</dd>', $html );
 		$this->assertStringContainsString( '<span class="bfrc-recipe__terms-label">Diet:</span> <a href="https://example.com/recipes/diet/vegan/" rel="tag">Vegan</a>', $html );
-		$this->assertStringContainsString( '<img src="https://example.test/uploads/77.jpg"', $html, 'photo hero' );
+		$this->assertStringContainsString( '<div class="bfrc-recipe__hero"><img src="https://example.test/uploads/77.jpg"', $html, 'photo hero' );
 		$this->assertStringContainsString( '<p class="bfrc-recipe__summary">A warm bowl &amp; more.</p>', $html );
 		$this->assertStringContainsString( '<li class="bfrc-ingredient bfrc-ingredient--plain"><span class="bfrc-ingredient__measure">2 cups</span> <span class="bfrc-ingredient__label">flour &amp; co</span></li>', $html );
-		$this->assertStringContainsString( '<li class="bfrc-ingredient bfrc-ingredient--internal"><span class="bfrc-ingredient__label"><a href="https://shop.test/salt">salt</a></span></li>', $html, 'the add-on may link a row' );
-		$this->assertStringContainsString( '<li class="bfrc-step">Mix <em>well</em></li><li class="bfrc-step">Bake</li>', $html );
+		$this->assertStringContainsString( '<li class="bfrc-ingredient bfrc-ingredient--internal"><span class="bfrc-ingredient__label"><a href="https://shop.test/salt">salt</a></span></li>', $html, 'the add-on may link a row; its script does not survive kses' );
+		$this->assertStringContainsString( '<ol class="bfrc-steps"><li class="bfrc-step">Mix <em>well</em></li><li class="bfrc-step">Bake</li></ol></section><i data-seam="bfrc_single_after_steps">41</i>', $html, 'the seam fires after the section, not inside it' );
 		$this->assertStringContainsString( '<th scope="row">Calories</th><td>250 kcal</td>', $html );
 		$this->assertStringContainsString( '<th scope="row">Protein</th><td>12.5 g</td>', $html );
 		$this->assertStringContainsString( '<th scope="row">Sodium</th><td>0.25 mg</td>', $html );
@@ -211,31 +243,67 @@ final class RendererTest extends TestCase {
 		foreach ( [ 'bfrc_render_ingredient_actions', 'bfrc_single_after_steps', 'bfrc_single_after_nutrition', 'bfrc_single_footer' ] as $seam ) {
 			$this->assertStringContainsString( '<i data-seam="' . $seam . '">41</i>', $html, $seam );
 		}
+		$this->assertStringContainsString( '<nav class="bfrc-share" aria-label="Share this recipe">', $html );
 		$this->assertStringContainsString( 'https://www.facebook.com/sharer/sharer.php?u=https%3A%2F%2Fexample.com%2F%3Fp%3D41', $html );
 		$this->assertStringContainsString( 'https://twitter.com/intent/tweet?url=', $html );
 		$this->assertStringContainsString( '&amp;media=https%3A%2F%2Fexample.test%2Fuploads%2F77.jpg', $html, 'Pinterest media = the recipe photo' );
-		$this->assertStringContainsString( 'target="_blank" rel="noopener nofollow"', $html );
+		$this->assertStringContainsString( 'target="_blank" rel="noopener nofollow">Share on X<span class="screen-reader-text"> (opens in a new tab)</span></a>', $html );
 		$this->assertStringContainsString( 'data-bfrc-print', $html );
 		$this->assertStringNotContainsString( 'bfrc-recipe__content', $html, 'no body content: no block' );
-		add_filter( 'the_content', static fn( string $c ): string => $c . '<aside>promo</aside>' );
-		$this->assertStringNotContainsString( 'promo', $this->renderer->single( get_post( 41 ) ), 'other plugins\' the_content additions do not decorate an empty body' );
-		$GLOBALS['bfrc_test_posts'][41]->post_content = '<p>Grandma\'s way.</p>';
-		$with = $this->renderer->single( get_post( 41 ) );
-		$this->assertStringContainsString( '<div class="bfrc-recipe__content"><p>Grandma\'s way.</p><aside>promo</aside></div>', $with, 'with content, the_content runs as core does' );
 	}
 
-	public function test_single_shows_the_video_embed_instead_of_the_photo_and_honours_share_settings(): void {
+	public function test_single_handles_body_content_a_missing_hero_and_a_deleted_author(): void {
+		add_filter( 'the_content', static fn( string $c ): string => $c . '<aside>promo</aside>' );
+		$this->assertStringNotContainsString( 'promo', $this->renderer->single( get_post( 42 ) ), 'other plugins\' the_content additions do not decorate an empty body' );
+		$this->assertStringNotContainsString( 'bfrc-recipe__hero', $this->renderer->single( get_post( 42 ) ), 'no photo, no video: no empty hero box' );
+		$GLOBALS['bfrc_test_posts'][42]->post_content = '<figure class="wp-block-image"><img src="https://x/a.jpg" alt=""></figure>';
+		$with = $this->renderer->single( get_post( 42 ) );
+		$this->assertStringContainsString( '<div class="bfrc-recipe__content"><figure class="wp-block-image"><img src="https://x/a.jpg" alt=""></figure><aside>promo</aside></div>', $with, 'a media-only body counts as written' );
+		bfrc_test_add_post( [ 'ID' => 43, 'post_type' => 'bfrc_recipe', 'post_author' => 99999, 'post_title' => 'Orphan' ] );
+		$orphan = $this->renderer->single( get_post( 43 ) );
+		$this->assertStringContainsString( '<p class="bfrc-recipe__writer"><span class="bfrc-recipe__date">', $orphan, 'a deleted author: the date alone' );
+	}
+
+	public function test_a_password_protected_recipe_shows_only_the_password_form(): void {
+		$this->recipe_meta( 41 );
+		$GLOBALS['bfrc_test_posts'][41]->post_password = 'hunter2';
+		$html                                           = $this->renderer->single( get_post( 41 ) );
+		$this->assertStringContainsString( '<article class="bfrc-recipe bfrc-recipe--protected" id="bfrc-recipe-41">', $html );
+		$this->assertStringContainsString( '<form class="post-password-form" data-post="41">', $html );
+		foreach ( [ 'flour', 'Mix', 'Calories', 'bfrc-share', 'bfrc-recipe__hero', 'data-seam' ] as $leak ) {
+			$this->assertStringNotContainsString( $leak, $html, "$leak must not leak" );
+		}
+		$GLOBALS['bfrc_test_password_unlocked'][41] = true;
+		$this->assertStringContainsString( 'flour', $this->renderer->single( get_post( 41 ) ), 'unlocked: the full recipe' );
+	}
+
+	public function test_single_shows_the_video_embed_instead_of_the_photo_decodes_the_share_text_and_honours_share_settings(): void {
 		update_post_meta( 41, Meta::MEDIA_TYPE, 'video' );
 		update_post_meta( 41, Meta::VIDEO_URL, 'https://vimeo.com/123456789/abc123' );
+		$GLOBALS['bfrc_test_posts'][41]->post_title = 'Mom&#8217;s Soup';
 		$this->settings->update( [ 'share_x' => false, 'share_facebook' => false ] + $this->settings->all() );
 		$html = $this->renderer->single( get_post( 41 ) );
-		$this->assertStringContainsString( '<iframe src="https://player.vimeo.com/video/123456789?h=abc123" title="Tomato &quot;Soup&quot;" loading="lazy"', $html );
+		$this->assertStringContainsString( '<div class="bfrc-recipe__hero"><div class="bfrc-recipe__video"><iframe src="https://player.vimeo.com/video/123456789?h=abc123" title="Mom&amp;#8217;s Soup" loading="lazy"', $html );
 		$this->assertStringNotContainsString( 'bfrc-recipe__ingredients', $html, 'no rows: no section' );
 		$this->assertStringContainsString( 'bfrc-share__link--pinterest', $html );
+		$this->assertStringContainsString( 'description=Mom%E2%80%99s%20Soup', $html, 'entities decoded for the share text' );
 		$this->assertStringNotContainsString( 'bfrc-share__link--x', $html );
 		$this->assertStringNotContainsString( 'bfrc-share__link--facebook', $html );
 		$this->settings->update( [ 'share_enabled' => false ] + $this->settings->all() );
 		$this->assertStringNotContainsString( 'bfrc-share', $this->renderer->single( get_post( 41 ) ) );
+	}
+
+	public function test_stored_markup_that_bypassed_the_sanitisers_is_still_filtered_on_output(): void {
+		$GLOBALS['bfrc_test_post_meta'][41][ Meta::STEPS ] = [ [ 'text' => 'Mix <script>x()</script><em>well</em>' ] ];
+		update_user_meta( 5, 'bfrc_about', 'Hi <script>alert(1)</script><b>there</b>' );
+		$html = $this->renderer->single( get_post( 41 ) );
+		$this->assertStringContainsString( '<li class="bfrc-step">Mix <em>well</em></li>', $html );
+		$this->assertStringNotContainsString( '<script>', $html );
+		$q        = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		$q->posts = [];
+		$page     = $this->renderer->archive( $q );
+		$this->assertStringContainsString( 'Hi <b>there</b>', $page );
+		$this->assertStringNotContainsString( '<script>', $page );
 	}
 
 	public function test_badges_hero_term_badges_and_section_helpers_handle_empty_data(): void {
@@ -246,10 +314,12 @@ final class RendererTest extends TestCase {
 		$this->assertSame( '', $this->renderer->steps( $data ) );
 		$this->assertSame( '', $this->renderer->nutrition( $data ) );
 		$this->assertSame( '', $this->renderer->hero( get_post( 42 ), $data ), 'no photo, no video' );
-		$this->assertSame( '', $this->renderer->share_buttons( get_post( 42 ) ) === '' ? 'x' : '', 'share buttons render even without a photo' );
+		$this->assertStringContainsString( 'bfrc-share__link--pinterest', $this->renderer->share_buttons( get_post( 42 ) ), 'share buttons render without a photo (no media parameter)' );
+		$this->assertStringNotContainsString( 'media=', $this->renderer->share_buttons( get_post( 42 ) ) );
 		$this->assertSame( 'By <span>Eve</span>', $this->renderer->author_line( get_post( 42 ), null ) );
 		bfrc_test_add_post( [ 'ID' => 43, 'post_type' => 'bfrc_recipe', 'post_author' => 0 ] );
 		$this->assertSame( '', $this->renderer->author_line( get_post( 43 ), null ), 'no author' );
+		$this->assertStringContainsString( 'opens in a new tab', Renderer::new_tab_hint() );
 	}
 
 	public function test_format_amount(): void {

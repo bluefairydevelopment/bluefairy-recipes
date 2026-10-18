@@ -97,7 +97,7 @@ if ( ! class_exists( 'WP_User_Query' ) ) {
 	final class WP_User_Query {
 		/** @var array<string, mixed> */
 		public array $query_vars;
-		/** @var array<int, WP_User> */
+		/** @var array<int, object> */
 		private array $results = [];
 		/**
 		 * @param array<string, mixed> $args The query.
@@ -145,9 +145,22 @@ if ( ! class_exists( 'WP_User_Query' ) ) {
 			if ( isset( $args['number'] ) && (int) $args['number'] > 0 ) {
 				$users = array_slice( $users, 0, (int) $args['number'] );
 			}
+			if ( isset( $args['fields'] ) && is_array( $args['fields'] ) ) {
+				// As core: a list of fields returns plain objects with those properties only.
+				$users = array_map(
+					static function ( WP_User $u ) use ( $args ): object {
+						$row = new stdClass();
+						foreach ( $args['fields'] as $f ) {
+							$row->$f = $u->$f;
+						}
+						return $row;
+					},
+					$users
+				);
+			}
 			$this->results = $users;
 		}
-		/** @return array<int, WP_User> */
+		/** @return array<int, object> */
 		public function get_results(): array {
 			return $this->results;
 		}
@@ -349,4 +362,33 @@ function bfrc_test_front_query( array $vars, string $kind = 'archive' ): WP_Quer
 	$GLOBALS['wp_query']           = $q;
 	$GLOBALS['bfrc_test_loop_index'] = 0;
 	return $q;
+}
+
+if ( ! function_exists( 'post_password_required' ) ) {
+	function post_password_required( mixed $post = null ): bool {
+		$p = get_post( $post );
+		return $p instanceof WP_Post && '' !== ( $p->post_password ?? '' ) && empty( $GLOBALS['bfrc_test_password_unlocked'][ $p->ID ] );
+	}
+}
+if ( ! function_exists( 'get_the_password_form' ) ) {
+	function get_the_password_form( mixed $post = 0 ): string {
+		$p = get_post( $post );
+		return '<form class="post-password-form" data-post="' . ( $p instanceof WP_Post ? $p->ID : 0 ) . '"><input type="password" name="post_password"></form>';
+	}
+}
+if ( ! function_exists( 'term_description' ) ) {
+	/** As core: wpautop and friends over the description. */
+	function term_description( mixed $term = 0, mixed $deprecated = null ): string {
+		$t = $term instanceof WP_Term ? $term : null;
+		if ( null === $t && is_int( $term ) ) {
+			foreach ( $GLOBALS['bfrc_test_terms'] ?? [] as $terms ) {
+				foreach ( $terms as $candidate ) {
+					if ( $candidate instanceof WP_Term && $candidate->term_id === $term ) {
+						$t = $candidate;
+					}
+				}
+			}
+		}
+		return $t ? wpautop( $t->description ) : '';
+	}
 }

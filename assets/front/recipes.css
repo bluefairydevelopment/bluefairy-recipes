@@ -1,4 +1,5 @@
 /* BlueFairy Recipes: public pages */
+.bfrc-recipes .screen-reader-text { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); border: 0; white-space: nowrap; }
 .bfrc-main { max-width: var(--bfrc-max-width, 72rem); margin: 0 auto; padding: 1.5rem; box-sizing: border-box; }
 .bfrc-archive__header, .bfrc-writer__intro { margin-bottom: 1.5rem; }
 .bfrc-archive__title, .bfrc-recipe__title, .bfrc-writer__name { margin: 0 0 .5rem; }
@@ -55,7 +56,8 @@
 	.bfrc-filters__field select, .bfrc-filters__field input { min-width: 100%; }
 }
 @media print {
-	.bfrc-filters, .bfrc-share, .bfrc-button--print, .bfrc-pagination, .bfrc-archive__writers-link, .bfrc-recipe__video, #wpadminbar, header, footer, nav, aside { display: none !important; }
+	.bfrc-filters, .bfrc-share, .bfrc-button--print, .bfrc-pagination, .bfrc-archive__writers-link, .bfrc-recipe__video, #wpadminbar, .wp-block-template-part, body > header, body > footer, .wp-site-blocks > header, .wp-site-blocks > footer, #masthead, #colophon, nav:not(.bfrc-share), aside { display: none !important; }
+	.bfrc-recipe__header, .bfrc-recipe__footer { display: block !important; }
 	.bfrc-recipe { font-size: 11pt; }
 	.bfrc-recipe__hero img { max-height: 3in; width: auto; }
 	.bfrc-recipe__ingredients, .bfrc-recipe__steps, .bfrc-recipe__nutrition { break-inside: avoid; }

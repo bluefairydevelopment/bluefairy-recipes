@@ -39,6 +39,12 @@ final class TemplatesTest extends TestCase {
 		bfrc_test_add_post( [ 'ID' => 41, 'post_type' => 'bfrc_recipe', 'post_status' => 'publish', 'post_author' => 5, 'post_title' => 'Soup' ] );
 	}
 
+	/** A fresh Writers (no memos) with new settings. */
+	private function with_settings( array $changes ): void {
+		$this->settings->update( $changes + $this->settings->all() );
+		$this->writers->reset();
+	}
+
 	public function test_register_hooks(): void {
 		$t = $this->templates;
 		$t->register_hooks();
@@ -49,22 +55,27 @@ final class TemplatesTest extends TestCase {
 		foreach ( [ 'pre_get_posts' => 'shape_query', 'template_redirect' => 'guard', 'wp_enqueue_scripts' => 'enqueue' ] as $hook => $method ) {
 			$this->assertSame( 10, has_action( $hook, [ $t, $method ] ), $hook );
 		}
+		$this->assertSame( 10, has_filter( 'wp_sitemaps_users_query_args', [ $this->writers, 'sitemap_users_query' ] ), 'opted-out writers leave core\'s users sitemap too' );
 	}
 
 	public function test_register_adds_the_routes_the_view_blocks_and_the_two_block_templates(): void {
 		$this->templates->register();
-		$this->assertCount( 4, $GLOBALS['bfrc_test_rewrite_rules'] );
+		$this->assertCount( 6, $GLOBALS['bfrc_test_rewrite_rules'] );
 		$this->assertSame( [ 'bfrc/recipe-single', 'bfrc/recipe-archive' ], array_keys( $GLOBALS['bfrc_test_blocks'] ) );
-		$this->assertTrue( is_callable( $GLOBALS['bfrc_test_blocks']['bfrc/recipe-archive']['render_callback'] ) );
+		foreach ( $GLOBALS['bfrc_test_blocks'] as $name => $args ) {
+			$this->assertTrue( is_callable( $args['render_callback'] ), $name );
+			$this->assertTrue( $args['supports']['autoRegister'], "$name: the Site Editor gets a server-rendered preview on WordPress 7.0+" );
+		}
 		$templates = $GLOBALS['bfrc_test_block_templates'];
 		$this->assertSame( [ 'bluefairy-recipes//single-bfrc_recipe', 'bluefairy-recipes//archive-bfrc_recipe' ], array_keys( $templates ) );
 		$this->assertStringContainsString( '<!-- wp:bfrc/recipe-single /-->', $templates['bluefairy-recipes//single-bfrc_recipe']['content'] );
 		$this->assertStringContainsString( '<!-- wp:template-part {"slug":"header"', $templates['bluefairy-recipes//archive-bfrc_recipe']['content'] );
 		$this->assertStringContainsString( '<!-- wp:bfrc/recipe-archive /-->', $templates['bluefairy-recipes//archive-bfrc_recipe']['content'] );
 		$this->assertSame( [ 'bfrc_recipe' ], $templates['bluefairy-recipes//single-bfrc_recipe']['post_types'] );
+		$this->assertSame( '', Templates::template_markup( 'no-such-template' ), 'a missing file is an empty template, not a warning' );
 	}
 
-	public function test_query_vars_adds_the_writer_vars_and_the_search_var(): void {
+	public function test_query_vars_adds_the_writer_vars_and_the_search_var_but_not_the_filter_array(): void {
 		$this->assertSame( [ 'p', 'bfrc_writer', 'bfrc_writers', 'bfrc_s' ], $this->templates->query_vars( [ 'p' ] ) );
 	}
 
@@ -83,16 +94,34 @@ final class TemplatesTest extends TestCase {
 		$cat                 = bfrc_test_front_query( [], 'tax' );
 		$cat->queried_object = new \WP_Term( [ 'term_id' => 4, 'taxonomy' => 'category', 'slug' => 'news', 'name' => 'News' ] );
 		$this->assertFalse( $t->is_recipe_query( $cat ), 'another taxonomy' );
-		$this->assertTrue( $t->is_recipe_query( new \WP_Query( [ 'bfrc_writers' => '1' ] ) ) );
-		$this->assertTrue( $t->is_recipe_query( new \WP_Query( [ 'bfrc_writer' => '1', 'author_name' => 'ann' ] ) ) );
+		$this->assertTrue( $t->is_recipe_query( new \WP_Query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writers' => '1' ] ) ) );
+		$this->assertTrue( $t->is_recipe_query( new \WP_Query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ] ) ) );
+		$this->assertFalse( $t->is_recipe_query( new \WP_Query( [ 'bfrc_writers' => '1' ] ) ), 'a bare writer var on another URL (the home page) is not ours' );
+		$this->assertFalse( $t->is_recipe_query( new \WP_Query( [ 'post_type' => 'post', 'bfrc_writer' => '1', 'author_name' => 'ann' ] ) ) );
 		$this->assertFalse( $t->is_recipe_query( new \WP_Query( [ 'post_type' => 'bfrc_recipe' ], false ) ), 'a secondary query' );
+		$this->with_settings( [ 'enabled' => false ] );
+		$this->assertFalse( $t->is_recipe_query( bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] ) ), 'disabled: no public views' );
+		$this->with_settings( [ 'enabled' => true ] );
 		$GLOBALS['bfrc_test_is_admin'] = true;
 		$this->assertFalse( $t->is_recipe_query( bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] ) ), 'admin' );
 	}
 
+	public function test_with_every_taxonomy_disabled_other_plugins_term_pages_are_not_recipe_views(): void {
+		$taxonomies = [];
+		foreach ( [ 'meal_type', 'diet', 'season', 'cuisine' ] as $code ) {
+			$taxonomies[ $code ] = [ 'enabled' => false, 'sort_order' => 10 ];
+		}
+		$this->with_settings( [ 'taxonomies' => $taxonomies ] );
+		$t = new Templates( $this->settings, $this->writers, new Renderer( $this->settings, $this->writers, new Taxonomies( $this->settings ) ), new Taxonomies( $this->settings ) );
+		$this->assertSame( [], $t->taxonomy_names() );
+		$shop                 = bfrc_test_front_query( [], 'tax' );
+		$shop->queried_object = new \WP_Term( [ 'term_id' => 9, 'taxonomy' => 'product_cat', 'slug' => 'hats', 'name' => 'Hats' ] );
+		$this->assertFalse( $t->is_recipe_query( $shop ), 'core reads is_tax( [] ) as "any taxonomy"; a shop category must stay a shop category' );
+	}
+
 	public function test_shape_query_sets_per_page_title_only_search_and_the_filter_tax_query(): void {
-		$this->settings->update( [ 'per_page' => 9 ] + $this->settings->all() );
-		$_GET = [ 'bfrc_s' => ' <b>soup</b> ', 'bfrc_diet' => 'Vegan Food', 'bfrc_season' => '0', 'bfrc_cuisine' => [ 'x' ], 'bfrc_nope' => 'y' ];
+		$this->with_settings( [ 'per_page' => 9 ] );
+		$_GET = [ 'bfrc_s' => ' <b>soup</b> ', 'bfrc_filter' => [ 'diet' => 'Vegan Food', 'season' => '0', 'cuisine' => [ 'x' ], 'nope' => 'y' ], 'bfrc_meal_type' => 'lunch' ];
 		$seen = null;
 		add_action( 'bfrc_archive_query', static function ( \WP_Query $q ) use ( &$seen ): void {
 			$seen = $q->get( 'posts_per_page' );
@@ -100,10 +129,9 @@ final class TemplatesTest extends TestCase {
 		$q = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
 		$this->templates->shape_query( $q );
 		$this->assertSame( 9, $q->get( 'posts_per_page' ) );
-		$this->assertTrue( $q->get( 'ignore_sticky_posts' ) );
 		$this->assertSame( 'soup', $q->get( 's' ) );
 		$this->assertSame( [ 'post_title' ], $q->get( 'search_columns' ), 'title only, like Magento' );
-		$this->assertSame( [ [ 'taxonomy' => 'bfrc_diet', 'field' => 'slug', 'terms' => [ 'vegan-food' ] ] ], $q->get( 'tax_query' ), '0 and an array are no filter; unknown parameters are ignored' );
+		$this->assertSame( [ [ 'taxonomy' => 'bfrc_diet', 'field' => 'slug', 'terms' => [ 'vegan-food' ] ] ], $q->get( 'tax_query' ), '0, arrays and unknown codes are no filter; a taxonomy query var outside bfrc_filter[] is core\'s business' );
 		$this->assertSame( 9, $seen, 'the seam fires after shaping' );
 		$_GET = [ 'bfrc_s' => str_repeat( 'a', 150 ) ];
 		$q    = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
@@ -112,20 +140,19 @@ final class TemplatesTest extends TestCase {
 	}
 
 	public function test_shape_query_skips_the_term_already_in_the_url_and_merges_an_existing_tax_query(): void {
-		$_GET                = [ 'bfrc_diet' => 'vegan', 'bfrc_meal_type' => 'lunch' ];
-		$q                   = bfrc_test_front_query( [ 'tax_query' => [ [ 'taxonomy' => 'other', 'field' => 'slug', 'terms' => [ 'x' ] ] ] ], 'tax' );
-		$q->queried_object   = new \WP_Term( [ 'term_id' => 3, 'taxonomy' => 'bfrc_diet', 'slug' => 'vegan', 'name' => 'Vegan' ] );
+		$_GET              = [ 'bfrc_filter' => [ 'diet' => 'vegan', 'meal_type' => 'lunch' ] ];
+		$q                 = bfrc_test_front_query( [ 'tax_query' => [ [ 'taxonomy' => 'other', 'field' => 'slug', 'terms' => [ 'x' ] ] ] ], 'tax' );
+		$q->queried_object = new \WP_Term( [ 'term_id' => 3, 'taxonomy' => 'bfrc_diet', 'slug' => 'vegan', 'name' => 'Vegan' ] );
 		$this->templates->shape_query( $q );
 		$this->assertSame( 'bfrc_recipe', $q->get( 'post_type' ) );
 		$this->assertSame( [ 'other', 'bfrc_meal_type' ], array_column( $q->get( 'tax_query' ), 'taxonomy' ), 'the URL\'s own taxonomy is not repeated' );
 	}
 
-	public function test_shape_query_keeps_the_writers_listing_query_to_one_row_and_leaves_other_queries_alone(): void {
+	public function test_shape_query_keeps_the_writers_listing_query_to_one_row_per_page_and_leaves_other_queries_alone(): void {
 		$q = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writers' => '1', 'paged' => 3 ] );
 		$this->templates->shape_query( $q );
 		$this->assertSame( 1, $q->get( 'posts_per_page' ) );
-		$this->assertSame( 3, $q->get( 'paged' ), 'paged stays: the writers listing reads it and core\'s canonical redirect must see a real page' );
-		$this->assertSame( '', $q->get( 'no_found_rows' ), 'found rows are needed so core knows the page exists' );
+		$this->assertSame( 3, $q->get( 'paged' ), 'paged stays: the listing reads it and core must see a real page' );
 		$single                 = bfrc_test_front_query( [], 'single' );
 		$single->queried_object = get_post( 41 );
 		$this->templates->shape_query( $single );
@@ -135,7 +162,7 @@ final class TemplatesTest extends TestCase {
 		$this->assertSame( 'post', $blog->get( 'post_type' ) );
 	}
 
-	public function test_guard_404s_an_unknown_writer_and_the_listing_when_it_is_off(): void {
+	public function test_guard_404s_an_unknown_writer_the_listing_when_off_or_past_its_last_page_and_everything_when_disabled(): void {
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
 		$this->templates->guard();
 		$this->assertFalse( $GLOBALS['wp_query']->is_404(), 'Ann has a published recipe and is listed' );
@@ -147,10 +174,18 @@ final class TemplatesTest extends TestCase {
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writers' => '1' ] );
 		$this->templates->guard();
 		$this->assertFalse( $GLOBALS['wp_query']->is_404() );
-		$this->settings->update( [ 'writers_listing' => false ] + $this->settings->all() );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writers' => '1', 'paged' => 2 ] );
+		$this->templates->guard();
+		$this->assertTrue( $GLOBALS['wp_query']->is_404(), 'one writer page only: page 2 is a 404, not an empty 200' );
+		$this->with_settings( [ 'writers_listing' => false ] );
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writers' => '1' ] );
 		$this->templates->guard();
 		$this->assertTrue( $GLOBALS['wp_query']->is_404(), 'listing switched off' );
+		$this->with_settings( [ 'writers_listing' => true, 'enabled' => false ] );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		$this->templates->guard();
+		$this->assertTrue( $GLOBALS['wp_query']->is_404(), 'disabled: even Ann\'s page' );
+		$this->with_settings( [ 'enabled' => true ] );
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
 		$this->templates->guard();
 		$this->assertFalse( $GLOBALS['wp_query']->is_404(), 'the plain archive is never touched' );
@@ -162,18 +197,26 @@ final class TemplatesTest extends TestCase {
 		$this->assertSame( '/theme/index.php', $t->template_include( '/theme/index.php' ), 'not ours' );
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
 		$this->assertSame( BFRC_DIR . 'templates/archive-recipe.php', $t->template_include( '/theme/archive.php' ) );
+		$this->assertSame( '/theme/archive-bfrc_recipe.php', $t->template_include( '/theme/archive-bfrc_recipe.php' ), 'the theme\'s own recipe archive template wins' );
+		$tax                 = bfrc_test_front_query( [], 'tax' );
+		$tax->queried_object = new \WP_Term( [ 'term_id' => 3, 'taxonomy' => 'bfrc_diet', 'slug' => 'vegan', 'name' => 'Vegan' ] );
+		$this->assertSame( '/theme/taxonomy-bfrc_diet.php', $t->template_include( '/theme/taxonomy-bfrc_diet.php' ) );
+		$this->assertSame( BFRC_DIR . 'templates/archive-recipe.php', $t->template_include( '/theme/taxonomy.php' ), 'a generic taxonomy template is not specific enough' );
 		$single                 = bfrc_test_front_query( [], 'single' );
 		$single->queried_object = get_post( 41 );
 		$this->assertSame( BFRC_DIR . 'templates/single-recipe.php', $t->template_include( '/theme/single.php' ) );
+		$this->assertSame( '/theme/single-bfrc_recipe.php', $t->template_include( '/theme/single-bfrc_recipe.php' ) );
 		$GLOBALS['bfrc_test_theme_files'] = [ 'bluefairy-recipes/single-recipe.php' ];
 		$this->assertSame( '/theme/bluefairy-recipes/single-recipe.php', $t->template_include( '/theme/single.php' ), 'the theme\'s override wins' );
+		$this->assertSame( BFRC_DIR . 'templates/archive-recipe.php', Templates::locate( 'archive-recipe' ) );
+		$this->assertSame( '/theme/bluefairy-recipes/single-recipe.php', Templates::locate( 'single-recipe' ), 'locate() prefers the theme file' );
 		$single->set_404();
 		$this->assertSame( '/theme/404.php', $t->template_include( '/theme/404.php' ), 'a 404 keeps core\'s template' );
 		$GLOBALS['bfrc_test_block_theme'] = true;
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
 		$this->assertSame( '/theme/archive.html', $t->template_include( '/theme/archive.html' ), 'block theme: the registered block templates apply through the hierarchy' );
-		$this->assertSame( BFRC_DIR . 'templates/archive-recipe.php', Templates::locate( 'archive-recipe' ) );
-		$this->assertSame( '/theme/bluefairy-recipes/single-recipe.php', Templates::locate( 'single-recipe' ), 'locate() prefers the theme file' );
+		$this->assertTrue( Templates::is_theme_recipe_template( '/x/taxonomy-bfrc_season.php' ) );
+		$this->assertFalse( Templates::is_theme_recipe_template( '/x/taxonomy-category.php' ) );
 		$this->assertFileExists( BFRC_DIR . 'templates/archive-recipe.php' );
 		$this->assertFileExists( BFRC_DIR . 'templates/single-recipe.php' );
 	}
@@ -199,6 +242,11 @@ final class TemplatesTest extends TestCase {
 		$t->enqueue();
 		$this->assertSame( [], $GLOBALS['bfrc_test_enqueued'] );
 		$this->assertSame( [ 'home' ], $t->body_class( [ 'home' ] ) );
+		$gone = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'bob' ], 'author' );
+		$gone->set_404();
+		$t->enqueue();
+		$this->assertSame( [], $GLOBALS['bfrc_test_enqueued'], 'a 404 loads nothing' );
+		$this->assertSame( [ 'error404' ], $t->body_class( [ 'error404' ] ) );
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
 		$t->enqueue();
 		$this->assertSame( [ 'bfrc-recipes' ], $GLOBALS['bfrc_test_enqueued']['style'] );
@@ -211,7 +259,7 @@ final class TemplatesTest extends TestCase {
 		$this->assertTrue( $t->comments_closed( true, 50 ) );
 	}
 
-	public function test_document_title_names_the_writer_pages(): void {
+	public function test_document_title_names_the_writer_pages_on_recipe_views_only(): void {
 		$t = $this->templates;
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
 		$this->assertSame( [ 'title' => 'Recipes' ], $t->document_title( [ 'title' => 'Recipes' ] ), 'the archive keeps core\'s title' );
@@ -219,6 +267,8 @@ final class TemplatesTest extends TestCase {
 		$this->assertSame( [ 'title' => 'Recipe writers' ], $t->document_title( [ 'title' => 'Recipes' ] ) );
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
 		$this->assertSame( [ 'title' => 'Ann' ], $t->document_title( [ 'title' => 'Recipes' ] ) );
+		$blog = bfrc_test_front_query( [ 'post_type' => 'post', 'bfrc_writers' => '1' ] );
+		$this->assertSame( [ 'title' => 'Blog' ], $t->document_title( [ 'title' => 'Blog' ] ), 'a stray writer var on the blog does not retitle it' );
 		$q = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'bob' ], 'author' );
 		$q->set_404();
 		$this->assertSame( [ 'title' => 'Not found' ], $t->document_title( [ 'title' => 'Not found' ] ), 'a 404 keeps its title' );
@@ -237,10 +287,12 @@ final class TemplatesTest extends TestCase {
 		$this->assertStringContainsString( 'bfrc-grid', $t->render_archive_block() );
 	}
 
-	public function test_requested_filters_and_search_read_only_strings(): void {
-		$_GET = [ 'bfrc_s' => [ 'x' ], 'bfrc_meal_type' => 'Dinner Party', 'bfrc_diet' => '' ];
+	public function test_requested_filters_and_search_read_only_strings_under_the_filter_array(): void {
+		$_GET = [ 'bfrc_s' => [ 'x' ], 'bfrc_filter' => [ 'meal_type' => 'Dinner Party', 'diet' => '', 'season' => '0', 'cuisine' => [ 'a' ] ], 'bfrc_meal_type' => 'lunch' ];
 		$this->assertSame( '', $this->templates->requested_search() );
 		$this->assertSame( [ 'bfrc_meal_type' => 'dinner-party' ], $this->templates->requested_filters() );
+		$_GET = [ 'bfrc_filter' => 'junk' ];
+		$this->assertSame( [], $this->templates->requested_filters() );
 		$this->assertSame( [ 'bfrc_meal_type', 'bfrc_diet', 'bfrc_season', 'bfrc_cuisine' ], $this->templates->taxonomy_names() );
 		$this->assertSame( 12, $this->templates->per_page() );
 	}

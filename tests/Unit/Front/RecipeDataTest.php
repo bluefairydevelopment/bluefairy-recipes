@@ -33,13 +33,29 @@ final class RecipeDataTest extends TestCase {
 		$this->assertSame( 6000, $data->cook_minutes, 'clamped' );
 		$this->assertSame( [ 2, 4 ], [ $data->servings_min, $data->servings_max ] );
 		$this->assertTrue( $data->featured );
-		$this->assertSame( [ [ 'measure' => '2 cups', 'label' => 'flour', 'type' => 'plain' ] ], $data->ingredients );
-		$this->assertSame( [ [ 'text' => 'Mix well' ] ], $data->steps );
+		$this->assertSame( [ [ 'measure' => '2 cups', 'label' => 'flour', 'type' => 'plain' ] ], $data->ingredients() );
+		$this->assertSame( [ [ 'text' => 'Mix well' ] ], $data->steps() );
 		$this->assertSame( [ 'calories' => 250.0, 'protein' => 12.5 ], $data->nutrition_present() );
+		$this->assertNull( $data->nutrition()['fat'] );
 		$this->assertTrue( $data->has_video() );
 		$this->assertSame( 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ', $data->embed_url() );
 		$this->assertSame( 6020, $data->total_minutes() );
 		$this->assertSame( RecipeData::for_post( 41 )->prep_minutes, $data->prep_minutes, 'by id too' );
+	}
+
+	public function test_row_fields_are_sanitised_once_and_only_when_asked(): void {
+		bfrc_test_add_post( [ 'ID' => 44, 'post_type' => 'bfrc_recipe' ] );
+		$calls = 0;
+		add_filter( 'bfrc_ingredient_types', static function ( array $types ) use ( &$calls ): array {
+			++$calls; // sanitize_ingredients() asks for the types; a card never triggers it.
+			return $types;
+		} );
+		update_post_meta( 44, Meta::INGREDIENTS, [ [ 'measure' => '', 'label' => 'salt', 'type' => 'plain' ] ] );
+		$data = RecipeData::for_post( 44 );
+		$this->assertSame( 0, $calls, 'constructing the data does not sanitise the rows' );
+		$data->ingredients();
+		$data->ingredients();
+		$this->assertSame( 1, $calls, 'sanitised on first use, then cached' );
 	}
 
 	public function test_an_empty_recipe_reads_as_defaults(): void {
@@ -49,17 +65,22 @@ final class RecipeDataTest extends TestCase {
 		$this->assertSame( '', $data->video_url );
 		$this->assertFalse( $data->has_video() );
 		$this->assertSame( '', $data->embed_url() );
-		$this->assertSame( [], $data->ingredients );
-		$this->assertSame( [], $data->steps );
+		$this->assertSame( [], $data->ingredients() );
+		$this->assertSame( [], $data->steps() );
 		$this->assertSame( [], $data->nutrition_present() );
+		$this->assertSame( Meta::empty_nutrition(), $data->nutrition() );
 		$this->assertSame( '', $data->servings_text() );
 		$this->assertFalse( $data->featured );
 	}
 
-	public function test_a_video_type_without_a_stored_url_shows_the_photo(): void {
+	public function test_a_video_type_without_a_stored_url_shows_the_photo_and_a_url_without_the_type_too(): void {
 		bfrc_test_add_post( [ 'ID' => 43, 'post_type' => 'bfrc_recipe' ] );
 		update_post_meta( 43, Meta::MEDIA_TYPE, 'video' );
 		$this->assertFalse( RecipeData::for_post( 43 )->has_video() );
+		update_post_meta( 43, Meta::MEDIA_TYPE, 'image' );
+		update_post_meta( 43, Meta::VIDEO_URL, 'https://youtu.be/dQw4w9WgXcQ' );
+		$this->assertFalse( RecipeData::for_post( 43 )->has_video(), 'a stored URL does not show while the type is image' );
+		$this->assertSame( '', RecipeData::for_post( 43 )->embed_url() );
 	}
 
 	public function test_format_minutes(): void {

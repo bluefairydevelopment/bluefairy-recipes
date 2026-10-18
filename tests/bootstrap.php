@@ -132,6 +132,8 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_count_calls']      = [];
 	$GLOBALS['bfrc_test_dropdowns']        = [];
 	$GLOBALS['bfrc_test_user_queries']     = [];
+	$GLOBALS['bfrc_test_get_terms_calls']  = [];
+	$GLOBALS['bfrc_test_password_unlocked'] = [];
 	$GLOBALS['bfrc_test_rewrite_rules']    = [];
 	$GLOBALS['bfrc_test_blocks']           = [];
 	$GLOBALS['bfrc_test_block_templates']  = [];
@@ -1340,6 +1342,7 @@ class WP_Post {
 	public string $post_modified_gmt = '';
 	public string $post_content = '';
 	public string $post_excerpt = '';
+	public string $post_password = '';
 	public function __construct( array $data = [] ) {
 		foreach ( $data as $key => $value ) {
 			$this->$key = $value;

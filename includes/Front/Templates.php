@@ -24,13 +24,16 @@ if ( ! defined( 'ABSPATH' ) ) {
  *   `register_block_template()` (`single-bfrc_recipe`, `archive-bfrc_recipe`),
  *   each wrapping one server-rendered view block between the theme's header
  *   and footer parts; the taxonomy and author hierarchies are pointed at the
- *   archive template for recipe views.
+ *   archive template for recipe views. A theme's own `archive-bfrc_recipe.html`
+ *   wins, as core resolves theme files before plugin templates.
  * - Classic themes: `template_include` returns the plugin's PHP template
- *   unless the theme ships `bluefairy-recipes/{name}.php`.
+ *   unless the theme ships `bluefairy-recipes/{name}.php`, or its own
+ *   `single-bfrc_recipe.php` / `archive-bfrc_recipe.php` / `taxonomy-bfrc_*.php`.
  *
  * Writer pages live at `{archive}/chef/` (listing) and `{archive}/chef/{nicename}/`
  * (that writer's recipes as an author archive of the recipe type). A writer
- * without a public page, or the listing while it is switched off, is a 404.
+ * without a public page, the listing while it is switched off, and a listing
+ * page past the last writer are 404s.
  */
 final class Templates {
 
@@ -39,6 +42,7 @@ final class Templates {
 	public const BLOCK_SINGLE = 'bfrc/recipe-single';
 	public const BLOCK_LIST   = 'bfrc/recipe-archive';
 	public const SEARCH_VAR   = 'bfrc_s';
+	public const FILTER_VAR   = 'bfrc_filter';
 	public const SEARCH_MAX   = 100;
 
 	/**
@@ -67,6 +71,7 @@ final class Templates {
 		add_filter( 'comments_open', [ $this, 'comments_closed' ], 10, 2 );
 		add_filter( 'body_class', [ $this, 'body_class' ] );
 		add_filter( 'document_title_parts', [ $this, 'document_title' ] );
+		add_filter( 'wp_sitemaps_users_query_args', [ $this->writers, 'sitemap_users_query' ] );
 	}
 
 	/**
@@ -74,27 +79,21 @@ final class Templates {
 	 */
 	public function register(): void {
 		$this->writers->add_rewrite_rules();
-		register_block_type(
-			self::BLOCK_SINGLE,
-			[
-				'api_version'     => '3',
-				'render_callback' => [ $this, 'render_single_block' ],
-			]
-		);
-		register_block_type(
-			self::BLOCK_LIST,
-			[
-				'api_version'     => '3',
-				'render_callback' => [ $this, 'render_archive_block' ],
-			]
-		);
+		// `autoRegister` (WordPress 7.0+) gives the Site Editor a server-rendered preview of a
+		// block that ships no editor script; older versions show a placeholder to leave in place.
+		$block_args = [
+			'api_version' => '3',
+			'supports'    => [ 'autoRegister' => true ],
+		];
+		register_block_type( self::BLOCK_SINGLE, $block_args + [ 'render_callback' => [ $this, 'render_single_block' ] ] );
+		register_block_type( self::BLOCK_LIST, $block_args + [ 'render_callback' => [ $this, 'render_archive_block' ] ] );
 		if ( function_exists( 'register_block_template' ) ) {
 			register_block_template(
 				'bluefairy-recipes//single-' . PostType::NAME,
 				[
 					'title'       => __( 'Single Recipe', 'bluefairy-recipes' ),
 					'description' => __( 'A recipe: photo or video, timings, ingredients, steps, nutrition and sharing.', 'bluefairy-recipes' ),
-					'content'     => (string) file_get_contents( BFRC_DIR . 'templates/block/single-recipe.html' ), // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- a plugin file, not a remote resource.
+					'content'     => self::template_markup( 'single-recipe' ),
 					'post_types'  => [ PostType::NAME ],
 				]
 			);
@@ -103,14 +102,31 @@ final class Templates {
 				[
 					'title'       => __( 'Recipes Archive', 'bluefairy-recipes' ),
 					'description' => __( 'The recipe grid with filters, a filter type, a writer\'s recipes, or the writers list.', 'bluefairy-recipes' ),
-					'content'     => (string) file_get_contents( BFRC_DIR . 'templates/block/archive-recipe.html' ), // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- as above.
+					'content'     => self::template_markup( 'archive-recipe' ),
 				]
 			);
 		}
 	}
 
 	/**
-	 * The writer query vars and the search var.
+	 * A block template's markup from `templates/block/`, '' when the file is
+	 * missing (core then shows an empty template rather than a warning).
+	 *
+	 * @param string $name File name without extension.
+	 */
+	public static function template_markup( string $name ): string {
+		$path = BFRC_DIR . 'templates/block/' . $name . '.html';
+		if ( ! is_readable( $path ) ) {
+			return '';
+		}
+		$markup = file_get_contents( $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- a plugin file, not a remote resource.
+		return is_string( $markup ) ? $markup : '';
+	}
+
+	/**
+	 * The writer query vars and the search var (the filter var is an array
+	 * read straight from the request, never a public query var: a taxonomy
+	 * query var would turn the filtered archive into a term page).
 	 *
 	 * @param array<int, string> $vars Public query vars.
 	 * @return array<int, string>
@@ -122,21 +138,24 @@ final class Templates {
 	}
 
 	/**
-	 * Is this the main query for one of our public views?
+	 * Is this the main query for one of our public views? Never while the
+	 * plugin is disabled (the guard still 404s the writer vars then).
 	 *
 	 * @param \WP_Query $query The query.
 	 */
 	public function is_recipe_query( \WP_Query $query ): bool {
-		if ( is_admin() || ! $query->is_main_query() ) {
+		if ( is_admin() || ! $query->is_main_query() || ! (bool) $this->settings->get( 'enabled' ) ) {
 			return false;
 		}
 		if ( $query->is_singular( PostType::NAME ) || $query->is_post_type_archive( PostType::NAME ) ) {
 			return true;
 		}
-		if ( $query->is_tax( $this->taxonomy_names() ) ) {
-			return true;
+		$names = $this->taxonomy_names();
+		if ( [] !== $names && $query->is_tax( $names ) ) {
+			return true; // Never is_tax( [] ): core reads an empty list as "any taxonomy".
 		}
-		return (bool) $query->get( Writers::LIST_VAR ) || (bool) $query->get( Writers::QUERY_VAR );
+		// The writer routes always carry the post type; a bare `?bfrc_writers=1` on another URL is not ours.
+		return PostType::NAME === $query->get( 'post_type' ) && ( (bool) $query->get( Writers::LIST_VAR ) || (bool) $query->get( Writers::QUERY_VAR ) );
 	}
 
 	/**
@@ -153,14 +172,12 @@ final class Templates {
 		$query->set( 'post_type', PostType::NAME );
 		if ( (bool) $query->get( Writers::LIST_VAR ) ) {
 			// The listing page: the post query is only a vehicle for the template, one recipe per
-			// page. `paged` stays: the writers listing reads it, and core's canonical redirect must
-			// see a real page (every public writer has a recipe, so recipe pages ≥ writer pages).
+			// page. `paged` stays: the writers listing reads it, and guard() 404s pages past the
+			// last writer; core must still see a real page for the pages that exist.
 			$query->set( 'posts_per_page', 1 );
-			$query->set( 'ignore_sticky_posts', true );
 			return;
 		}
 		$query->set( 'posts_per_page', $this->per_page() );
-		$query->set( 'ignore_sticky_posts', true );
 		$search = $this->requested_search();
 		if ( '' !== $search ) {
 			$query->set( 's', $search );
@@ -192,7 +209,9 @@ final class Templates {
 	}
 
 	/**
-	 * 404 a writer page that must not exist, and the listing while it is off.
+	 * 404 a writer page that must not exist, the listing while it is off,
+	 * and a listing page past the last writer. Runs whether or not the
+	 * plugin is enabled: the query vars are registered either way.
 	 */
 	public function guard(): void {
 		global $wp_query;
@@ -204,7 +223,15 @@ final class Templates {
 		if ( ! $writer && ! $listing ) {
 			return;
 		}
-		$ok = $listing ? $this->writers->listing_enabled() : null !== $this->writers->public_writer( (string) $wp_query->get( 'author_name' ) );
+		if ( $listing ) {
+			$ok = $this->writers->listing_enabled();
+			if ( $ok ) {
+				$page = max( 1, (int) $wp_query->get( 'paged' ) );
+				$ok   = 1 === $page || $page <= $this->writers->listed( $page )['pages'];
+			}
+		} else {
+			$ok = (bool) $this->settings->get( 'enabled' ) && null !== $this->writers->public_writer( (string) $wp_query->get( 'author_name' ) );
+		}
 		if ( $ok ) {
 			return;
 		}
@@ -214,7 +241,9 @@ final class Templates {
 	}
 
 	/**
-	 * Classic themes: our template unless the theme overrides it.
+	 * Classic themes: our template unless the theme overrides it, either
+	 * with `bluefairy-recipes/{name}.php` or with its own recipe template
+	 * (`single-bfrc_recipe.php`, `archive-bfrc_recipe.php`, `taxonomy-bfrc_*.php`).
 	 *
 	 * @param string $template The template core chose.
 	 */
@@ -226,7 +255,20 @@ final class Templates {
 		if ( function_exists( 'wp_is_block_theme' ) && wp_is_block_theme() ) {
 			return $template; // The block templates registered above apply through the hierarchy.
 		}
+		if ( self::is_theme_recipe_template( $template ) ) {
+			return $template;
+		}
 		return self::locate( $wp_query->is_singular( PostType::NAME ) ? 'single-recipe' : 'archive-recipe' );
+	}
+
+	/**
+	 * Did the theme pick one of its own recipe-specific templates?
+	 *
+	 * @param string $template Core's chosen template path.
+	 */
+	public static function is_theme_recipe_template( string $template ): bool {
+		$name = basename( $template );
+		return in_array( $name, [ 'single-' . PostType::NAME . '.php', 'archive-' . PostType::NAME . '.php' ], true ) || str_starts_with( $name, 'taxonomy-bfrc_' );
 	}
 
 	/**
@@ -252,7 +294,7 @@ final class Templates {
 			return $templates;
 		}
 		array_unshift( $templates, 'archive-' . PostType::NAME );
-		return array_values( array_unique( $templates ) );
+		return $templates;
 	}
 
 	/**
@@ -308,7 +350,7 @@ final class Templates {
 	 */
 	public function document_title( array $parts ): array {
 		global $wp_query;
-		if ( ! $wp_query instanceof \WP_Query || $wp_query->is_404() ) {
+		if ( ! $wp_query instanceof \WP_Query || $wp_query->is_404() || $wp_query->is_singular() || ! $this->is_recipe_query( $wp_query ) ) {
 			return $parts;
 		}
 		if ( (bool) $wp_query->get( Writers::LIST_VAR ) ) {
@@ -359,20 +401,26 @@ final class Templates {
 	}
 
 	/**
-	 * The filter form's taxonomy choices: taxonomy name => term slug.
+	 * The filter form's taxonomy choices, `bfrc_filter[{code}]=slug`:
+	 * taxonomy name => term slug. Only enabled codes; a non-string, empty or
+	 * `0` value is no choice.
 	 *
 	 * @return array<string, string>
 	 */
 	public function requested_filters(): array {
+		$raw = $_GET[ self::FILTER_VAR ] ?? null; // phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.ValidatedSanitizedInput -- a public read-only filter; each value is type-checked and sanitised below.
+		if ( ! is_array( $raw ) ) {
+			return [];
+		}
 		$out = [];
-		foreach ( $this->taxonomy_names() as $name ) {
-			$raw = $_GET[ $name ] ?? ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.ValidatedSanitizedInput -- a public read-only filter; sanitised on the next line.
-			if ( ! is_string( $raw ) || '' === $raw || '0' === $raw ) {
+		foreach ( array_keys( $this->taxonomies->enabled() ) as $code ) {
+			$value = $raw[ $code ] ?? '';
+			if ( ! is_string( $value ) || '' === $value || '0' === $value ) {
 				continue;
 			}
-			$slug = sanitize_title( wp_unslash( $raw ) );
+			$slug = sanitize_title( wp_unslash( $value ) );
 			if ( '' !== $slug ) {
-				$out[ $name ] = $slug;
+				$out[ Taxonomies::taxonomy_name( $code ) ] = $slug;
 			}
 		}
 		return $out;

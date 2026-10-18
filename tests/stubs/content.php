@@ -123,6 +123,7 @@ if ( ! function_exists( 'wp_insert_term' ) ) {
 	}
 	/** Supports `taxonomy` (string or list), `hide_empty` (ignored: every stub term is "empty"), `fields => ids|names|all`, `number`. */
 	function get_terms( array $args = [] ): array|WP_Error {
+		$GLOBALS['bfrc_test_get_terms_calls'][] = $args;
 		$taxonomies = (array) ( $args['taxonomy'] ?? array_keys( $GLOBALS['bfrc_test_terms'] ) );
 		$out        = [];
 		foreach ( $taxonomies as $taxonomy ) {
