@@ -84,8 +84,11 @@ final class Installer {
 		if ( ( new Settings() )->get( 'grant_core_roles' ) ) {
 			Capabilities::grant_core_roles();
 		}
-		// The activation request has already passed `init`, so the taxonomies are
-		// registered here on the fly before their default terms are seeded.
+		// The taxonomies are registered here on the fly before their default terms
+		// are seeded: activation runs after `init`, but a never-provisioned site
+		// (a network sub-site) reaches this from plugins_loaded, before core has
+		// built $wp_rewrite, so register() adds no rewrite rules then (the real
+		// registration at init 5 does, and the flush flag covers the rules).
 		$taxonomies = new Content\Taxonomies( new Settings() );
 		$taxonomies->register();
 		$taxonomies->ensure_default_terms();

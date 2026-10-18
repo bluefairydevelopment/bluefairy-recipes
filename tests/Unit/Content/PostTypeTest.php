@@ -13,6 +13,11 @@ use BlueFairy\Recipes\Tests\TestCase;
 
 final class PostTypeTest extends TestCase {
 
+	protected function setUp(): void {
+		parent::setUp();
+		$GLOBALS['bfrc_test_fired']['init'] = 1; // registration and activation run after init
+	}
+
 	private function post_type(): PostType {
 		return new PostType( new Settings() );
 	}
@@ -32,7 +37,7 @@ final class PostTypeTest extends TestCase {
 		$this->assertSame( [ 'title', 'editor', 'excerpt', 'thumbnail', 'author', 'revisions', 'custom-fields' ], $args['supports'] );
 		$this->assertSame( 'Recipe photo', $args['labels']['featured_image'] );
 		$this->assertFalse( $args['delete_with_user'], 'deleting a writer must not delete their recipes' );
-		$this->assertSame( 20, strlen( 'bfrc_recipe' ) <= 20 ? 20 : 0, 'the name fits core\'s 20-character limit' );
+		$this->assertLessThanOrEqual( 20, strlen( PostType::NAME ), 'the name fits core\'s 20-character limit' );
 	}
 
 	public function test_follows_the_archive_slug_setting(): void {
@@ -55,7 +60,11 @@ final class PostTypeTest extends TestCase {
 		$this->assertFalse( $args['has_archive'], 'the archive 404s' );
 		$this->assertTrue( $args['exclude_from_search'] );
 		$this->assertFalse( $args['show_in_nav_menus'] );
-		$this->assertFalse( $args['rewrite']['feeds'] );
+		$this->assertFalse( $args['rewrite'], 'no rewrite rules: a matched rule with a dropped query var would serve the home page with 200' );
+		$this->assertFalse( $args['query_var'] );
+		$this->assertFalse( $args['show_in_rest'], 'a visitor gets no /wp/v2/bfrc_recipe while disabled' );
+		bfrc_test_grant( 'edit_bfrc_recipes' );
+		$this->assertTrue( $pt->args()['show_in_rest'], 'an editor keeps REST so the block editor works' );
 	}
 
 	public function test_sitemap_lists_recipes_only_while_enabled(): void {

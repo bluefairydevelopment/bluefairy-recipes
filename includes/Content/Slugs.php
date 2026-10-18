@@ -18,8 +18,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  * pages (`chef`), the submission page (`submit`), pagination (`page`), feeds
  * and every filter taxonomy's archive (`meal-type`, …). A recipe titled
  * "Chef" would otherwise take the writer listing's URL. Core asks
- * `wp_unique_post_slug` for every saved slug; reserved ones get a numeric
- * suffix the way a duplicate would.
+ * `wp_unique_post_slug` for every saved slug of a published or scheduled
+ * post (drafts keep theirs until publish, as core does for duplicates);
+ * reserved ones get a numeric suffix the way a duplicate would.
  */
 final class Slugs {
 
@@ -104,9 +105,10 @@ final class Slugs {
 		if ( PostType::NAME !== $post_type || ! $this->is_reserved( $slug ) ) {
 			return $slug;
 		}
+		$reserved = $this->reserved();
 		for ( $n = 2; $n <= self::MAX_SUFFIX; $n++ ) {
 			$candidate = $slug . '-' . $n;
-			if ( ! $this->is_reserved( $candidate ) && ! $this->slug_in_use( $candidate, $post_id ) ) {
+			if ( ! in_array( strtolower( $candidate ), $reserved, true ) && ! $this->slug_in_use( $candidate, $post_id ) ) {
 				return $candidate;
 			}
 		}

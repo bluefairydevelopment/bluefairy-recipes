@@ -104,6 +104,15 @@ final class SettingsTest extends TestCase {
 		$this->assertFalse( get_option( Settings::FLUSH_OPTION ), 'same slug: no flush' );
 		$settings->patch( [ 'archive_slug' => 'cookbook' ] );
 		$this->assertSame( '1', get_option( Settings::FLUSH_OPTION ), 'changed slug: flush flagged' );
+		update_option( Settings::FLUSH_OPTION, 0 );
+		$settings->patch( [ 'enabled' => false ] );
+		$this->assertSame( '1', get_option( Settings::FLUSH_OPTION ), 'the Enabled switch adds or removes every rule' );
+		update_option( Settings::FLUSH_OPTION, 0 );
+		$settings->patch( [ 'taxonomies' => [ 'diet' => [ 'enabled' => false ] ] ] );
+		$this->assertSame( '1', get_option( Settings::FLUSH_OPTION ), 'a taxonomy switch adds or removes its archive rule' );
+		update_option( Settings::FLUSH_OPTION, 0 );
+		$settings->patch( [ 'per_page' => 7 ] );
+		$this->assertSame( '0', get_option( Settings::FLUSH_OPTION ), 'other settings do not touch the rules' );
 	}
 
 	public function test_flipping_grant_core_roles_grants_and_revokes_the_core_roles_capabilities(): void {

@@ -24,7 +24,11 @@ final class VideoUrlTest extends TestCase {
 			'youtube nocookie'  => [ 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ' ],
 			'vimeo'             => [ 'https://vimeo.com/123456789', 'https://vimeo.com/123456789', 'https://player.vimeo.com/video/123456789' ],
 			'vimeo player'      => [ 'https://player.vimeo.com/video/123456789?h=abc', 'https://vimeo.com/123456789', 'https://player.vimeo.com/video/123456789' ],
-			'vimeo with suffix' => [ '  https://vimeo.com/123456789/abcdef  ', 'https://vimeo.com/123456789', 'https://player.vimeo.com/video/123456789' ],
+			'vimeo unlisted'    => [ '  https://vimeo.com/123456789/abcdef  ', 'https://vimeo.com/123456789/abcdef', 'https://player.vimeo.com/video/123456789?h=abcdef' ],
+			'vimeo unlisted h'  => [ 'https://vimeo.com/123456789?h=Ab12cd', 'https://vimeo.com/123456789/Ab12cd', 'https://player.vimeo.com/video/123456789?h=Ab12cd' ],
+			'vimeo channel'     => [ 'https://vimeo.com/channels/staff/123456789', 'https://vimeo.com/123456789', 'https://player.vimeo.com/video/123456789' ],
+			'vimeo group'       => [ 'https://vimeo.com/groups/food/videos/123456789', 'https://vimeo.com/123456789', 'https://player.vimeo.com/video/123456789' ],
+			'vimeo album'       => [ 'https://vimeo.com/album/1/video/123456789', 'https://vimeo.com/123456789', 'https://player.vimeo.com/video/123456789' ],
 		];
 	}
 
@@ -51,6 +55,9 @@ final class VideoUrlTest extends TestCase {
 			'id with newline'     => [ "https://youtu.be/dQw4w9WgXc\n" ],
 			'youtube channel'     => [ 'https://www.youtube.com/@someone' ],
 			'vimeo too short'     => [ 'https://vimeo.com/123' ],
+			'vimeo lookalike'     => [ 'https://evil.test/123456789' ],
+			'vimeo subdomain'     => [ 'https://vimeo.com.evil.test/123456789' ],
+			'vimeo bad hash'      => [ 'https://vimeo.com/123456789/ab' ],
 			'vimeo letters'       => [ 'https://vimeo.com/abc123' ],
 			'empty'               => [ '' ],
 			'not a string'        => [ 42 ],
@@ -70,7 +77,7 @@ final class VideoUrlTest extends TestCase {
 	}
 
 	public function test_parse_reports_the_provider_and_id(): void {
-		$this->assertSame( [ 'provider' => 'youtube', 'id' => 'dQw4w9WgXcQ' ], VideoUrl::parse( 'https://youtu.be/dQw4w9WgXcQ' ) );
-		$this->assertSame( [ 'provider' => 'vimeo', 'id' => '123456789' ], VideoUrl::parse( 'https://vimeo.com/123456789' ) );
+		$this->assertSame( [ 'provider' => 'youtube', 'id' => 'dQw4w9WgXcQ', 'hash' => '' ], VideoUrl::parse( 'https://youtu.be/dQw4w9WgXcQ' ) );
+		$this->assertSame( [ 'provider' => 'vimeo', 'id' => '123456789', 'hash' => '' ], VideoUrl::parse( 'https://vimeo.com/123456789' ) );
 	}
 }

@@ -14,6 +14,11 @@ use BlueFairy\Recipes\Tests\TestCase;
 
 final class InstallerTest extends TestCase {
 
+	protected function setUp(): void {
+		parent::setUp();
+		$GLOBALS['bfrc_test_fired']['init'] = 1; // registration and activation run after init
+	}
+
 	public function test_the_lists_in_uninstall_php_match_the_code_in_both_directions(): void {
 		$uninstall = (string) file_get_contents( BFRC_DIR . 'uninstall.php' );
 		$this->assertSame( 1, preg_match( '/\$bfrc_option_keys = \[(.*?)\];/s', $uninstall, $m ) );
@@ -57,7 +62,7 @@ final class InstallerTest extends TestCase {
 		wp_insert_term( 'Brunch', 'bfrc_meal_type' );
 		Installer::activate();
 		$this->assertSame( [ 'Brunch' ], get_terms( [ 'taxonomy' => 'bfrc_meal_type', 'fields' => 'names', 'hide_empty' => false ] ) );
-		$this->assertSame( [ 'Vegan', 'Vegetarian', 'Gluten-Free', 'Dairy-Free' ] === [] ? [] : [ 'Dairy-Free', 'Gluten-Free', 'Vegan', 'Vegetarian' ], get_terms( [ 'taxonomy' => 'bfrc_diet', 'fields' => 'names', 'hide_empty' => false ] ), 'an empty taxonomy still gets its starters' );
+		$this->assertSame( [ 'Dairy-Free', 'Gluten-Free', 'Vegan', 'Vegetarian' ], get_terms( [ 'taxonomy' => 'bfrc_diet', 'fields' => 'names', 'hide_empty' => false ] ), 'an empty taxonomy still gets its starters' );
 	}
 
 	public function test_activate_keeps_existing_settings_and_honours_grant_core_roles_off(): void {
@@ -98,8 +103,12 @@ final class InstallerTest extends TestCase {
 		$this->assertSame( '0', get_option( Settings::FLUSH_OPTION ) );
 	}
 
-	public function test_maybe_upgrade_provisions_a_site_with_no_version(): void {
+	public function test_maybe_upgrade_provisions_a_site_with_no_version_before_init_without_touching_rewrite_rules(): void {
+		$GLOBALS['bfrc_test_fired']['init'] = 0; // plugins_loaded on a never-provisioned sub-site: core has no $wp_rewrite yet
 		Installer::maybe_upgrade();
+		$this->assertFalse( $GLOBALS['bfrc_test_taxonomies']['bfrc_meal_type']['args']['rewrite'], 'the stub, like core, would have thrown on a rewrite array here' );
+		$this->assertSame( [ 'Breakfast', 'Dessert', 'Dinner', 'Lunch', 'Snack' ], get_terms( [ 'taxonomy' => 'bfrc_meal_type', 'fields' => 'names', 'hide_empty' => false ] ) );
+		$this->assertSame( '1', get_option( Settings::FLUSH_OPTION ), 'the real registration at init 5 adds the rules and the flag writes them' );
 		$this->assertSame( BFRC_DB_VERSION, get_option( 'bfrc_db_version' ) );
 		$this->assertInstanceOf( \WP_Role::class, get_role( Capabilities::ROLE_MANAGER ) );
 		$this->assertSame( Settings::DEFAULTS, get_option( 'bfrc_settings' ) );

@@ -16,8 +16,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * A video URL is accepted only when it names a YouTube or Vimeo video the
  * plugin can identify. What is stored is the canonical watch URL; what is
- * rendered is an iframe built from the id alone, so no server-side fetch
- * (no oEmbed) ever happens and nothing but the id reaches the page.
+ * rendered is an iframe built from the id (and, for an unlisted Vimeo video,
+ * its hash) alone, so no server-side fetch (no oEmbed) ever happens and
+ * nothing but those tokens reaches the page.
  */
 final class VideoUrl {
 
@@ -28,10 +29,11 @@ final class VideoUrl {
 	private const VIMEO_HOSTS   = [ 'vimeo.com', 'www.vimeo.com', 'player.vimeo.com' ];
 
 	/**
-	 * The provider and id of a URL, or null when it is not a YouTube or Vimeo video.
+	 * The provider, id and (Vimeo, unlisted) hash of a URL, or null when it is
+	 * not a YouTube or Vimeo video.
 	 *
 	 * @param mixed $url Raw input.
-	 * @return array{provider: string, id: string}|null
+	 * @return array{provider: string, id: string, hash: string}|null
 	 */
 	public static function parse( mixed $url ): ?array {
 		if ( ! is_string( $url ) ) {
@@ -63,10 +65,18 @@ final class VideoUrl {
 			return null;
 		}
 		if ( in_array( $host, self::VIMEO_HOSTS, true ) ) {
-			if ( 1 === preg_match( '#^/(?:video/)?(\d{6,12})(?:/|$)#', $path, $m ) ) {
+			// The video id is the last 6–12-digit segment: /ID, /video/ID, /channels/x/ID,
+			// /groups/x/videos/ID, /album/N/video/ID; an unlisted video carries a hash as
+			// the following segment (/ID/hash) or as ?h=hash.
+			if ( 1 === preg_match( '#/(\d{6,12})(?:/([A-Za-z0-9]{6,32}))?/?$#', $path, $m ) ) {
+				$hash = $m[2] ?? '';
+				if ( '' === $hash && isset( $query['h'] ) && is_string( $query['h'] ) && 1 === preg_match( '/^[A-Za-z0-9]{6,32}$/D', $query['h'] ) ) {
+					$hash = $query['h'];
+				}
 				return [
 					'provider' => self::VIMEO,
 					'id'       => $m[1],
+					'hash'     => $hash,
 				];
 			}
 		}
@@ -83,14 +93,15 @@ final class VideoUrl {
 		if ( null === $video ) {
 			return '';
 		}
-		return self::YOUTUBE === $video['provider']
-			? 'https://www.youtube.com/watch?v=' . $video['id']
-			: 'https://vimeo.com/' . $video['id'];
+		if ( self::YOUTUBE === $video['provider'] ) {
+			return 'https://www.youtube.com/watch?v=' . $video['id'];
+		}
+		return 'https://vimeo.com/' . $video['id'] . ( '' !== $video['hash'] ? '/' . $video['hash'] : '' );
 	}
 
 	/**
 	 * The iframe src for a stored URL, or '' when it does not parse. Built from
-	 * the validated id only; YouTube through its no-cookie host.
+	 * the validated tokens only; YouTube through its no-cookie host.
 	 *
 	 * @param string $url A stored (normalised) URL.
 	 */
@@ -99,16 +110,17 @@ final class VideoUrl {
 		if ( null === $video ) {
 			return '';
 		}
-		return self::YOUTUBE === $video['provider']
-			? 'https://www.youtube-nocookie.com/embed/' . $video['id']
-			: 'https://player.vimeo.com/video/' . $video['id'];
+		if ( self::YOUTUBE === $video['provider'] ) {
+			return 'https://www.youtube-nocookie.com/embed/' . $video['id'];
+		}
+		return 'https://player.vimeo.com/video/' . $video['id'] . ( '' !== $video['hash'] ? '?h=' . $video['hash'] : '' );
 	}
 
 	/**
 	 * A YouTube id is exactly 11 characters of [A-Za-z0-9_-].
 	 *
 	 * @param string $candidate The id as found in the URL.
-	 * @return array{provider: string, id: string}|null
+	 * @return array{provider: string, id: string, hash: string}|null
 	 */
 	private static function youtube( string $candidate ): ?array {
 		if ( 1 !== preg_match( '/^[A-Za-z0-9_-]{11}$/D', $candidate ) ) {
@@ -117,6 +129,7 @@ final class VideoUrl {
 		return [
 			'provider' => self::YOUTUBE,
 			'id'       => $candidate,
+			'hash'     => '',
 		];
 	}
 }

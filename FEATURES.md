@@ -10,15 +10,16 @@ A recipe is a post of type `bfrc_recipe`, edited in the block editor. The post t
 | Field | Values | Notes |
 |---|---|---|
 | Media type | Image or Video | default Image |
-| Video URL | a YouTube or Vimeo video URL | other hosts are refused; the stored value is the canonical watch URL |
+| Video URL | a YouTube or Vimeo video URL (an unlisted Vimeo link keeps its hash) | any other URL is not stored; the stored value is the canonical watch URL |
 | Prep time, Cook time | whole minutes, 0–6000 | 0 = not shown |
 | Servings min, Servings max | 0–999 | |
 | Featured | yes/no | |
 | Ingredients | up to 200 rows of measure (≤ 64 characters) and label (≤ 255) | a row without a label is dropped |
 | Steps | up to 200 numbered steps | post-safe HTML allowed |
-| Nutrition | calories (kcal), fat, saturated fat, carbohydrates, sugar, fiber, protein (g), sodium (mg) | numbers with two decimals; an empty field is not shown |
+| Nutrition | calories (kcal), fat, saturated fat, carbohydrates, sugar, fiber, protein (g), sodium (mg) | numbers up to 100,000 with two decimals; `12,5` is read as 12.5 but `1,200` is refused as ambiguous; an empty field is not shown |
+| Servings | | max is never below min: whichever you change last, the other follows |
 
-A recipe's slug may not be `chef`, `submit`, `page`, a feed name or a filter type's name: such a slug gets a numeric suffix (`chef-2`).
+A published recipe's slug may not be `chef`, `submit`, `page`, `embed`, `trackback`, a feed name or a filter type's name: such a slug gets a numeric suffix (`chef-2`) when the recipe is published.
 
 ## Filter types (taxonomies)
 
@@ -31,7 +32,7 @@ Recipes are browsed by four filter types, each a taxonomy under the recipe archi
 | Seasons | `bfrc_season` | `/recipes/season/…` | Spring, Summer, Autumn, Winter |
 | Cuisines | `bfrc_cuisine` | `/recipes/cuisine/…` | Italian, Mexican, Asian, American, Mediterranean |
 
-Each can be switched off and reordered in Settings. A switched-off filter type keeps its terms and its admin screen but has no public archive. The Recipe Manager role manages terms; writers assign them.
+Each can be switched off and reordered in Settings. A switched-off filter type keeps its terms and its admin screen but has no public archive and no public REST route. The Recipe Manager role manages terms; writers assign them. A filter type's name may not be a route under the archive (`chef`, `page`, a feed name).
 
 ## Settings
 
@@ -40,7 +41,7 @@ until then the values below are the defaults the plugin installs.
 
 | Setting | Default | Notes |
 |---|---|---|
-| Enabled | On | Off: recipes, the archive and the filter archives return 404, recipes leave search and the sitemap; the admin keeps working |
+| Enabled | On | Off: recipes, the archive and the filter archives return 404 (previews too), recipes leave search, the sitemap and the public REST API; the admin and the editor keep working |
 | Rich snippets | On | |
 | Archive slug | `recipes` | Changing it flushes rewrite rules on the next page load. Routes WordPress owns (`feed`, `page`, `wp-json`, a year, …) are refused |
 | Archive title | Recipes | |

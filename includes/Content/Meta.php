@@ -21,10 +21,16 @@ if ( ! defined( 'ABSPATH' ) ) {
  * only by someone who can edit the recipe, and sanitised by one callback per
  * key whichever path writes it (meta box, REST, WP-CLI).
  *
+ * The one rule that spans two keys, servings max ≥ min, is owned here too:
+ * whichever of the two is written last wins and the other follows, on
+ * `added_post_meta` / `updated_post_meta`, so every write path obeys it.
+ *
  * Ingredient rows carry a `type`. The base knows `plain`; the Pro add-on adds
  * `internal` and `affiliate` through `bfrc_ingredient_types`, and the extra
  * fields those rows carry (`product_id`, `affiliate_url`) through
- * `bfrc_ingredient_row_fields`, each with its own sanitiser.
+ * `bfrc_ingredient_row_fields`, each with its own sanitiser. When the add-on
+ * is absent its types read as `plain` and their fields are dropped on the
+ * next save.
  */
 final class Meta {
 
@@ -39,11 +45,12 @@ final class Meta {
 	public const STEPS        = '_bfrc_steps';
 	public const NUTRITION    = '_bfrc_nutrition';
 
-	public const MAX_MINUTES  = 6000;
-	public const MAX_SERVINGS = 999;
-	public const MAX_ROWS     = 200;
-	public const MEASURE_MAX  = 64;
-	public const LABEL_MAX    = 255;
+	public const MAX_MINUTES   = 6000;
+	public const MAX_SERVINGS  = 999;
+	public const MAX_ROWS      = 200;
+	public const MEASURE_MAX   = 64;
+	public const LABEL_MAX     = 255;
+	public const MAX_NUTRITION = 100000.0;
 
 	/**
 	 * The nutrition fields, in display order, with their unit.
@@ -62,6 +69,13 @@ final class Meta {
 	];
 
 	/**
+	 * Re-entrancy guard for the servings rule.
+	 *
+	 * @var bool
+	 */
+	private static bool $reconciling = false;
+
+	/**
 	 * Every key this class registers.
 	 *
 	 * @return list<string>
@@ -71,10 +85,12 @@ final class Meta {
 	}
 
 	/**
-	 * Register on init, after the post type.
+	 * Register on init, after the post type; keep servings consistent on every write path.
 	 */
 	public function register_hooks(): void {
 		add_action( 'init', [ $this, 'register' ], 7 );
+		add_action( 'added_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
+		add_action( 'updated_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
 	}
 
 	/**
@@ -103,7 +119,8 @@ final class Meta {
 
 	/**
 	 * The extra fields a row of $type carries, each with a sanitiser
-	 * `callable( mixed ): mixed` whose result is stored as given.
+	 * `callable( mixed ): mixed`; a result that is not a scalar, null or an
+	 * array of scalars is dropped.
 	 *
 	 * @param string $type An ingredient type.
 	 * @return array<string, callable>
@@ -144,17 +161,8 @@ final class Meta {
 			'image',
 			$auth
 		);
-		$this->register_key(
-			self::VIDEO_URL,
-			'string',
-			[
-				'type'   => 'string',
-				'format' => 'uri',
-			],
-			[ VideoUrl::class, 'normalise' ],
-			'',
-			$auth
-		);
+		// No `format: uri`: the sanitiser owns validity, and '' (clear the video) must stay writable.
+		$this->register_key( self::VIDEO_URL, 'string', [ 'type' => 'string' ], [ VideoUrl::class, 'normalise' ], '', $auth );
 		$this->register_key(
 			self::PREP_MINUTES,
 			'integer',
@@ -208,12 +216,19 @@ final class Meta {
 			self::INGREDIENTS,
 			'array',
 			[
-				'type'  => 'array',
-				'items' => [
+				'type'     => 'array',
+				'maxItems' => self::MAX_ROWS,
+				'items'    => [
 					'type'                 => 'object',
 					'properties'           => [
-						'measure' => [ 'type' => 'string' ],
-						'label'   => [ 'type' => 'string' ],
+						'measure' => [
+							'type'      => 'string',
+							'maxLength' => self::MEASURE_MAX,
+						],
+						'label'   => [
+							'type'      => 'string',
+							'maxLength' => self::LABEL_MAX,
+						],
 						'type'    => [ 'type' => 'string' ],
 					],
 					'additionalProperties' => true,
@@ -227,8 +242,9 @@ final class Meta {
 			self::STEPS,
 			'array',
 			[
-				'type'  => 'array',
-				'items' => [
+				'type'     => 'array',
+				'maxItems' => self::MAX_ROWS,
+				'items'    => [
 					'type'       => 'object',
 					'properties' => [ 'text' => [ 'type' => 'string' ] ],
 				],
@@ -239,7 +255,14 @@ final class Meta {
 		);
 		$nutrition_schema = [
 			'type'       => 'object',
-			'properties' => array_map( static fn(): array => [ 'type' => [ 'number', 'null' ] ], self::NUTRITION_FIELDS ),
+			'properties' => array_map(
+				static fn(): array => [
+					'type'    => [ 'number', 'null' ],
+					'minimum' => 0,
+					'maximum' => self::MAX_NUTRITION,
+				],
+				self::NUTRITION_FIELDS
+			),
 		];
 		$this->register_key( self::NUTRITION, 'object', $nutrition_schema, [ self::class, 'sanitize_nutrition' ], self::empty_nutrition(), $auth );
 	}
@@ -271,15 +294,52 @@ final class Meta {
 	}
 
 	/**
-	 * Auth callback: may the current user edit this recipe?
+	 * Auth callback: may $user_id (core passes it as the fourth argument;
+	 * 0 means the current user) edit this recipe?
 	 *
 	 * @param bool   $allowed   Core's default.
 	 * @param string $meta_key  The key.
 	 * @param int    $object_id The recipe.
+	 * @param int    $user_id   The user being checked.
 	 */
-	public static function can_edit( bool $allowed, string $meta_key, int $object_id ): bool {
+	public static function can_edit( bool $allowed, string $meta_key, int $object_id, int $user_id = 0 ): bool {
 		unset( $allowed, $meta_key );
-		return current_user_can( 'edit_post', $object_id );
+		return $user_id > 0 ? user_can( $user_id, 'edit_post', $object_id ) : current_user_can( 'edit_post', $object_id );
+	}
+
+	/**
+	 * Servings max ≥ min, on whichever key was just written: a min above the
+	 * stored max raises max to it; a max below the stored min lowers min to it.
+	 * A max of 0 means "not set" and is left alone.
+	 *
+	 * @param int    $meta_id   Ignored.
+	 * @param int    $object_id The post.
+	 * @param string $meta_key  The key written.
+	 * @param mixed  $value     The value written.
+	 */
+	public static function reconcile_servings( int $meta_id, int $object_id, string $meta_key, mixed $value ): void {
+		unset( $meta_id );
+		if ( self::$reconciling || ! in_array( $meta_key, [ self::SERVINGS_MIN, self::SERVINGS_MAX ], true ) || PostType::NAME !== get_post_type( $object_id ) ) {
+			return;
+		}
+		$written = self::sanitize_servings( $value );
+		$other   = self::SERVINGS_MIN === $meta_key ? self::SERVINGS_MAX : self::SERVINGS_MIN;
+		$current = self::sanitize_servings( get_post_meta( $object_id, $other, true ) );
+		$fix     = null;
+		if ( self::SERVINGS_MIN === $meta_key && $current > 0 && $written > $current ) {
+			$fix = $written; // max follows min up.
+		} elseif ( self::SERVINGS_MAX === $meta_key && $written > 0 && $current > $written ) {
+			$fix = $written; // min follows max down.
+		}
+		if ( null === $fix ) {
+			return;
+		}
+		self::$reconciling = true;
+		try {
+			update_post_meta( $object_id, $other, $fix );
+		} finally {
+			self::$reconciling = false;
+		}
 	}
 
 	/**
@@ -337,8 +397,9 @@ final class Meta {
 		if ( ! is_array( $value ) ) {
 			return [];
 		}
-		$types = self::ingredient_types();
-		$out   = [];
+		$types  = self::ingredient_types();
+		$fields = []; // row-field sanitisers per type, asked for once per save.
+		$out    = [];
 		foreach ( $value as $row ) {
 			if ( ! is_array( $row ) ) {
 				continue;
@@ -347,14 +408,18 @@ final class Meta {
 			if ( '' === $label ) {
 				continue;
 			}
-			$type  = is_string( $row['type'] ?? null ) && in_array( $row['type'], $types, true ) ? $row['type'] : 'plain';
-			$clean = [
+			$type              = is_string( $row['type'] ?? null ) && in_array( $row['type'], $types, true ) ? $row['type'] : 'plain';
+			$clean             = [
 				'measure' => mb_substr( sanitize_text_field( is_scalar( $row['measure'] ?? null ) ? (string) $row['measure'] : '' ), 0, self::MEASURE_MAX ),
 				'label'   => $label,
 				'type'    => $type,
 			];
-			foreach ( self::ingredient_row_fields( $type ) as $field => $sanitiser ) {
-				$clean[ $field ] = $sanitiser( $row[ $field ] ?? null );
+			$fields[ $type ] ??= self::ingredient_row_fields( $type );
+			foreach ( $fields[ $type ] as $field => $sanitiser ) {
+				$result = $sanitiser( $row[ $field ] ?? null );
+				if ( null === $result || is_scalar( $result ) || ( is_array( $result ) && [] === array_filter( $result, static fn( mixed $v ): bool => ! is_scalar( $v ) && null !== $v ) ) ) {
+					$clean[ $field ] = $result;
+				}
 			}
 			$out[] = $clean;
 			if ( count( $out ) >= self::MAX_ROWS ) {
@@ -394,8 +459,11 @@ final class Meta {
 	}
 
 	/**
-	 * Nutrition: every NUTRITION_FIELDS key, each a non-negative number with
-	 * two decimals, or null when empty or not a number (hidden on display).
+	 * Nutrition: every NUTRITION_FIELDS key, each a number in 0..MAX_NUTRITION
+	 * with two decimals, or null when empty, not a number or ambiguous
+	 * (hidden on display). A single comma with no dot is a decimal comma
+	 * (`12,5`), except a comma followed by exactly three digits (`1,200`),
+	 * which could be a thousands separator and is refused rather than guessed.
 	 *
 	 * @param mixed $value Raw.
 	 * @return array<string, float|null>
@@ -406,12 +474,22 @@ final class Meta {
 		foreach ( array_keys( self::NUTRITION_FIELDS ) as $field ) {
 			$v = $raw[ $field ] ?? null;
 			if ( is_string( $v ) ) {
-				$v = trim( str_replace( ',', '.', $v ) );
+				$v = trim( $v );
+				if ( 1 === substr_count( $v, ',' ) && ! str_contains( $v, '.' ) ) {
+					if ( 1 === preg_match( '/,\d{3}$/', $v ) ) {
+						continue; // ambiguous: 1,200 could be twelve hundred or one point two.
+					}
+					$v = str_replace( ',', '.', $v );
+				}
 			}
-			if ( null === $v || '' === $v || ! is_numeric( $v ) || ! is_finite( (float) $v ) || (float) $v < 0 ) {
+			if ( null === $v || '' === $v || is_bool( $v ) || ! is_numeric( $v ) || ! is_finite( (float) $v ) ) {
 				continue;
 			}
-			$out[ $field ] = round( (float) $v, 2 );
+			$number = round( (float) $v, 2 );
+			if ( $number < 0 || $number > self::MAX_NUTRITION ) {
+				continue;
+			}
+			$out[ $field ] = 0.0 === $number ? 0.0 : $number; // never -0.0.
 		}
 		return $out;
 	}
@@ -426,15 +504,16 @@ final class Meta {
 	}
 
 	/**
-	 * A whole number in 0..$max, or 0 for anything that is not one.
+	 * A whole number in 0..$max, or 0 for anything that is not one. The float
+	 * is clamped before the cast, so a huge value cannot raise a warning.
 	 *
 	 * @param mixed $value Raw.
 	 * @param int   $max   Upper bound.
 	 */
 	private static function bounded_int( mixed $value, int $max ): int {
-		if ( ! is_numeric( $value ) || ! is_finite( (float) $value ) ) {
+		if ( is_bool( $value ) || ! is_numeric( $value ) || ! is_finite( (float) $value ) ) {
 			return 0;
 		}
-		return max( 0, min( $max, (int) $value ) );
+		return (int) max( 0.0, min( (float) $max, floor( (float) $value ) ) );
 	}
 }

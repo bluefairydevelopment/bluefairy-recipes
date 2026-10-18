@@ -13,6 +13,11 @@ use BlueFairy\Recipes\Tests\TestCase;
 
 final class TaxonomiesTest extends TestCase {
 
+	protected function setUp(): void {
+		parent::setUp();
+		$GLOBALS['bfrc_test_fired']['init'] = 1; // registration and activation run after init
+	}
+
 	private function taxonomies(): Taxonomies {
 		return new Taxonomies( new Settings() );
 	}
@@ -59,6 +64,7 @@ final class TaxonomiesTest extends TestCase {
 		$this->assertSame( [ 'bfrc_meal_type', 'bfrc_diet', 'bfrc_season', 'bfrc_cuisine' ], array_keys( $GLOBALS['bfrc_test_taxonomies'] ) );
 		$reg = $GLOBALS['bfrc_test_taxonomies']['bfrc_meal_type'];
 		$this->assertSame( [ 'bfrc_recipe' ], $reg['object_type'] );
+		$this->assertSame( [ 'bfrc_recipe' ], $reg['object_type'] );
 		$this->assertSame( Taxonomies::CAPABILITIES, $reg['args']['capabilities'] );
 		$this->assertTrue( $reg['args']['public'] );
 		$this->assertTrue( $reg['args']['show_in_rest'] );
@@ -99,6 +105,63 @@ final class TaxonomiesTest extends TestCase {
 		$this->taxonomies()->register();
 		$this->assertArrayHasKey( 'bfrc_' . $code, $GLOBALS['bfrc_test_taxonomies'], 'register_taxonomy() accepted the 32-character name' );
 		$this->assertSame( 32, strlen( 'bfrc_' . $code ) );
+	}
+
+	public function test_reserved_route_names_system_codes_array_labels_and_codes_beyond_the_cap_are_refused(): void {
+		add_filter(
+			'bfrc_filter_taxonomies',
+			static function ( array $defs ): array {
+				foreach ( [ 'chef', 'submit', 'page', 'feed', 'wp_admin', 'rss2' ] as $route ) {
+					$defs[ $route ] = [ 'label' => 'Route' ];
+				}
+				$defs['arrlabel'] = [ 'label' => [ 'x' ] ];
+				$defs['objlabel'] = [ 'label' => new \stdClass() ];
+				for ( $i = 1; $i <= Settings::MAX_CUSTOM_TAXONOMIES + 5; $i++ ) {
+					$defs[ 'custom_' . $i ] = [ 'label' => 'C' . $i ];
+				}
+				return $defs;
+			}
+		);
+		$defs = $this->taxonomies()->definitions();
+		foreach ( [ 'chef', 'submit', 'page', 'feed', 'wp_admin', 'rss2', 'arrlabel', 'objlabel' ] as $code ) {
+			$this->assertArrayNotHasKey( $code, $defs, $code );
+		}
+		$this->assertCount( 4 + Settings::MAX_CUSTOM_TAXONOMIES, $defs, 'four system plus the cap' );
+		$this->assertArrayHasKey( 'custom_' . Settings::MAX_CUSTOM_TAXONOMIES, $defs );
+		$this->assertArrayNotHasKey( 'custom_' . ( Settings::MAX_CUSTOM_TAXONOMIES + 1 ), $defs );
+		$this->assertContains( 'meal_type', Taxonomies::reserved_codes() );
+		$this->assertContains( 'wp-admin', Taxonomies::reserved_codes() );
+	}
+
+	public function test_flush_drops_the_cached_definitions_so_a_later_filter_or_setting_counts(): void {
+		$t = $this->taxonomies();
+		$this->assertCount( 4, $t->definitions() );
+		add_filter( 'bfrc_filter_taxonomies', static fn( array $d ): array => $d + [ 'occasion' => [ 'label' => 'Occasions' ] ] );
+		$this->assertCount( 4, $t->definitions(), 'cached' );
+		$t->flush();
+		$this->assertCount( 5, $t->definitions() );
+	}
+
+	public function test_before_init_register_adds_no_rewrite_rules_because_core_has_no_rewrite_object_yet(): void {
+		$GLOBALS['bfrc_test_fired']['init'] = 0;
+		$this->taxonomies()->register(); // the stub throws, as core would, if a rewrite array reached register_taxonomy here
+		$this->assertFalse( $GLOBALS['bfrc_test_taxonomies']['bfrc_diet']['args']['rewrite'] );
+		$this->assertSame( 'Diets', $GLOBALS['bfrc_test_taxonomies']['bfrc_diet']['args']['labels']['name'], 'English source strings before init: no early text-domain load' );
+	}
+
+	public function test_rest_routes_exist_for_the_public_or_for_editors_only(): void {
+		update_option( 'bfrc_settings', [ 'enabled' => false ] );
+		$this->taxonomies()->register();
+		$this->assertFalse( $GLOBALS['bfrc_test_taxonomies']['bfrc_diet']['args']['show_in_rest'], 'disabled: a visitor gets no /wp/v2/bfrc_diet' );
+		bfrc_test_grant( 'edit_bfrc_recipes' );
+		$this->taxonomies()->register();
+		$this->assertTrue( $GLOBALS['bfrc_test_taxonomies']['bfrc_diet']['args']['show_in_rest'], 'an editor keeps REST (the block editor needs it)' );
+	}
+
+	public function test_system_strings_pass_through_translation_after_init(): void {
+		add_filter( 'gettext', static fn( string $t, string $orig, string $domain ): string => 'bluefairy-recipes' === $domain && 'Meal Types' === $orig ? 'Repas' : $t, 10, 3 );
+		$this->assertSame( 'Repas', $this->taxonomies()->definitions()['meal_type']['label'] );
+		$this->assertSame( 'Meal Types', Taxonomies::SYSTEM['meal_type']['label'], 'the constant stays the English source' );
 	}
 
 	public function test_taxonomy_name(): void {

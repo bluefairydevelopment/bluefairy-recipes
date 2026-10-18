@@ -46,6 +46,19 @@
 		</properties>
 	</rule>
 
+	<rule ref="WordPress.WP.Capabilities">
+		<properties>
+			<property name="custom_capabilities" type="array">
+				<element value="bfrc_manage_recipes"/>
+				<element value="edit_bfrc_recipes"/>
+				<element value="edit_others_bfrc_recipes"/>
+				<element value="publish_bfrc_recipes"/>
+				<element value="manage_bfrc_terms"/>
+				<element value="assign_bfrc_terms"/>
+			</property>
+		</properties>
+	</rule>
+
 	<rule ref="WordPress.DB.PreparedSQL"/>
 	<rule ref="WordPress.DB.DirectDatabaseQuery">
 		<properties>

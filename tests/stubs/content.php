@@ -50,6 +50,10 @@ if ( ! function_exists( 'register_taxonomy' ) ) {
 		if ( '' === $taxonomy || strlen( $taxonomy ) > 32 ) {
 			return new WP_Error( 'taxonomy_length_invalid', 'Taxonomy names must be between 1 and 32 characters in length.' );
 		}
+		// As core: before init there is no $wp_rewrite, and WP_Taxonomy::add_rewrite_rules() fatals on it unless rewrite is false.
+		if ( 0 === did_action( 'init' ) && false !== ( $args['rewrite'] ?? true ) ) {
+			throw new Error( 'Call to a member function add_rewrite_tag() on null (register_taxonomy with rewrite before init)' );
+		}
 		$GLOBALS['bfrc_test_taxonomies'][ $taxonomy ] = [ 'object_type' => (array) $object_type, 'args' => $args ];
 		return (object) array_merge( $args, [ 'name' => $taxonomy ] );
 	}
@@ -62,7 +66,24 @@ if ( ! function_exists( 'register_taxonomy' ) ) {
 }
 
 if ( ! function_exists( 'register_post_meta' ) ) {
+	/** As core: a default that does not match the schema type (or enum) is refused and the key is not registered. */
 	function register_post_meta( string $post_type, string $meta_key, array $args ): bool {
+		if ( array_key_exists( 'default', $args ) && isset( $args['show_in_rest']['schema'] ) ) {
+			$schema  = $args['show_in_rest']['schema'];
+			$default = $args['default'];
+			$type_ok = match ( $schema['type'] ?? null ) {
+				'string'  => is_string( $default ),
+				'integer' => is_int( $default ),
+				'number'  => is_int( $default ) || is_float( $default ),
+				'boolean' => is_bool( $default ),
+				'array'   => is_array( $default ) && array_is_list( $default ),
+				'object'  => is_array( $default ),
+				default   => true,
+			};
+			if ( ! $type_ok || ( isset( $schema['enum'] ) && ! in_array( $default, $schema['enum'], true ) ) ) {
+				return false;
+			}
+		}
 		$GLOBALS['bfrc_test_registered_meta'][ $post_type ][ $meta_key ] = $args;
 		return true;
 	}
@@ -150,9 +171,11 @@ if ( ! function_exists( 'get_post_meta' ) ) {
 		}
 		return $single ? $all[ $key ] : [ $all[ $key ] ];
 	}
+	/** As core: fires updated_post_meta (existing key) or added_post_meta (new key) with (meta_id, object_id, key, value). */
 	function update_post_meta( int $post_id, string $key, mixed $value, mixed $prev = '' ): int|bool {
 		$existed                                          = array_key_exists( $key, $GLOBALS['bfrc_test_post_meta'][ $post_id ] ?? [] );
 		$GLOBALS['bfrc_test_post_meta'][ $post_id ][ $key ] = $value;
+		do_action( $existed ? 'updated_post_meta' : 'added_post_meta', 1, $post_id, $key, $value );
 		return $existed ? true : 1;
 	}
 	function add_post_meta( int $post_id, string $key, mixed $value, bool $unique = false ): int|false {

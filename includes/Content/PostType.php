@@ -22,9 +22,12 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Capabilities grants.
  *
  * The plugin's `enabled` switch: when off, the post type is still registered
- * (the admin keeps working) but is not publicly queryable, has no archive,
- * is excluded from search and from the core sitemaps, so every recipe URL is
- * a 404 for visitors.
+ * (the admin keeps working) but has no rewrite rules, no query var, no
+ * archive, is excluded from search and from the core sitemaps, and its REST
+ * routes exist only for users who can edit recipes (the block editor needs
+ * them; visitors get no `/wp/v2/bfrc_recipe`). Every recipe URL is then a
+ * 404 for everyone, administrators' previews included; flipping the switch
+ * flags a rewrite flush.
  */
 final class PostType {
 
@@ -100,16 +103,16 @@ final class PostType {
 			'show_in_menu'        => true,
 			'show_in_nav_menus'   => $enabled,
 			'show_in_admin_bar'   => true,
-			'show_in_rest'        => true,
+			'show_in_rest'        => $enabled || current_user_can( 'edit_bfrc_recipes' ),
 			'menu_position'       => 20,
 			'menu_icon'           => 'dashicons-carrot',
 			'has_archive'         => $enabled ? $slug : false,
-			'rewrite'             => [
+			'rewrite'             => $enabled ? [
 				'slug'       => $slug,
 				'with_front' => false,
-				'feeds'      => $enabled,
-			],
-			'query_var'           => self::NAME,
+				'feeds'      => true,
+			] : false,
+			'query_var'           => $enabled ? self::NAME : false,
 			'supports'            => [ 'title', 'editor', 'excerpt', 'thumbnail', 'author', 'revisions', 'custom-fields' ],
 			'capability_type'     => [ 'bfrc_recipe', 'bfrc_recipes' ],
 			'map_meta_cap'        => true,

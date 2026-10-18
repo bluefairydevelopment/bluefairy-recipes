@@ -55,12 +55,12 @@ final class SlugsTest extends TestCase {
 
 	public function test_a_suffixed_slug_that_is_itself_reserved_is_skipped(): void {
 		add_filter( 'bfrc_reserved_slugs', static fn( array $l ): array => array_merge( $l, [ 'feed-2' ] ) );
-		$this->assertSame( 'feed-3', $this->slugs()->filter_unique_slug( 'feed', 1, 'draft', 'bfrc_recipe', 0, 'feed' ) );
+		$this->assertSame( 'feed-3', $this->slugs()->filter_unique_slug( 'feed', 1, 'publish', 'bfrc_recipe', 0, 'feed' ) );
 	}
 
 	public function test_when_every_suffix_is_taken_a_random_one_beyond_the_range_is_used(): void {
 		$this->wpdb->always( 'get_var', '1' );
-		$slug = $this->slugs()->filter_unique_slug( 'submit', 1, 'draft', 'bfrc_recipe', 0, 'submit' );
+		$slug = $this->slugs()->filter_unique_slug( 'submit', 1, 'publish', 'bfrc_recipe', 0, 'submit' );
 		$this->assertSame( 1, preg_match( '/^submit-(\d+)$/', $slug, $m ) );
 		$this->assertGreaterThan( Slugs::MAX_SUFFIX, (int) $m[1] );
 		$this->assertCount( Slugs::MAX_SUFFIX - 1, $this->wpdb->queries_matching( 'SELECT ID FROM bfw_posts' ), 'bounded: 2..100' );
