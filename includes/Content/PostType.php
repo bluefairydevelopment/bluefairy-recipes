@@ -49,6 +49,7 @@ final class PostType {
 		add_action( 'init', [ $this, 'register' ], 6 );
 		add_filter( 'wp_sitemaps_post_types', [ $this, 'filter_sitemap_post_types' ] );
 		add_filter( 'rest_pre_dispatch', [ $this, 'gate_rest_when_disabled' ], 10, 3 );
+		add_filter( 'rest_post_search_query', [ $this, 'filter_rest_search_when_disabled' ], 10, 2 );
 	}
 
 	/**
@@ -151,6 +152,28 @@ final class PostType {
 			return $result;
 		}
 		return new \WP_Error( 'rest_no_route', __( 'No route was found matching the URL and request method.', 'bluefairy-recipes' ), [ 'status' => 404 ] );
+	}
+
+	/**
+	 * `rest_post_search_query`: while disabled, `/wp/v2/search` lists no
+	 * recipes to anyone who cannot edit them. Core's search handler queries an
+	 * explicit post-type list, which ignores `exclude_from_search`.
+	 *
+	 * @param array<string, mixed> $query_args WP_Query arguments.
+	 * @param \WP_REST_Request     $request    The request.
+	 * @return array<string, mixed>
+	 */
+	public function filter_rest_search_when_disabled( array $query_args, \WP_REST_Request $request ): array {
+		unset( $request );
+		if ( $this->is_enabled() || current_user_can( 'edit_bfrc_recipes' ) ) {
+			return $query_args;
+		}
+		$types = array_values( array_diff( (array) ( $query_args['post_type'] ?? [] ), [ self::NAME ] ) );
+		if ( [] === $types ) {
+			$query_args['post__in'] = [ 0 ]; // Only recipes were asked for: nothing can match.
+		}
+		$query_args['post_type'] = [] === $types ? [ self::NAME ] : $types;
+		return $query_args;
 	}
 
 	/**
