@@ -396,10 +396,11 @@ final class Settings {
 		foreach ( self::DEFAULTS['taxonomies'] as $code => $default ) {
 			$clean[ $code ] = self::sanitize_taxonomy_entry( $raw[ $code ] ?? [], $default );
 		}
-		$custom = 0;
+		$custom   = 0;
+		$reserved = Content\Taxonomies::reserved_codes();
 		foreach ( $raw as $code => $entry ) {
-			if ( ! is_string( $code ) || isset( $clean[ $code ] ) || 1 !== preg_match( self::TAXONOMY_CODE_PATTERN, $code ) ) {
-				continue;
+			if ( ! is_string( $code ) || isset( $clean[ $code ] ) || in_array( $code, $reserved, true ) || 1 !== preg_match( self::TAXONOMY_CODE_PATTERN, $code ) ) {
+				continue; // The same rule Content\Taxonomies applies: a route name never becomes a switch.
 			}
 			if ( ++$custom > self::MAX_CUSTOM_TAXONOMIES ) {
 				break;

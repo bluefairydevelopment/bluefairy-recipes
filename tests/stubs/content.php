@@ -173,7 +173,10 @@ if ( ! function_exists( 'get_post_meta' ) ) {
 	}
 	/** As core: fires updated_post_meta (existing key) or added_post_meta (new key) with (meta_id, object_id, key, value). */
 	function update_post_meta( int $post_id, string $key, mixed $value, mixed $prev = '' ): int|bool {
-		$existed                                          = array_key_exists( $key, $GLOBALS['bfrc_test_post_meta'][ $post_id ] ?? [] );
+		$existed = array_key_exists( $key, $GLOBALS['bfrc_test_post_meta'][ $post_id ] ?? [] );
+		if ( $existed && $GLOBALS['bfrc_test_post_meta'][ $post_id ][ $key ] === $value ) {
+			return false; // As core: an unchanged value is not written and fires nothing.
+		}
 		$GLOBALS['bfrc_test_post_meta'][ $post_id ][ $key ] = $value;
 		do_action( $existed ? 'updated_post_meta' : 'added_post_meta', 1, $post_id, $key, $value );
 		return $existed ? true : 1;
@@ -183,6 +186,7 @@ if ( ! function_exists( 'get_post_meta' ) ) {
 			return false;
 		}
 		$GLOBALS['bfrc_test_post_meta'][ $post_id ][ $key ] = $value;
+		do_action( 'added_post_meta', 1, $post_id, $key, $value );
 		return 1;
 	}
 	function delete_post_meta( int $post_id, string $key, mixed $value = '' ): bool {

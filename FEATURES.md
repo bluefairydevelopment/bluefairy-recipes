@@ -41,7 +41,7 @@ until then the values below are the defaults the plugin installs.
 
 | Setting | Default | Notes |
 |---|---|---|
-| Enabled | On | Off: recipes, the archive and the filter archives return 404 (previews too), recipes leave search, the sitemap and the public REST API; the admin and the editor keep working |
+| Enabled | On | Off: recipes, the archive and the filter archives return 404 (previews too; with pretty permalinks), recipes leave search, the sitemap and the public REST API; the admin and the editor keep working |
 | Rich snippets | On | |
 | Archive slug | `recipes` | Changing it flushes rewrite rules on the next page load. Routes WordPress owns (`feed`, `page`, `wp-json`, a year, …) are refused |
 | Archive title | Recipes | |

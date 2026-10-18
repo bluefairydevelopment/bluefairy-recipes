@@ -68,7 +68,7 @@ final class MetaTest extends TestCase {
 		$this->assertSame( 3, get_post_meta( 41, Meta::SERVINGS_MIN, true ), 'min follows max down' );
 		update_post_meta( 41, Meta::SERVINGS_MAX, 0 );
 		$this->assertSame( 3, get_post_meta( 41, Meta::SERVINGS_MIN, true ), 'max 0 means unset and changes nothing' );
-		update_post_meta( 42, Meta::SERVINGS_MIN, 9 );
+		add_post_meta( 42, Meta::SERVINGS_MIN, 9 );
 		update_post_meta( 42, Meta::SERVINGS_MAX, 1 );
 		$this->assertSame( 9, get_post_meta( 42, Meta::SERVINGS_MIN, true ), 'other post types are not touched' );
 		Meta::reconcile_servings( 1, 42, Meta::SERVINGS_MAX, 1 );
@@ -187,7 +187,7 @@ final class MetaTest extends TestCase {
 		$this->assertSame( 0.5, Meta::sanitize_nutrition( [ 'sodium' => '0,500' ] )['sodium'], 'a leading zero before the comma can only be a decimal' );
 		$this->assertSame( 1.23, Meta::sanitize_nutrition( [ 'sodium' => '1,2345' ] )['sodium'] );
 		$this->assertNull( Meta::sanitize_nutrition( [ 'calories' => 200000 ] )['calories'], 'above the ceiling' );
-		$this->assertSame( 0.0, Meta::sanitize_nutrition( [ 'calories' => '-0' ] )['calories'], 'never -0.0' );
+		$this->assertSame( '0.0', var_export( Meta::sanitize_nutrition( [ 'calories' => '-0' ] )['calories'], true ), 'never -0.0 (=== cannot tell them apart; var_export can)' );
 		$this->assertSame( 0.0, Meta::sanitize_nutrition( [ 'calories' => 0 ] )['calories'], 'an explicit zero is a value' );
 		$this->assertNull( Meta::sanitize_nutrition( [ 'calories' => true ] )['calories'] );
 		$this->assertSame( 3.14, $n['fiber'] );

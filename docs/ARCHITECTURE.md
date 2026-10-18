@@ -55,7 +55,10 @@ Per request, on a provisioned site: three autoloaded option reads (`bfrc_db_vers
 `plugins_loaded`: the taxonomies are then registered without rewrite rules (core has not
 built `$wp_rewrite` yet and would fatal) and with their English labels (no text domain is
 loaded before `init`); the registration at `init` 5 replaces both and the flush flag writes
-the rules.
+the rules. Starter terms seeded on that path are written in English and stay so (term names
+are data; a site owner renames them). On a site with plain permalinks the Enabled switch
+cannot 404 `?bfrc_recipe=…` (the query var is dropped and the home page answers); pretty
+permalinks are the supported configuration and the readme says so.
 
 ## Settings
 

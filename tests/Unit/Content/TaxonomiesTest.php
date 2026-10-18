@@ -155,6 +155,16 @@ final class TaxonomiesTest extends TestCase {
 		$this->assertTrue( $GLOBALS['bfrc_test_taxonomies']['bfrc_diet']['args']['show_in_rest'], 'always registered; reads are gated at dispatch (no current_user_can at init, which would fix the user before other authenticators run)' );
 	}
 
+	public function test_register_after_init_replaces_english_labels_cached_before_init(): void {
+		$GLOBALS['bfrc_test_fired']['init'] = 0;
+		$t = $this->taxonomies();
+		$this->assertSame( 'Meal Types', $t->definitions()['meal_type']['label'], 'pre-init: English source' );
+		add_filter( 'gettext', static fn( string $tr, string $orig, string $domain ): string => 'bluefairy-recipes' === $domain && 'Meal Types' === $orig ? 'Repas' : $tr, 10, 3 );
+		$GLOBALS['bfrc_test_fired']['init'] = 1;
+		$t->register();
+		$this->assertSame( 'Repas', $GLOBALS['bfrc_test_taxonomies']['bfrc_meal_type']['args']['labels']['name'], 'register() after init dropped the pre-init cache' );
+	}
+
 	public function test_register_after_init_drops_a_cache_filled_before_a_late_filter(): void {
 		$t = $this->taxonomies();
 		$this->assertCount( 4, $t->definitions() );

@@ -280,9 +280,11 @@ final class SettingsTest extends TestCase {
 				"newline\n"           => [ 'enabled' => true ],
 				7                     => [ 'enabled' => true ],
 				'texture'             => [ 'sort_order' => 'abc' ],
+				'chef'                => [ 'enabled' => true ],
+				'page'                => [ 'enabled' => true ],
 			]
 		);
-		$this->assertSame( [ 'meal_type', 'diet', 'season', 'cuisine', 'occasion', 'holiday', 'texture' ], array_keys( $clean ), 'system codes first, then the valid custom ones in input order' );
+		$this->assertSame( [ 'meal_type', 'diet', 'season', 'cuisine', 'occasion', 'holiday', 'texture' ], array_keys( $clean ), 'system codes first, then the valid custom ones in input order; route names (chef, page) refused as Taxonomies refuses them' );
 		$this->assertSame( [ 'enabled' => false, 'sort_order' => 999 ], $clean['diet'] );
 		$this->assertSame( [ 'enabled' => true, 'sort_order' => 10 ], $clean['meal_type'], 'a missing system code takes its default' );
 		$this->assertSame( [ 'enabled' => true, 'sort_order' => 0 ], $clean['occasion'] );

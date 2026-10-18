@@ -65,10 +65,11 @@ final class VideoUrl {
 			return null;
 		}
 		if ( in_array( $host, self::VIMEO_HOSTS, true ) ) {
-			// The video id is the last 6–12-digit segment: /ID, /video/ID, /channels/x/ID,
-			// /groups/x/videos/ID, /album/N/video/ID; an unlisted video carries a hash as
-			// the following segment (/ID/hash) or as ?h=hash.
-			if ( 1 === preg_match( '#/(\d{6,12})(?:/([A-Za-z0-9]{6,32}))?/?$#', $path, $m ) ) {
+			// A video id (6–12 digits) is accepted only in a video position: /ID, /video/ID,
+			// /channels/x/ID, /groups/x/videos/ID, /album/N/video/ID. An album, showcase, user or
+			// on-demand number is not a video. An unlisted video carries a hash as the following
+			// segment (/ID/hash) or as ?h=hash.
+			if ( 1 === preg_match( '#^/(?:video/|channels/[^/]+/|groups/[^/]+/videos/|album/\d+/video/)?(\d{6,12})(?:/([A-Za-z0-9]{6,32}))?/?$#', $path, $m ) ) {
 				$hash = $m[2] ?? '';
 				if ( '' === $hash && isset( $query['h'] ) && is_string( $query['h'] ) && 1 === preg_match( '/^[A-Za-z0-9]{6,32}$/D', $query['h'] ) ) {
 					$hash = $query['h'];

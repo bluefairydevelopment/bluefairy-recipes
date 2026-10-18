@@ -6,7 +6,7 @@ release tag.
 
 ## Requirements
 
-- WordPress 6.7 or newer
+- WordPress 6.7 or newer, with pretty permalinks
 - PHP 8.1 or newer
 
 ## What is in the tree today (milestones A1–A2)
