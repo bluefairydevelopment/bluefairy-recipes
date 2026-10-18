@@ -25,9 +25,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  * capabilities.
  *
  * A taxonomy switched off in settings stays registered for the admin (its
- * terms are data) but is not public, so it has no archive and no filter, and
- * its REST routes exist only for users who can edit recipes. The plugin's
- * master `enabled` switch does the same to every taxonomy.
+ * terms are data) but is not public, so it has no archive and no filter. The
+ * plugin's master `enabled` switch does the same to every taxonomy and, at
+ * dispatch time, closes the core REST routes to anyone who cannot edit recipes.
  */
 final class Taxonomies {
 
@@ -265,8 +265,7 @@ final class Taxonomies {
 
 	/**
 	 * Register every definition. Public only when both the plugin and the
-	 * taxonomy are enabled; REST for the public, or for users who can edit
-	 * recipes. Before `init` (a never-provisioned site provisioning itself at
+	 * taxonomy are enabled. Before `init` (a never-provisioned site provisioning itself at
 	 * plugins_loaded) no rewrite rules are added: core has not built
 	 * `$wp_rewrite` yet and would fatal; the registration at `init` 5 adds
 	 * them and the flush flag writes them.
@@ -278,7 +277,6 @@ final class Taxonomies {
 		}
 		$plugin_on = (bool) $this->settings->get( 'enabled' );
 		$archive   = (string) $this->settings->get( 'archive_slug' );
-		$editor    = current_user_can( 'edit_bfrc_recipes' );
 		foreach ( $this->definitions() as $code => $def ) {
 			$public = $plugin_on && $def['enabled'];
 			register_taxonomy(
@@ -296,7 +294,7 @@ final class Taxonomies {
 					'show_ui'            => true,
 					'show_in_menu'       => true,
 					'show_in_nav_menus'  => $public,
-					'show_in_rest'       => $public || $editor,
+					'show_in_rest'       => true, // Reads are gated at dispatch time while the plugin is disabled (PostType::gate_rest_when_disabled).
 					'show_admin_column'  => true,
 					'show_tagcloud'      => false,
 					'hierarchical'       => false,

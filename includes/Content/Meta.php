@@ -476,8 +476,8 @@ final class Meta {
 			if ( is_string( $v ) ) {
 				$v = trim( $v );
 				if ( 1 === substr_count( $v, ',' ) && ! str_contains( $v, '.' ) ) {
-					if ( 1 === preg_match( '/,\d{3}$/', $v ) ) {
-						continue; // ambiguous: 1,200 could be twelve hundred or one point two.
+					if ( 1 === preg_match( '/^(?!0,)\d*,\d{3}$/', $v ) ) {
+						continue; // Ambiguous: 1,200 could be twelve hundred or one point two (0,500 can only be a half).
 					}
 					$v = str_replace( ',', '.', $v );
 				}

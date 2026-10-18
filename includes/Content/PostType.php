@@ -23,11 +23,12 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * The plugin's `enabled` switch: when off, the post type is still registered
  * (the admin keeps working) but has no rewrite rules, no query var, no
- * archive, is excluded from search and from the core sitemaps, and its REST
- * routes exist only for users who can edit recipes (the block editor needs
- * them; visitors get no `/wp/v2/bfrc_recipe`). Every recipe URL is then a
- * 404 for everyone, administrators' previews included; flipping the switch
- * flags a rewrite flush.
+ * archive, is excluded from search and from the core sitemaps, and the core
+ * REST routes for recipes and recipe taxonomies answer only users who can
+ * edit recipes (gated at dispatch time, after REST authentication, so cookie
+ * and application-password clients are treated alike; the block editor keeps
+ * working). Every recipe URL is then a 404 for everyone, administrators'
+ * previews included; flipping the switch flags a rewrite flush.
  */
 final class PostType {
 
@@ -47,6 +48,7 @@ final class PostType {
 	public function register_hooks(): void {
 		add_action( 'init', [ $this, 'register' ], 6 );
 		add_filter( 'wp_sitemaps_post_types', [ $this, 'filter_sitemap_post_types' ] );
+		add_filter( 'rest_pre_dispatch', [ $this, 'gate_rest_when_disabled' ], 10, 3 );
 	}
 
 	/**
@@ -103,7 +105,7 @@ final class PostType {
 			'show_in_menu'        => true,
 			'show_in_nav_menus'   => $enabled,
 			'show_in_admin_bar'   => true,
-			'show_in_rest'        => $enabled || current_user_can( 'edit_bfrc_recipes' ),
+			'show_in_rest'        => true,
 			'menu_position'       => 20,
 			'menu_icon'           => 'dashicons-carrot',
 			'has_archive'         => $enabled ? $slug : false,
@@ -125,6 +127,30 @@ final class PostType {
 	 */
 	public function register(): void {
 		register_post_type( self::NAME, $this->args() );
+	}
+
+	/**
+	 * `rest_pre_dispatch`: while disabled, the core routes for recipes
+	 * (`/wp/v2/bfrc_recipe…`) and for every recipe taxonomy (`/wp/v2/bfrc_…`)
+	 * are a 404 for anyone who cannot edit recipes. Runs after authentication,
+	 * so a REST-only client (application password) is judged by its real user.
+	 *
+	 * @param mixed            $result  A short-circuit result, or null.
+	 * @param \WP_REST_Server  $server  The server.
+	 * @param \WP_REST_Request $request The request.
+	 */
+	public function gate_rest_when_disabled( mixed $result, \WP_REST_Server $server, \WP_REST_Request $request ): mixed {
+		unset( $server );
+		if ( null !== $result || $this->is_enabled() ) {
+			return $result;
+		}
+		if ( 1 !== preg_match( '#^/wp/v2/bfrc_[a-z0-9_]+(?:/|$)#', $request->get_route() ) ) {
+			return $result;
+		}
+		if ( current_user_can( 'edit_bfrc_recipes' ) ) {
+			return $result;
+		}
+		return new \WP_Error( 'rest_no_route', __( 'No route was found matching the URL and request method.', 'bluefairy-recipes' ), [ 'status' => 404 ] );
 	}
 
 	/**

@@ -62,9 +62,28 @@ final class PostTypeTest extends TestCase {
 		$this->assertFalse( $args['show_in_nav_menus'] );
 		$this->assertFalse( $args['rewrite'], 'no rewrite rules: a matched rule with a dropped query var would serve the home page with 200' );
 		$this->assertFalse( $args['query_var'] );
-		$this->assertFalse( $args['show_in_rest'], 'a visitor gets no /wp/v2/bfrc_recipe while disabled' );
+		$this->assertTrue( $args['show_in_rest'], 'registered for REST regardless: reads are gated at dispatch, after authentication' );
+	}
+
+	public function test_rest_reads_of_recipes_and_recipe_taxonomies_are_a_404_for_visitors_while_disabled_and_open_otherwise(): void {
+		$pt     = $this->post_type();
+		$server = new \WP_REST_Server();
+		$recipe = new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' );
+		$term   = new \WP_REST_Request( 'GET', '/wp/v2/bfrc_meal_type/7' );
+		$other  = new \WP_REST_Request( 'GET', '/wp/v2/posts' );
+		$this->assertNull( $pt->gate_rest_when_disabled( null, $server, $recipe ), 'enabled: untouched' );
+		update_option( 'bfrc_settings', [ 'enabled' => false ] );
+		$pt     = $this->post_type();
+		$denied = $pt->gate_rest_when_disabled( null, $server, $recipe );
+		$this->assertInstanceOf( \WP_Error::class, $denied );
+		$this->assertSame( 'rest_no_route', $denied->get_error_code() );
+		$this->assertSame( 404, $denied->get_error_data()['status'] );
+		$this->assertInstanceOf( \WP_Error::class, $pt->gate_rest_when_disabled( null, $server, $term ), 'recipe taxonomy routes too' );
+		$this->assertNull( $pt->gate_rest_when_disabled( null, $server, $other ), 'other routes are not ours' );
+		$early = new \WP_Error( 'x' );
+		$this->assertSame( $early, $pt->gate_rest_when_disabled( $early, $server, $recipe ), 'an earlier short-circuit is kept' );
 		bfrc_test_grant( 'edit_bfrc_recipes' );
-		$this->assertTrue( $pt->args()['show_in_rest'], 'an editor keeps REST so the block editor works' );
+		$this->assertNull( $pt->gate_rest_when_disabled( null, $server, $recipe ), 'an editor (cookie or application password, judged after authentication) keeps REST' );
 	}
 
 	public function test_sitemap_lists_recipes_only_while_enabled(): void {
@@ -79,6 +98,7 @@ final class PostTypeTest extends TestCase {
 		$pt->register_hooks();
 		$this->assertSame( 6, has_action( 'init', [ $pt, 'register' ] ) );
 		$this->assertSame( 10, has_filter( 'wp_sitemaps_post_types', [ $pt, 'filter_sitemap_post_types' ] ) );
+		$this->assertSame( 10, has_filter( 'rest_pre_dispatch', [ $pt, 'gate_rest_when_disabled' ] ) );
 	}
 
 	public function test_args_is_what_register_uses(): void {

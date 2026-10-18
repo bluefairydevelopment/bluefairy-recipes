@@ -149,13 +149,33 @@ final class TaxonomiesTest extends TestCase {
 		$this->assertSame( 'Diets', $GLOBALS['bfrc_test_taxonomies']['bfrc_diet']['args']['labels']['name'], 'English source strings before init: no early text-domain load' );
 	}
 
-	public function test_rest_routes_exist_for_the_public_or_for_editors_only(): void {
+	public function test_rest_registration_does_not_depend_on_the_switch_or_the_user(): void {
 		update_option( 'bfrc_settings', [ 'enabled' => false ] );
 		$this->taxonomies()->register();
-		$this->assertFalse( $GLOBALS['bfrc_test_taxonomies']['bfrc_diet']['args']['show_in_rest'], 'disabled: a visitor gets no /wp/v2/bfrc_diet' );
-		bfrc_test_grant( 'edit_bfrc_recipes' );
-		$this->taxonomies()->register();
-		$this->assertTrue( $GLOBALS['bfrc_test_taxonomies']['bfrc_diet']['args']['show_in_rest'], 'an editor keeps REST (the block editor needs it)' );
+		$this->assertTrue( $GLOBALS['bfrc_test_taxonomies']['bfrc_diet']['args']['show_in_rest'], 'always registered; reads are gated at dispatch (no current_user_can at init, which would fix the user before other authenticators run)' );
+	}
+
+	public function test_register_after_init_drops_a_cache_filled_before_a_late_filter(): void {
+		$t = $this->taxonomies();
+		$this->assertCount( 4, $t->definitions() );
+		add_filter( 'bfrc_filter_taxonomies', static fn( array $d ): array => $d + [ 'occasion' => [ 'label' => 'Occasions' ] ] );
+		$t->register();
+		$this->assertArrayHasKey( 'bfrc_occasion', $GLOBALS['bfrc_test_taxonomies'], 'register() re-reads the definitions after init' );
+	}
+
+	public function test_custom_definitions_are_capped_in_filter_order(): void {
+		add_filter(
+			'bfrc_filter_taxonomies',
+			static function ( array $d ): array {
+				for ( $i = 1; $i <= Settings::MAX_CUSTOM_TAXONOMIES + 1; $i++ ) {
+					$d[ 'c' . $i ] = [ 'label' => 'C' ];
+				}
+				return $d;
+			}
+		);
+		$defs = $this->taxonomies()->definitions();
+		$this->assertArrayHasKey( 'c' . Settings::MAX_CUSTOM_TAXONOMIES, $defs );
+		$this->assertArrayNotHasKey( 'c' . ( Settings::MAX_CUSTOM_TAXONOMIES + 1 ), $defs );
 	}
 
 	public function test_system_strings_pass_through_translation_after_init(): void {

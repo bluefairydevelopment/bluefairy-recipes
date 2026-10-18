@@ -88,6 +88,7 @@ final class MetaTest extends TestCase {
 		$this->assertSame( 0, Meta::sanitize_minutes( 0 ) );
 		$this->assertSame( 90, Meta::sanitize_minutes( '90' ) );
 		$this->assertSame( 90, Meta::sanitize_minutes( 90.9 ) );
+		$this->assertSame( 1000, Meta::sanitize_minutes( '1e3' ), 'exponent notation is a number' );
 		$this->assertSame( 6000, Meta::sanitize_minutes( 6000 ), 'the bound itself' );
 		$this->assertSame( 6000, Meta::sanitize_minutes( 6001 ) );
 		$this->assertSame( 0, Meta::sanitize_minutes( -5 ) );
@@ -183,6 +184,8 @@ final class MetaTest extends TestCase {
 		$this->assertSame( 1.2, Meta::sanitize_nutrition( [ 'sodium' => '1.200' ] )['sodium'], 'a dot is always decimal' );
 		$this->assertSame( 12.5, Meta::sanitize_nutrition( [ 'sodium' => '12,5' ] )['sodium'] );
 		$this->assertNull( Meta::sanitize_nutrition( [ 'sodium' => '1,2,3' ] )['sodium'] );
+		$this->assertSame( 0.5, Meta::sanitize_nutrition( [ 'sodium' => '0,500' ] )['sodium'], 'a leading zero before the comma can only be a decimal' );
+		$this->assertSame( 1.23, Meta::sanitize_nutrition( [ 'sodium' => '1,2345' ] )['sodium'] );
 		$this->assertNull( Meta::sanitize_nutrition( [ 'calories' => 200000 ] )['calories'], 'above the ceiling' );
 		$this->assertSame( 0.0, Meta::sanitize_nutrition( [ 'calories' => '-0' ] )['calories'], 'never -0.0' );
 		$this->assertSame( 0.0, Meta::sanitize_nutrition( [ 'calories' => 0 ] )['calories'], 'an explicit zero is a value' );
