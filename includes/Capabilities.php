@@ -194,10 +194,10 @@ final class Capabilities {
 	 * Writer has none of those (recipes are their own type), so on a shop
 	 * they could neither write a recipe nor fill their profile.
 	 *
-	 * @param bool $prevent WooCommerce's decision.
+	 * @param mixed $prevent WooCommerce's decision (a bool, unless another filter changed it).
 	 */
-	public static function allow_writer_admin_access( bool $prevent ): bool {
-		return $prevent && ! current_user_can( 'edit_bfrc_recipes' );
+	public static function allow_writer_admin_access( mixed $prevent ): bool {
+		return (bool) $prevent && ! current_user_can( 'edit_bfrc_recipes' );
 	}
 
 	/**

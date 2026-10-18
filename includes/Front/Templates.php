@@ -74,6 +74,7 @@ final class Templates {
 		add_filter( 'body_class', [ $this, 'body_class' ] );
 		add_filter( 'document_title_parts', [ $this, 'document_title' ] );
 		add_action( 'wp_head', [ $this, 'rel_canonical' ] );
+		add_action( 'enqueue_block_assets', [ self::class, 'register_assets' ], 1 ); // Before core enqueues the blocks' editor_style handle (priority 10); not at init, where it would build WP_Scripts on requests that never print HTML.
 		add_filter( 'rest_queried_resource_route', [ $this, 'rest_resource_route' ] );
 		// The SEO plugins print their own canonical from the queried object (the post type or the
 		// author archive, never the writer view): hand them ours, and print none of our own then.
@@ -89,9 +90,9 @@ final class Templates {
 	 * it would advertise `/wp/v2/users/0`: name the writer instead, and
 	 * nothing on the listing.
 	 *
-	 * @param string $route Core's route, or ''.
+	 * @param mixed $route Core's route ('' or a string; another filter may have changed it).
 	 */
-	public function rest_resource_route( string $route ): string {
+	public function rest_resource_route( mixed $route ): mixed {
 		global $wp_query;
 		if ( ! $wp_query instanceof \WP_Query || $wp_query->is_404() || ! $this->is_recipe_query( $wp_query ) || ! self::is_writer_view( $wp_query ) ) {
 			return $route;
@@ -122,7 +123,23 @@ final class Templates {
 			return $url;
 		}
 		$ours = $this->canonical_url( $wp_query );
+		if ( '' === $ours ) {
+			return $url;
+		}
+		/** This filter is documented in rel_canonical(). */
+		$ours = (string) apply_filters( 'bfrc_writer_canonical', $ours, $wp_query ); // The site's say applies with an SEO plugin too; '' means "leave the SEO plugin's own".
 		return '' !== $ours ? $ours : $url;
+	}
+
+	/**
+	 * `enqueue_block_assets` (priority 1): register the stylesheet and script
+	 * so the blocks' `editor_style` handle resolves in the Site Editor's
+	 * canvas and the front end can enqueue by handle. Not done at `init`:
+	 * that would build `WP_Scripts` on sitemaps, feeds and redirects too.
+	 */
+	public static function register_assets(): void {
+		wp_register_style( self::STYLE, BFRC_URL . 'assets/front/recipes.css', [], BFRC_VERSION );
+		wp_register_script( self::SCRIPT, BFRC_URL . 'assets/front/recipes.js', [], BFRC_VERSION, true );
 	}
 
 	/**
@@ -132,13 +149,19 @@ final class Templates {
 		$this->writers->add_rewrite_rules();
 		// `autoRegister` (WordPress 7.0+) gives the Site Editor a server-rendered preview of a
 		// block that ships no editor script; older versions show a placeholder to leave in place.
-		wp_register_style( self::STYLE, BFRC_URL . 'assets/front/recipes.css', [], BFRC_VERSION );
-		wp_register_script( self::SCRIPT, BFRC_URL . 'assets/front/recipes.js', [], BFRC_VERSION, true );
+		// `editor_style` only: core enqueues a block's `style` handle on EVERY page of a classic theme
+		// (block themes load block assets on demand), which would have put the print rules on the
+		// whole site. The front end enqueues through enqueue_assets() when a view renders.
 		$block_args = [
 			'api_version'  => '3',
 			'supports'     => [ 'autoRegister' => true ],
-			'style'        => self::STYLE, // Core enqueues it wherever the block renders: the site, and the Site Editor's canvas.
 			'editor_style' => self::STYLE,
+			'attributes'   => [
+				'view' => [
+					'type'    => 'string',
+					'default' => '',
+				],
+			],
 		];
 		register_block_type( self::BLOCK_SINGLE, $block_args + [ 'render_callback' => [ $this, 'render_single_block' ] ] );
 		register_block_type( self::BLOCK_LIST, $block_args + [ 'render_callback' => [ $this, 'render_archive_block' ] ] );
@@ -168,7 +191,7 @@ final class Templates {
 				[
 					'title'       => __( 'Recipe Writers', 'bluefairy-recipes' ),
 					'description' => __( 'The writers list and a writer\'s page with their recipes.', 'bluefairy-recipes' ),
-					'content'     => self::template_markup( 'archive-recipe' ),
+					'content'     => self::template_markup( 'writers' ),
 				]
 			);
 		}
@@ -573,10 +596,7 @@ final class Templates {
 	 * The single-recipe view block.
 	 */
 	public function render_single_block(): string {
-		if ( Renderer::is_rendering_single() ) {
-			return ''; // Inside a recipe's own body: render nothing rather than recurse.
-		}
-		$post = get_post();
+		$post = get_post(); // Inside a recipe's own body Renderer::single() returns '' (its re-entrancy guard).
 		if ( ! $post instanceof \WP_Post || PostType::NAME !== $post->post_type ) {
 			if ( ! self::is_editor_preview() ) {
 				return '';
@@ -620,12 +640,19 @@ final class Templates {
 
 	/**
 	 * The archive view block: grid with filters, a writer's recipes, or the
-	 * writers listing, from the main query.
+	 * writers listing, from the main query. In the Site Editor the `view`
+	 * attribute (`writers` in the Recipe Writers template) picks the preview.
+	 *
+	 * @param mixed $attributes Block attributes (core passes an array).
 	 */
-	public function render_archive_block(): string {
+	public function render_archive_block( mixed $attributes = [] ): string {
 		global $wp_query;
 		if ( ! $wp_query instanceof \WP_Query || Renderer::is_rendering_single() ) {
 			return '';
+		}
+		if ( self::is_editor_preview() && is_array( $attributes ) && 'writers' === ( $attributes['view'] ?? '' ) ) {
+			self::enqueue_assets();
+			return $this->renderer->writers_list( 1 ); // The Recipe Writers template previews the writers list, not the recipe grid.
 		}
 		$query = $wp_query;
 		if ( self::is_editor_preview() && [] === (array) $wp_query->posts ) {

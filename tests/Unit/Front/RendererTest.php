@@ -324,6 +324,13 @@ final class RendererTest extends TestCase {
 		$this->assertTrue( Renderer::has_body( '<!-- wp:shortcode -->[gallery]<!-- /wp:shortcode -->' ) );
 		$this->assertTrue( Renderer::has_body( '<!-- wp:paragraph --><p></p><!-- /wp:paragraph --><!-- wp:block {"ref":12} /-->' ), 'an empty paragraph before a pattern' );
 		$this->assertFalse( Renderer::has_body( '<!-- wp:spacer --><div style="height:10px" class="wp-block-spacer"></div><!-- /wp:spacer --><!-- wp:separator --><hr class="wp-block-separator"/><!-- /wp:separator -->' ), 'spacing alone is not a body' );
+		$this->assertFalse( Renderer::has_body( '<!-- wp:heading --><h2 class="wp-block-heading"></h2><!-- /wp:heading --><!-- wp:list --><ul class="wp-block-list"><!-- wp:list-item --><li></li><!-- /wp:list-item --></ul><!-- /wp:list -->' ), 'an empty heading and an empty list the editor left behind' );
+		$this->assertFalse( Renderer::has_body( '<!-- wp:group {"layout":{"type":"constrained"}} --><div class="wp-block-group"><!-- wp:paragraph --><p></p><!-- /wp:paragraph --></div><!-- /wp:group -->' ), 'a group around an empty paragraph' );
+		$this->assertTrue( Renderer::has_body( '<!-- wp:group --><div class="wp-block-group"><!-- wp:paragraph --><p>Inside.</p><!-- /wp:paragraph --></div><!-- /wp:group -->' ), 'a group with text' );
+		$this->assertTrue( Renderer::has_body( '<!-- wp:group --><div class="wp-block-group"><!-- wp:block {"ref":12} /--></div><!-- /wp:group -->' ), 'a group around a synced pattern' );
+		$this->assertTrue( Renderer::has_body( '<!-- wp:quote --><blockquote class="wp-block-quote"><!-- wp:paragraph --><p>Quoted.</p><!-- /wp:paragraph --></blockquote><!-- /wp:quote -->' ) );
+		$this->assertSame( [ 'core/group' ], array_column( parse_blocks( '<!-- wp:group --><div class="wp-block-group"><!-- wp:paragraph --><p>x</p><!-- /wp:paragraph --></div><!-- /wp:group -->' ), 'blockName' ), 'the harness parser nests children like core' );
+		$this->assertSame( 'core/paragraph', parse_blocks( '<!-- wp:group --><div class="wp-block-group"><!-- wp:paragraph --><p>x</p><!-- /wp:paragraph --></div><!-- /wp:group -->' )[0]['innerBlocks'][0]['blockName'] );
 		// Classic (non-block) content.
 		$this->assertTrue( Renderer::has_body( '<img src="https://x/a.jpg">' ), 'a classic-editor image without a figure' );
 		$this->assertTrue( Renderer::has_body( '<IMG SRC="https://x/a.jpg">' ), 'case-insensitive' );
@@ -411,6 +418,8 @@ final class RendererTest extends TestCase {
 		$html                                        = $this->renderer->share_buttons( get_post( 41 ) );
 		$this->assertStringContainsString( '&amp;text=Tomato%20%27Soup%27%20%26%20Bread"', $html, 'X: quotes decoded (ENT_QUOTES), tags stripped, then URL-encoded' );
 		$this->assertStringContainsString( '&amp;description=Tomato%20%27Soup%27%20%26%20Bread', $html, 'Pinterest the same' );
+		$GLOBALS['bfrc_test_posts'][41]->post_title = "Grandma's  <Soup> & Co";
+		$this->assertStringContainsString( '&amp;text=Grandma%27s%20%26%20Co"', $this->renderer->share_buttons( get_post( 41 ) ), 'a bracketed word is stripped as a tag (as core\'s <title> does) and the whitespace collapses' );
 		$this->assertStringNotContainsString( '%3Cb%3E', $html, 'no markup in the share text' );
 	}
 
@@ -422,7 +431,7 @@ final class RendererTest extends TestCase {
 		update_post_meta( 77, '_wp_attachment_image_alt', 'A red bowl' );
 		$this->assertStringContainsString( 'alt="A red bowl"', $this->renderer->hero( get_post( 41 ), RecipeData::for_post( 41 ) ), 'a stored alt wins' );
 		$this->assertStringContainsString( 'aria-describedby="bfrc-filters-hint"', $this->renderer->filters( bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] ) ) );
-		$this->assertStringContainsString( '<p id="bfrc-filters-hint" class="screen-reader-text">Changing a filter or pausing while typing updates the list', $this->renderer->filters( bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] ) ), 'WCAG 3.2.2: the change of context is announced' );
+		$this->assertStringContainsString( '<p id="bfrc-filters-hint" class="screen-reader-text bfrc-filters__hint">Changing a filter or pausing while typing updates the list', $this->renderer->filters( bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] ) ), 'WCAG 3.2.2: the change of context is announced' );
 	}
 
 	public function test_badges_hero_term_badges_and_section_helpers_handle_empty_data(): void {

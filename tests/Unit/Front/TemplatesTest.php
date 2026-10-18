@@ -57,6 +57,7 @@ final class TemplatesTest extends TestCase {
 		}
 		$this->assertSame( 10, has_action( 'wp_head', [ $t, 'rel_canonical' ] ) );
 		$this->assertSame( 10, has_filter( 'rest_queried_resource_route', [ $t, 'rest_resource_route' ] ) );
+		$this->assertSame( 1, has_action( 'enqueue_block_assets', [ Templates::class, 'register_assets' ] ), 'before core enqueues the editor_style handle at 10' );
 		foreach ( [ 'wpseo_canonical', 'rank_math/frontend/canonical', 'aioseo_canonical_url' ] as $hook ) {
 			$this->assertSame( 10, has_filter( $hook, [ $t, 'seo_plugin_canonical' ] ), "$hook: the SEO plugin prints our canonical, not the post type's" );
 		}
@@ -113,6 +114,11 @@ final class TemplatesTest extends TestCase {
 		$this->templates->rel_canonical();
 		$this->assertSame( '', ob_get_clean(), 'two rel=canonical tags cancel each other out: Yoast prints the one we hand it' );
 		$this->assertSame( 'https://example.com/recipes/chef/ann/', $this->templates->seo_plugin_canonical( 'https://example.com/recipes/' ) );
+		add_filter( 'bfrc_writer_canonical', static fn( string $url ): string => str_replace( 'example.com', 'cdn.example.com', $url ) );
+		$this->assertSame( 'https://cdn.example.com/recipes/chef/ann/', $this->templates->seo_plugin_canonical( 'https://example.com/recipes/' ), 'the site\'s filter still has its say with an SEO plugin active' );
+		$silence = static fn(): string => '';
+		add_filter( 'bfrc_writer_canonical', $silence, 20 );
+		$this->assertSame( 'https://example.com/recipes/', $this->templates->seo_plugin_canonical( 'https://example.com/recipes/' ), 'an empty answer leaves the SEO plugin\'s own canonical' );
 	}
 
 	public function test_under_plain_permalinks_the_writer_views_live_at_their_query_string_urls(): void {
@@ -204,6 +210,9 @@ final class TemplatesTest extends TestCase {
 		// A writer pasted the Single Recipe block (and the archive block) into the recipe's body.
 		$GLOBALS['bfrc_test_posts'][41]->post_content = '<!-- wp:paragraph --><p>Serve warm.</p><!-- /wp:paragraph --><!-- wp:bfrc/recipe-single /--><!-- wp:bfrc/recipe-archive /-->';
 		$GLOBALS['post']                              = get_post( 41 );
+		$single                                       = bfrc_test_front_query( [], 'single' ); // The recipe page's own main query, so the archive block's guard is what stops it, not a missing query.
+		$single->queried_object                       = get_post( 41 );
+		$single->posts                                = [ get_post( 41 ) ];
 		$nested                                       = [];
 		add_filter( 'the_content', static function ( string $c ) use ( $t, &$nested ): string {
 			$nested[] = $t->render_single_block();
@@ -338,18 +347,22 @@ final class TemplatesTest extends TestCase {
 		$this->templates->register();
 		$this->assertCount( 6, $GLOBALS['bfrc_test_rewrite_rules'] );
 		$this->assertSame( [ 'bfrc/recipe-single', 'bfrc/recipe-archive' ], array_keys( $GLOBALS['bfrc_test_blocks'] ) );
-		$this->assertStringEndsWith( 'assets/front/recipes.css', $GLOBALS['bfrc_test_registered']['style']['bfrc-recipes'], 'registered at init so the block can name it' );
+		$this->assertSame( [], $GLOBALS['bfrc_test_registered'], 'nothing registered at init: that builds WP_Scripts on sitemaps, feeds and redirects' );
+		Templates::register_assets();
+		$this->assertStringEndsWith( 'assets/front/recipes.css', $GLOBALS['bfrc_test_registered']['style']['bfrc-recipes'], 'registered on enqueue_block_assets so the editor_style handle resolves' );
 		$this->assertStringEndsWith( 'assets/front/recipes.js', $GLOBALS['bfrc_test_registered']['script']['bfrc-recipes'] );
 		foreach ( $GLOBALS['bfrc_test_blocks'] as $name => $args ) {
 			$this->assertTrue( is_callable( $args['render_callback'] ), $name );
 			$this->assertTrue( $args['supports']['autoRegister'], "$name: the Site Editor gets a server-rendered preview on WordPress 7.0+" );
 			$this->assertSame( '3', $args['api_version'], "$name: block API v3 (core documents the register arg as a string)" );
-			$this->assertSame( 'bfrc-recipes', $args['style'], "$name: styled on the site" );
-			$this->assertSame( 'bfrc-recipes', $args['editor_style'], "$name: styled in the Site Editor's canvas too" );
+			$this->assertArrayNotHasKey( 'style', $args, "$name: a block 'style' handle is enqueued on EVERY page of a classic theme; the front end enqueues when a view renders" );
+			$this->assertSame( 'bfrc-recipes', $args['editor_style'], "$name: styled in the Site Editor's canvas" );
+			$this->assertSame( [ 'type' => 'string', 'default' => '' ], $args['attributes']['view'] );
 		}
 		$templates = $GLOBALS['bfrc_test_block_templates'];
 		$this->assertSame( [ 'bluefairy-recipes//single-bfrc_recipe', 'bluefairy-recipes//archive-bfrc_recipe', 'bluefairy-recipes//bfrc-writers' ], array_keys( $templates ) );
-		$this->assertSame( $templates['bluefairy-recipes//archive-bfrc_recipe']['content'], $templates['bluefairy-recipes//bfrc-writers']['content'], 'the writer views: same markup, their own slug, so a theme\'s archive-bfrc_recipe.html does not catch them' );
+		$this->assertStringContainsString( '<!-- wp:bfrc/recipe-archive {"view":"writers"} /-->', $templates['bluefairy-recipes//bfrc-writers']['content'], 'the writer views: their own slug (a theme\'s archive-bfrc_recipe.html does not catch them) and a preview of the writers list' );
+		$this->assertStringContainsString( '<!-- wp:template-part {"slug":"header"', $templates['bluefairy-recipes//bfrc-writers']['content'] );
 		$this->assertStringContainsString( '<!-- wp:bfrc/recipe-single /-->', $templates['bluefairy-recipes//single-bfrc_recipe']['content'] );
 		$this->assertStringContainsString( '<!-- wp:template-part {"slug":"header"', $templates['bluefairy-recipes//archive-bfrc_recipe']['content'] );
 		$this->assertStringContainsString( '<!-- wp:bfrc/recipe-archive /-->', $templates['bluefairy-recipes//archive-bfrc_recipe']['content'] );
@@ -597,6 +610,12 @@ final class TemplatesTest extends TestCase {
 		$this->assertStringContainsString( 'bfrc-grid__item', $t->render_archive_block(), 'the Site Editor previews the newest recipes in the grid' );
 		$this->assertSame( 12, end( $GLOBALS['bfrc_test_get_posts_calls'] )['numberposts'], 'one page, per the setting' );
 		$this->assertSame( [], $empty->posts, 'on a copy: the request\'s own query is left alone' );
+		$writers = $t->render_archive_block( [ 'view' => 'writers' ] );
+		$this->assertStringContainsString( 'Recipe writers</h1>', $writers, 'the Recipe Writers template previews the writers list' );
+		$this->assertStringNotContainsString( 'bfrc-filters', $writers );
+		$GLOBALS['bfrc_test_serving_rest'] = false;
+		$this->assertStringContainsString( 'No recipes match', $t->render_archive_block( [ 'view' => 'writers' ] ), 'on the site the query decides, never the attribute' );
+		$GLOBALS['bfrc_test_serving_rest'] = true;
 		$full        = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
 		$full->posts = [ get_post( 41 ) ];
 		$calls       = count( $GLOBALS['bfrc_test_get_posts_calls'] );

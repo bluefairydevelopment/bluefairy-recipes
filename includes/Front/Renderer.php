@@ -100,7 +100,7 @@ final class Renderer {
 		$chosen = $this->current_filters();
 		$search = $this->current_search();
 		$html   = '<form class="bfrc-filters" method="get" action="' . esc_url( $action ) . '" data-bfrc-filters role="search" aria-label="' . esc_attr__( 'Filter recipes', 'bluefairy-recipes' ) . '" aria-describedby="bfrc-filters-hint">';
-		$html  .= '<p id="bfrc-filters-hint" class="screen-reader-text">' . esc_html__( 'Changing a filter or pausing while typing updates the list; the Filter button applies it at once.', 'bluefairy-recipes' ) . '</p>';
+		$html  .= '<p id="bfrc-filters-hint" class="screen-reader-text bfrc-filters__hint">' . esc_html__( 'Changing a filter or pausing while typing updates the list; the Filter button applies it at once.', 'bluefairy-recipes' ) . '</p>';
 		$terms  = $this->terms_by_taxonomy();
 		foreach ( $this->taxonomies->enabled() as $code => $definition ) {
 			$name = Taxonomies::taxonomy_name( $code );
@@ -240,19 +240,37 @@ final class Renderer {
 			return self::has_text_or_media( $content );
 		}
 		foreach ( $blocks as $block ) {
-			$name = is_array( $block ) ? ( $block['blockName'] ?? null ) : null;
-			if ( null === $name || 'core/paragraph' === $name ) {
-				if ( self::has_text_or_media( (string) ( $block['innerHTML'] ?? '' ) ) ) {
-					return true;
-				}
-				continue;
+			if ( self::block_has_body( $block ) ) {
+				return true;
 			}
-			if ( in_array( $name, [ 'core/spacer', 'core/separator' ], true ) ) {
-				continue;
-			}
-			return true;
 		}
 		return false;
+	}
+
+	/**
+	 * One parsed block: a child with a body, a dynamic block (a named block
+	 * with no static HTML and no children: a synced pattern, a Query Loop's
+	 * post title, Latest Posts), or static HTML with text or media. An empty
+	 * paragraph, heading, list or group, a spacer or a separator is none of
+	 * those.
+	 *
+	 * @param mixed $block A parse_blocks() entry.
+	 */
+	private static function block_has_body( mixed $block ): bool {
+		if ( ! is_array( $block ) ) {
+			return false;
+		}
+		$children = is_array( $block['innerBlocks'] ?? null ) ? $block['innerBlocks'] : [];
+		foreach ( $children as $child ) {
+			if ( self::block_has_body( $child ) ) {
+				return true;
+			}
+		}
+		$html = (string) ( $block['innerHTML'] ?? '' );
+		if ( null !== ( $block['blockName'] ?? null ) && [] === $children && '' === trim( $html ) ) {
+			return true; // Dynamic: rendered on request, so the comment alone is the body.
+		}
+		return self::has_text_or_media( $html );
 	}
 
 	/**
@@ -608,7 +626,7 @@ final class Renderer {
 			return '';
 		}
 		$url   = (string) get_permalink( $post );
-		$title = html_entity_decode( wp_strip_all_tags( get_the_title( $post ) ), ENT_QUOTES, 'UTF-8' );
+		$title = trim( (string) preg_replace( '/\s+/u', ' ', html_entity_decode( wp_strip_all_tags( get_the_title( $post ) ), ENT_QUOTES, 'UTF-8' ) ) ); // "<Soup>" in a title is stripped as a tag; no double space left behind.
 		$links = [];
 		if ( (bool) $this->settings->get( 'share_facebook' ) ) {
 			$links['facebook'] = [ __( 'Share on Facebook', 'bluefairy-recipes' ), 'https://www.facebook.com/sharer/sharer.php?u=' . rawurlencode( $url ) ];

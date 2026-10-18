@@ -60,9 +60,10 @@
 		if ( ! raw ) {
 			return null;
 		}
-		var at = raw.lastIndexOf( ':' );
-		if ( at === -1 || Date.now() - Number( raw.slice( at + 1 ) ) > FOCUS_TTL ) {
-			return null;
+		var at  = raw.lastIndexOf( ':' );
+		var age = at === -1 ? NaN : Date.now() - Number( raw.slice( at + 1 ) );
+		if ( ! ( age >= 0 && age <= FOCUS_TTL ) ) {
+			return null; // No timestamp, a corrupt one, or too old: stale.
 		}
 		return raw.slice( 0, at );
 	}() );

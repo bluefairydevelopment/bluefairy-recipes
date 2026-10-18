@@ -1,5 +1,7 @@
 /* BlueFairy Recipes: public pages */
 .bfrc-recipes .screen-reader-text { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); border: 0; white-space: nowrap; }
+/* The filter hint is screen-reader-only wherever the form renders (the Site Editor canvas has no body class). */
+.bfrc-filters__hint { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); border: 0; white-space: nowrap; }
 .bfrc-main { max-width: var(--bfrc-max-width, 72rem); margin: 0 auto; padding: 1.5rem; box-sizing: border-box; }
 .bfrc-archive__header, .bfrc-writer__intro { margin-bottom: 1.5rem; }
 .bfrc-archive__title, .bfrc-recipe__title, .bfrc-writer__name { margin: 0 0 .5rem; }
@@ -40,9 +42,10 @@
 .bfrc-recipe__footer { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-top: 2rem; }
 .bfrc-share { display: flex; flex-wrap: wrap; gap: .5rem; }
 .bfrc-share__link { padding: .4rem .8rem; border: 1px solid currentColor; border-radius: 2rem; font-size: .9em; text-decoration: none; }
-.bfrc-pagination ul { list-style: none; display: flex; flex-wrap: wrap; gap: .5rem; padding: 0; margin: 2rem 0 0; }
-.bfrc-pagination .page-numbers { display: inline-block; padding: .4rem .7rem; border: 1px solid rgba(0,0,0,.15); border-radius: .35rem; text-decoration: none; }
-.bfrc-pagination .page-numbers.current { font-weight: 700; }
+/* paginate_links( type => list ) puts the page-numbers class on the <ul> too: the list rule must out-rank the item rule. */
+.bfrc-pagination ul.page-numbers { list-style: none; display: flex; flex-wrap: wrap; gap: .5rem; padding: 0; margin: 2rem 0 0; border: 0; }
+.bfrc-pagination li > .page-numbers { display: inline-block; padding: .4rem .7rem; border: 1px solid rgba(0,0,0,.15); border-radius: .35rem; text-decoration: none; }
+.bfrc-pagination li > .page-numbers.current { font-weight: 700; }
 .bfrc-empty { opacity: .85; }
 .bfrc-writer__header img { display: block; width: 100%; height: auto; max-height: 20rem; object-fit: cover; border-radius: .5rem; margin-bottom: 1.5rem; }
 .bfrc-writer__intro { display: flex; gap: 1.5rem; align-items: flex-start; }
@@ -56,13 +59,16 @@
 @media (max-width: 40rem) {
 	.bfrc-writer__intro { flex-direction: column; }
 	.bfrc-card__media:has(.bfrc-card__placeholder) { aspect-ratio: 3 / 1; }
-	.bfrc-filters__field select, .bfrc-filters__field input { min-width: 100%; }
+	.bfrc-filters__field { flex: 1 1 100%; }
+	.bfrc-filters__field select, .bfrc-filters__field input { width: 100%; }
 }
 @media print {
-	.bfrc-filters, .bfrc-share, .bfrc-button--print, .bfrc-pagination, .bfrc-archive__writers-link, .bfrc-recipe__video, #wpadminbar, .wp-block-template-part, body > header, body > footer, .wp-site-blocks > header, .wp-site-blocks > footer, #masthead, #colophon, nav:not(.bfrc-share), aside { display: none !important; }
-	.bfrc-recipe__header, .bfrc-recipe__footer { display: block !important; }
-	.bfrc-recipe { font-size: 11pt; }
-	.bfrc-recipe__hero img { max-height: 3in; width: auto; }
-	.bfrc-recipe__ingredients, .bfrc-recipe__steps, .bfrc-recipe__nutrition { break-inside: avoid; }
-	a[href]::after { content: none; }
+	/* Scoped to the recipe views' body class: the stylesheet must never change how another page prints, wherever it loads. */
+	.bfrc-recipes .bfrc-filters, .bfrc-recipes .bfrc-share, .bfrc-recipes .bfrc-button--print, .bfrc-recipes .bfrc-pagination, .bfrc-recipes .bfrc-archive__writers-link, .bfrc-recipes .bfrc-recipe__video, .bfrc-recipes #wpadminbar, .bfrc-recipes .wp-block-template-part, body.bfrc-recipes > header, body.bfrc-recipes > footer, .bfrc-recipes .wp-site-blocks > header, .bfrc-recipes .wp-site-blocks > footer, .bfrc-recipes #masthead, .bfrc-recipes #colophon, .bfrc-recipes nav:not(.bfrc-share), .bfrc-recipes aside { display: none !important; }
+	.bfrc-recipes .bfrc-recipe__header, .bfrc-recipes .bfrc-recipe__footer { display: block !important; }
+	.bfrc-recipes .bfrc-recipe { font-size: 11pt; }
+	.bfrc-recipes .bfrc-recipe__hero img { max-height: 3in; width: auto; }
+	.bfrc-recipes .bfrc-recipe__ingredients, .bfrc-recipes .bfrc-recipe__steps, .bfrc-recipes .bfrc-recipe__nutrition { break-inside: avoid; }
+	.bfrc-recipes a[href]::after { content: none; }
+}
 }

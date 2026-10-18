@@ -20,4 +20,5 @@
 - The recipe blocks render nothing inside a recipe's own text; writer pages work with Yoast,
   Rank Math and All in One SEO canonicals, custom pagination bases and plain permalinks;
   Recipe Writers can reach the dashboard on WooCommerce sites; keyboard focus returns to the
-  filter control that was used.
+  filter control that was used; pagination lays out as a row; filters fill the width on phones;
+  the stylesheet loads on recipe views only.

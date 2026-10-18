@@ -24,6 +24,9 @@ function page( html, opts ) {
 	virtualConsole.on( 'jsdomError', ( e ) => { jsdomErrors.push( String( e.message || e ) ); } ); // jsdom cannot navigate; the attempt is what we test.
 	const dom = new JSDOM( '<!doctype html><body>' + html + '</body>', { runScripts: 'outside-only', url: 'https://example.com/recipes/' + ( opts.query || '' ), virtualConsole, pretendToBeVisual: true } );
 	const win = dom.window;
+	if ( opts.beforeScript ) {
+		opts.beforeScript( win ); // e.g. a theme that focuses something before our script runs.
+	}
 	win.setTimeout = ( fn ) => { fn(); return 1; };
 	win.clearTimeout = () => {};
 	win.print = () => { win.printed = ( win.printed || 0 ) + 1; };
@@ -89,10 +92,16 @@ test( 'typing submits with a focus flag, IME composition waits, and the flag res
 	const cleared = page( form( '' ), { flag: 'bfrc_s:' + Date.now() } );
 	assert.equal( cleared.doc.activeElement, cleared.doc.querySelector( '[name="bfrc_s"]' ), 'the visitor cleared the box and the page reloaded: the caret goes back to the empty box' );
 
-	const busy = page( form( 'sou' ) + '<input id="cookie-ok" autofocus>', { query: '?bfrc_s=sou', flag: 'bfrc_s:' + Date.now() } );
-	busy.doc.getElementById( 'cookie-ok' ).focus();
-	busy.win.eval( SOURCE );
+	const busy = page( form( 'sou' ) + '<input id="cookie-ok">', { query: '?bfrc_s=sou', flag: 'bfrc_s:' + Date.now(), beforeScript: ( w ) => w.document.getElementById( 'cookie-ok' ).focus() } );
 	assert.equal( busy.doc.activeElement, busy.doc.getElementById( 'cookie-ok' ), 'a theme that already placed focus keeps it' );
+	assert.equal( busy.win.sessionStorage.getItem( 'bfrcFocus' ), null, 'the flag is still consumed' );
+	const busySelect = page( form(), { query: '?bfrc_filter%5Bdiet%5D=vegan', flag: 'bfrc_filter[diet]:' + Date.now(), beforeScript: ( w ) => w.document.querySelector( 'button' ).focus() } );
+	assert.equal( busySelect.doc.activeElement, busySelect.doc.querySelector( 'button' ), 'the select branch respects placed focus too' );
+
+	const legacy = page( form( 'sou' ), { query: '?bfrc_s=sou', flag: 'bfrc_s' } );
+	assert.equal( legacy.doc.activeElement, legacy.doc.body, 'a flag in the old colon-less format (a tab open across the deploy) is ignored' );
+	const corrupt = page( form( 'sou' ), { query: '?bfrc_s=sou', flag: 'bfrc_s:abc' } );
+	assert.equal( corrupt.doc.activeElement, corrupt.doc.body, 'a corrupt timestamp is stale, not fresh' );
 } );
 
 test( 'committed IME text submits on compositionend', () => {

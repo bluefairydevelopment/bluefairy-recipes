@@ -206,59 +206,59 @@ if ( ! class_exists( 'WP' ) ) {
 }
 if ( ! function_exists( 'parse_blocks' ) ) {
 	/**
-	 * A small block parser: block comments open/close (nested blocks are kept
-	 * inside the parent's innerHTML, which is all has_body() reads), self-closing
-	 * blocks, and freeform text as blocks with a null name, as core does.
+	 * A small block parser shaped like core's output: `blockName` (null for
+	 * freeform text), `attrs` (not decoded here), `innerBlocks` (children)
+	 * and `innerHTML` (the block's own static HTML, children removed).
 	 *
-	 * @return array<int, array{blockName: string|null, attrs: array<string, mixed>, innerHTML: string}>
+	 * @return array<int, array{blockName: string|null, attrs: array<string, mixed>, innerBlocks: array<int, mixed>, innerHTML: string}>
 	 */
 	function parse_blocks( string $content ): array {
+		$pattern = '/<!--\\s+(\\/)?wp:([a-z][a-z0-9_-]*\\/)?([a-z][a-z0-9_-]*)\\s+(\\{.*?\\}\\s+)?(\\/)?-->/s';
+		preg_match_all( $pattern, $content, $m, PREG_OFFSET_CAPTURE | PREG_SET_ORDER );
 		$blocks = [];
+		$stack  = [];
 		$offset = 0;
-		$open   = null;
-		$depth  = 0;
-		$pattern = '/<!--\s+(\/)?wp:([a-z][a-z0-9_-]*\/)?([a-z][a-z0-9_-]*)\s+(\{.*?\}\s+)?(\/)?-->/s';
-		if ( 1 !== preg_match_all( $pattern, $content, $m, PREG_OFFSET_CAPTURE | PREG_SET_ORDER ) && 0 === preg_match_all( $pattern, $content, $m, PREG_OFFSET_CAPTURE | PREG_SET_ORDER ) ) {
-			return '' === trim( $content ) ? [] : [ [ 'blockName' => null, 'attrs' => [], 'innerHTML' => $content ] ];
-		}
-		foreach ( $m as $match ) {
-			$at      = $match[0][1];
-			$len     = strlen( $match[0][0] );
-			$closing = '' !== ( $match[1][0] ?? '' );
-			$name    = ( '' !== ( $match[2][0] ?? '' ) ? $match[2][0] : 'core/' ) . $match[3][0];
-			$void    = '' !== ( $match[5][0] ?? '' );
-			if ( null === $open ) {
-				$free = substr( $content, $offset, $at - $offset );
-				if ( '' !== trim( $free ) ) {
-					$blocks[] = [ 'blockName' => null, 'attrs' => [], 'innerHTML' => $free ];
-				}
-				if ( $void ) {
-					$blocks[] = [ 'blockName' => $name, 'attrs' => [], 'innerHTML' => '' ];
-					$offset   = $at + $len;
-					continue;
-				}
-				$open   = [ 'name' => $name, 'start' => $at + $len ];
-				$depth  = 1;
-				$offset = $at + $len;
-				continue;
+		$add    = static function ( array $block ) use ( &$blocks, &$stack ): void {
+			if ( [] !== $stack ) {
+				$stack[ count( $stack ) - 1 ]['innerBlocks'][] = $block;
+			} else {
+				$blocks[] = $block;
 			}
+		};
+		$text   = static function ( string $t ) use ( &$blocks, &$stack ): void {
+			if ( '' === $t ) {
+				return;
+			}
+			if ( [] !== $stack ) {
+				$stack[ count( $stack ) - 1 ]['innerHTML'] .= $t;
+			} elseif ( '' !== trim( $t ) ) {
+				$blocks[] = [ 'blockName' => null, 'attrs' => [], 'innerBlocks' => [], 'innerHTML' => $t ];
+			}
+		};
+		foreach ( $m as $tok ) {
+			$at  = $tok[0][1];
+			$len = strlen( $tok[0][0] );
+			$text( substr( $content, $offset, $at - $offset ) );
+			$offset  = $at + $len;
+			$closing = '' !== ( $tok[1][0] ?? '' );
+			$name    = ( '' !== ( $tok[2][0] ?? '' ) ? $tok[2][0] : 'core/' ) . $tok[3][0];
+			$void    = '' !== ( $tok[5][0] ?? '' );
 			if ( $void ) {
+				$add( [ 'blockName' => $name, 'attrs' => [], 'innerBlocks' => [], 'innerHTML' => '' ] );
 				continue;
 			}
 			if ( ! $closing ) {
-				++$depth;
+				$stack[] = [ 'blockName' => $name, 'attrs' => [], 'innerBlocks' => [], 'innerHTML' => '' ];
 				continue;
 			}
-			--$depth;
-			if ( 0 === $depth ) {
-				$blocks[] = [ 'blockName' => $open['name'], 'attrs' => [], 'innerHTML' => substr( $content, $open['start'], $at - $open['start'] ) ];
-				$open     = null;
-				$offset   = $at + $len;
+			$done = array_pop( $stack );
+			if ( null !== $done ) {
+				$add( $done );
 			}
 		}
-		$tail = substr( $content, $offset );
-		if ( '' !== trim( $tail ) ) {
-			$blocks[] = [ 'blockName' => $open['name'] ?? null, 'attrs' => [], 'innerHTML' => $tail ];
+		$text( substr( $content, $offset ) );
+		while ( [] !== $stack ) {
+			$add( array_pop( $stack ) );
 		}
 		return $blocks;
 	}
