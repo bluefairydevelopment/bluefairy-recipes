@@ -5,15 +5,22 @@
  * Standalone: no autoloader, inline SQL only. WordPress runs this file in a
  * bare context where the plugin's classes are not loaded.
  *
- * Always removes: options, transients, the two roles (their users keep a
- * role: the fallback `subscriber` when it was their only one), the recipe
+ * Always removes: options (the listed ones and anything else named `bfrc_…`,
+ * such as a taxonomy's `_children` cache), the stored rewrite rules (so core
+ * regenerates them without this plugin's), transients, the two roles (their
+ * users keep a role: `subscriber` when it was their only one), the recipe
  * capabilities granted to core roles, and the object-cache group.
  *
  * Removes the CONTENT — recipes with their meta and terms, the recipe
  * taxonomies' terms, and the writer profile fields on users — ONLY when the
  * administrator ticked "Delete all data on uninstall" in Settings. Recipes
  * are the customer's work; deleting them by default is not a cleanup, it is
- * a loss, and a reinstall must find them intact.
+ * a loss. After a reinstall the recipes and profiles are intact; writers must
+ * be given the Recipe Writer role again, because roles are removed here.
+ *
+ * On a network, user meta is shared by every site, so the writer profiles are
+ * removed only when EVERY site opted in. One site's choice cannot delete the
+ * profiles of users who also write on a site that kept its data.
  *
  * @package BlueFairy\Recipes
  */
@@ -25,22 +32,22 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 }
 
 /**
- * Every option this plugin creates, and nothing else. Installer::OPTIONS must
- * stay equal to this list in both directions.
+ * Every option this plugin creates by name. Installer::OPTIONS must stay
+ * equal to this list in both directions. Options core creates under our
+ * prefix (`bfrc_<taxonomy>_children`) are swept by prefix below.
  */
 $bfrc_option_keys = [
 	'bfrc_settings',
 	'bfrc_db_version',
 	'bfrc_version',
-];
-
-/** Installer::TRANSIENTS. */
-$bfrc_transients = [
 	'bfrc_flush_rewrite',
 ];
 
 /** Capabilities::ROLE_WRITER, ROLE_MANAGER. */
 $bfrc_roles = [ 'bfrc_writer', 'bfrc_recipe_manager' ];
+
+/** The keys of Capabilities::core_grants(). */
+$bfrc_core_roles = [ 'author', 'editor', 'administrator' ];
 
 /** Capabilities::all_caps(), minus the core caps `upload_files` and `read` that are never ours to revoke. */
 $bfrc_caps = [
@@ -74,90 +81,142 @@ $bfrc_user_meta = [
 	'bfrc_listed',
 ];
 
+/** Rows per batch: recipes deleted, users moved, term ids per statement. */
+$bfrc_batch = 100;
+
+/**
+ * Has this site opted in to deleting its content? Only a real `true` counts:
+ * the option is normally written by Settings::sanitize() as a bool, but a
+ * value put there by `wp option update`, an import or a restore (`"false"`,
+ * `["0"]`) must never read as "yes".
+ */
+$bfrc_site_deletes_data = static function (): bool {
+	$settings = get_option( 'bfrc_settings', [] );
+	return is_array( $settings ) && true === ( $settings['delete_data_on_uninstall'] ?? false );
+};
+
 /**
  * Remove everything for the current site.
  *
  * Declared as a closure rather than a named function so it cannot collide
  * with the Pro add-on's uninstall running in the same request.
+ *
+ * @param bool $delete_data Whether this site opted in to losing its content.
  */
-$bfrc_uninstall_site = static function () use ( $bfrc_option_keys, $bfrc_transients, $bfrc_roles, $bfrc_caps, $bfrc_user_meta ): void {
+$bfrc_uninstall_site = static function ( bool $delete_data ) use ( $bfrc_option_keys, $bfrc_roles, $bfrc_core_roles, $bfrc_caps, $bfrc_batch ): void {
 	global $wpdb;
 
-	$settings    = get_option( 'bfrc_settings', [] );
-	$delete_data = is_array( $settings ) && ! empty( $settings['delete_data_on_uninstall'] );
-
 	if ( $delete_data ) {
-		// Recipes, in batches of 100, with their meta and term relationships (wp_delete_post does both).
+		// Recipes, in keyset batches (ID > last), force-deleted so meta,
+		// revisions and comments go with them through core's own routine.
+		// Cache invalidation is suspended for the loop and the cache flushed
+		// once at the end; the time limit is lifted where PHP allows, because
+		// a site with thousands of recipes does not finish inside a web
+		// request's default 30 seconds (`wp plugin uninstall` is the
+		// recommended route for such a site; the loop is idempotent, so a
+		// timed-out run can simply be repeated).
+		if ( function_exists( 'set_time_limit' ) ) {
+			set_time_limit( 0 ); // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- an opted-in uninstall must finish; see above.
+		}
+		wp_suspend_cache_invalidation( true );
+		$last = 0;
 		do {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- uninstall: the post type is not registered here, so WP_Query cannot see it.
-			$ids  = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_type = %s ORDER BY ID LIMIT 100", 'bfrc_recipe' ) );
+			$ids  = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_type = %s AND ID > %d ORDER BY ID LIMIT %d", 'bfrc_recipe', $last, $bfrc_batch ) );
 			$seen = count( $ids );
 			foreach ( $ids as $id ) {
+				$last = max( $last, (int) $id );
 				wp_delete_post( (int) $id, true );
 			}
-		} while ( 100 === $seen );
+		} while ( $bfrc_batch === $seen );
+		wp_suspend_cache_invalidation( false );
 
-		// Terms of every `bfrc_*` taxonomy (the four system ones and any custom filter type): relationships, term_taxonomy rows, then orphaned terms.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the taxonomies are not registered here, so wp_delete_term() refuses them.
-		$tt_ids = $wpdb->get_col( $wpdb->prepare( "SELECT term_taxonomy_id FROM {$wpdb->term_taxonomy} WHERE taxonomy LIKE %s", $wpdb->esc_like( 'bfrc_' ) . '%' ) );
-		if ( [] !== $tt_ids ) {
-			$placeholders = implode( ',', array_fill( 0, count( $tt_ids ), '%d' ) );
-			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- the placeholders string is built from %d only; the values are bound.
-			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->term_relationships} WHERE term_taxonomy_id IN ({$placeholders})", ...$tt_ids ) );
-			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->term_taxonomy} WHERE term_taxonomy_id IN ({$placeholders})", ...$tt_ids ) );
-			$wpdb->query( "DELETE t FROM {$wpdb->terms} t LEFT JOIN {$wpdb->term_taxonomy} tt ON tt.term_id = t.term_id WHERE tt.term_id IS NULL" );
-			// phpcs:enable
-		}
-
-		foreach ( $bfrc_user_meta as $key ) {
-			delete_metadata( 'user', 0, $key, '', true );
-		}
+		// Terms of every `bfrc_*` taxonomy (the four system ones and any
+		// custom filter type), in batches: relationships and term_taxonomy
+		// rows by term_taxonomy_id, then the term meta and the terms
+		// themselves — only those terms, and only where no other taxonomy
+		// still uses the term. The taxonomies are not registered here, so
+		// wp_delete_term() would refuse them.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- the placeholder strings are built from %d only; every value is bound.
+		do {
+			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT term_taxonomy_id, term_id FROM {$wpdb->term_taxonomy} WHERE taxonomy LIKE %s ORDER BY term_taxonomy_id LIMIT %d", $wpdb->esc_like( 'bfrc_' ) . '%', $bfrc_batch ), ARRAY_A );
+			$rows = is_array( $rows ) ? $rows : [];
+			if ( [] === $rows ) {
+				break;
+			}
+			$tt_ids   = array_map( static fn( array $r ): int => (int) $r['term_taxonomy_id'], $rows );
+			$term_ids = array_values( array_unique( array_map( static fn( array $r ): int => (int) $r['term_id'], $rows ) ) );
+			$tt_in    = implode( ',', array_fill( 0, count( $tt_ids ), '%d' ) );
+			$term_in  = implode( ',', array_fill( 0, count( $term_ids ), '%d' ) );
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->term_relationships} WHERE term_taxonomy_id IN ({$tt_in})", ...$tt_ids ) );
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->term_taxonomy} WHERE term_taxonomy_id IN ({$tt_in})", ...$tt_ids ) );
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->termmeta} WHERE term_id IN ({$term_in}) AND term_id NOT IN (SELECT term_id FROM {$wpdb->term_taxonomy})", ...$term_ids ) );
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->terms} WHERE term_id IN ({$term_in}) AND term_id NOT IN (SELECT term_id FROM {$wpdb->term_taxonomy})", ...$term_ids ) );
+			$got = count( $rows );
+		} while ( $got === $bfrc_batch );
+		// phpcs:enable
 	}
 
 	foreach ( $bfrc_option_keys as $key ) {
 		delete_option( $key );
 	}
-	foreach ( $bfrc_transients as $key ) {
-		delete_transient( $key );
-	}
-	// Dynamically named transients, if any are ever added, are swept here so a site without a persistent object cache keeps a clean options table.
+	// Anything else under our prefix: core's `bfrc_<taxonomy>_children`
+	// caches, and dynamically named transients. `bfrc\_` never matches the
+	// Pro add-on's `bfrcp_`.
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 	$wpdb->query(
 		$wpdb->prepare(
-			"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+			"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
+			$wpdb->esc_like( 'bfrc_' ) . '%',
 			$wpdb->esc_like( '_transient_bfrc_' ) . '%',
 			$wpdb->esc_like( '_transient_timeout_bfrc_' ) . '%'
 		)
 	);
+	// The stored rewrite rules include this plugin's; core rebuilds them on
+	// the next request, when the plugin is no longer there to add any.
+	delete_option( 'rewrite_rules' );
 
-	// Roles: move each user off the role (fallback `subscriber` when it was their only one), then remove the role.
+	// Roles: move each user off the role (fallback `subscriber` when it was
+	// their only one), then remove the role. Each pass re-reads page 1
+	// because the previous pass removed the role from the users it saw; a
+	// pass that returns the same users as the one before (a plugin vetoing
+	// the role change) ends the loop instead of spinning until the timeout.
 	foreach ( $bfrc_roles as $role ) {
 		if ( ! get_role( $role ) instanceof WP_Role ) {
 			continue;
 		}
+		$previous = null;
 		do {
-			$ids  = get_users(
+			$users = get_users(
 				[
-					'role'   => $role,
-					'fields' => 'ID',
-					'number' => 200,
-					'paged'  => 1,
+					'role'    => $role,
+					'fields'  => 'all',
+					'number'  => $bfrc_batch,
+					'paged'   => 1,
+					'orderby' => 'ID',
 				]
 			);
-			$seen = count( $ids );
-			foreach ( $ids as $id ) {
-				$user = new WP_User( (int) $id );
+			$got   = count( $users );
+			$ids   = array_map( static fn( WP_User $u ): int => (int) $u->ID, $users );
+			if ( $ids === $previous ) {
+				break;
+			}
+			$previous = $ids;
+			foreach ( $users as $user ) {
+				if ( 0 === (int) $user->ID ) {
+					continue;
+				}
 				$user->remove_role( $role );
 				if ( [] === $user->roles ) {
 					$user->set_role( 'subscriber' );
 				}
 			}
-		} while ( 200 === $seen );
+		} while ( $got === $bfrc_batch );
 		remove_role( $role );
 	}
 
 	// The recipe capabilities granted to core roles.
-	foreach ( [ 'administrator', 'editor', 'author' ] as $role_name ) {
+	foreach ( $bfrc_core_roles as $role_name ) {
 		$role = get_role( $role_name );
 		if ( ! $role instanceof WP_Role ) {
 			continue;
@@ -170,6 +229,9 @@ $bfrc_uninstall_site = static function () use ( $bfrc_option_keys, $bfrc_transie
 	if ( function_exists( 'wp_cache_flush_group' ) ) {
 		wp_cache_flush_group( 'bfrc' );
 	}
+	if ( $delete_data ) {
+		wp_cache_flush();
+	}
 };
 
 // Multisite awareness: page through EVERY site, not the first hundred.
@@ -178,7 +240,7 @@ if ( is_multisite() && function_exists( 'get_sites' ) ) {
 	$bfrc_site_ids = [];
 	$bfrc_offset   = 0;
 	do {
-		$bfrc_batch    = get_sites(
+		$bfrc_page     = get_sites(
 			[
 				'number'  => 200,
 				'offset'  => $bfrc_offset,
@@ -186,18 +248,32 @@ if ( is_multisite() && function_exists( 'get_sites' ) ) {
 				'orderby' => 'id',
 			]
 		);
-		$bfrc_site_ids = array_merge( $bfrc_site_ids, $bfrc_batch );
+		$bfrc_site_ids = array_merge( $bfrc_site_ids, $bfrc_page );
 		$bfrc_offset  += 200;
-		$bfrc_got      = count( $bfrc_batch );
+		$bfrc_got      = count( $bfrc_page );
 	} while ( 200 === $bfrc_got );
 }
 
+$bfrc_every_site_deletes_data = true;
 foreach ( $bfrc_site_ids as $bfrc_site ) {
 	if ( $bfrc_site ) {
 		switch_to_blog( (int) $bfrc_site );
 	}
-	$bfrc_uninstall_site();
-	if ( $bfrc_site ) {
-		restore_current_blog();
+	try {
+		$bfrc_delete_here             = $bfrc_site_deletes_data();
+		$bfrc_every_site_deletes_data = $bfrc_every_site_deletes_data && $bfrc_delete_here;
+		$bfrc_uninstall_site( $bfrc_delete_here );
+	} finally {
+		if ( $bfrc_site ) {
+			restore_current_blog();
+		}
+	}
+}
+
+// Writer profiles live in user meta, which a network shares: removed only
+// when every site chose to lose its data (on a single site: when it did).
+if ( $bfrc_every_site_deletes_data ) {
+	foreach ( $bfrc_user_meta as $bfrc_key ) {
+		delete_metadata( 'user', 0, $bfrc_key, '', true );
 	}
 }

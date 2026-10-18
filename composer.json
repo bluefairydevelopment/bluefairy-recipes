@@ -3,8 +3,12 @@
     "description": "Recipes for WordPress: ingredients, steps, nutrition, writers, browse taxonomies, a filterable archive and Recipe JSON-LD. Free base plugin; BlueFairy Recipes Pro adds reviews, submissions and WooCommerce.",
     "type": "wordpress-plugin",
     "license": "GPL-2.0-or-later",
-    "version": "1.0.0",
-    "keywords": ["wordpress", "recipes", "recipe-schema", "food-blog"],
+    "keywords": [
+        "wordpress",
+        "recipes",
+        "recipe-schema",
+        "food-blog"
+    ],
     "authors": [
         {
             "name": "Blue Fairy Development",

@@ -43,7 +43,7 @@ if ( ! function_exists( 'get_users' ) ) {
 		}
 		$GLOBALS['bfrc_test_get_users_calls'][] = $args;
 		if ( 'ID' === ( $args['fields'] ?? '' ) ) {
-			return array_map( static fn( WP_User $u ): int => $u->ID, $users );
+			return array_map( static fn( WP_User $u ): string => (string) $u->ID, $users ); // core returns numeric strings
 		}
 		return $users;
 	}
@@ -62,5 +62,32 @@ if ( ! function_exists( 'wp_delete_post' ) ) {
 		$post = $GLOBALS['bfrc_test_posts'][ $post_id ] ?? null;
 		unset( $GLOBALS['bfrc_test_posts'][ $post_id ] );
 		return $post instanceof WP_Post ? $post : false;
+	}
+}
+
+if ( ! function_exists( 'plugin_dir_path' ) ) {
+	function plugin_dir_path( string $file ): string {
+		return rtrim( dirname( $file ), '/' ) . '/';
+	}
+}
+if ( ! function_exists( 'plugin_dir_url' ) ) {
+	function plugin_dir_url( string $file ): string {
+		return 'https://example.com/wp-content/plugins/' . basename( dirname( $file ) ) . '/';
+	}
+}
+if ( ! function_exists( 'register_activation_hook' ) ) {
+	function register_activation_hook( string $file, callable $callback ): void {
+		$GLOBALS['bfrc_test_activation_hooks']['activate'][ $file ] = $callback;
+	}
+}
+if ( ! function_exists( 'register_deactivation_hook' ) ) {
+	function register_deactivation_hook( string $file, callable $callback ): void {
+		$GLOBALS['bfrc_test_activation_hooks']['deactivate'][ $file ] = $callback;
+	}
+}
+if ( ! function_exists( 'wp_suspend_cache_invalidation' ) ) {
+	function wp_suspend_cache_invalidation( bool $suspend = true ): bool {
+		$GLOBALS['bfrc_test_suspended_invalidation'][] = $suspend;
+		return ! $suspend;
 	}
 }

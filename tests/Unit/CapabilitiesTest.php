@@ -12,13 +12,6 @@ use BlueFairy\Recipes\Tests\TestCase;
 
 final class CapabilitiesTest extends TestCase {
 
-	protected function setUp(): void {
-		parent::setUp();
-		foreach ( [ 'editor', 'author', 'subscriber' ] as $role ) {
-			$GLOBALS['bfrc_test_roles'][ $role ] = new \WP_Role( $role, [ 'read' => true ] );
-		}
-	}
-
 	public function test_all_caps_is_the_writer_set_plus_the_manager_extras_without_duplicates(): void {
 		$all = Capabilities::all_caps();
 		$this->assertSame( array_values( array_unique( $all ) ), $all );
@@ -72,44 +65,6 @@ final class CapabilitiesTest extends TestCase {
 		$this->assertTrue( get_role( Capabilities::ROLE_WRITER )->has_cap( 'publish_bfrc_recipes' ), 'a role saved by an older version is completed, not replaced' );
 	}
 
-	public function test_remove_roles_moves_sole_role_users_to_subscriber_keeps_other_roles_and_removes_the_roles(): void {
-		Capabilities::add_roles();
-		bfrc_test_add_user( 5, [ 'roles' => [ Capabilities::ROLE_WRITER ] ] );
-		bfrc_test_add_user( 6, [ 'roles' => [ 'editor', Capabilities::ROLE_WRITER ] ] );
-		bfrc_test_add_user( 7, [ 'roles' => [ Capabilities::ROLE_MANAGER ] ] );
-		bfrc_test_add_user( 8, [ 'roles' => [ 'author' ] ] );
-
-		Capabilities::remove_roles();
-
-		$this->assertSame( [ 'subscriber' ], ( new \WP_User( 5 ) )->roles, 'only role was writer: falls back to subscriber' );
-		$this->assertSame( [ 'editor' ], ( new \WP_User( 6 ) )->roles, 'the other role stays, no subscriber added' );
-		$this->assertSame( [ 'subscriber' ], ( new \WP_User( 7 ) )->roles );
-		$this->assertSame( [ 'author' ], ( new \WP_User( 8 ) )->roles, 'untouched' );
-		$this->assertNull( get_role( Capabilities::ROLE_WRITER ) );
-		$this->assertNull( get_role( Capabilities::ROLE_MANAGER ) );
-		$this->assertFalse( get_role( 'administrator' )->has_cap( Capabilities::MANAGE ) );
-	}
-
-	public function test_remove_roles_pages_through_a_large_role_in_bounded_reads(): void {
-		Capabilities::add_roles();
-		for ( $i = 1; $i <= Capabilities::USERS_PER_PAGE + 3; $i++ ) {
-			bfrc_test_add_user( 100 + $i, [ 'roles' => [ Capabilities::ROLE_WRITER ] ] );
-		}
-		Capabilities::remove_roles();
-		$writer_calls = array_filter( $GLOBALS['bfrc_test_get_users_calls'], static fn( array $a ): bool => Capabilities::ROLE_WRITER === $a['role'] );
-		$this->assertCount( 2, $writer_calls, 'a full page, then the short page of 3 that ends the loop' );
-		foreach ( $writer_calls as $call ) {
-			$this->assertSame( Capabilities::USERS_PER_PAGE, $call['number'] );
-			$this->assertSame( 1, $call['paged'], 'always page 1: the previous pass removed the role from the users it saw' );
-		}
-		$this->assertSame( [ 'subscriber' ], ( new \WP_User( 100 + Capabilities::USERS_PER_PAGE + 3 ) )->roles, 'the last user of the second page was moved too' );
-	}
-
-	public function test_remove_roles_skips_a_role_that_does_not_exist(): void {
-		Capabilities::remove_roles();
-		$this->assertSame( [], $GLOBALS['bfrc_test_get_users_calls'] );
-	}
-
 	public function test_grant_and_revoke_core_roles(): void {
 		Capabilities::add_roles();
 		Capabilities::grant_core_roles();
@@ -136,9 +91,18 @@ final class CapabilitiesTest extends TestCase {
 		$this->assertTrue( get_role( 'editor' )->has_cap( 'read' ) );
 	}
 
-	public function test_current_user_can_manage_reads_the_manage_capability(): void {
+	public function test_current_user_can_manage_reads_the_manage_capability_through_the_users_roles(): void {
+		$this->assertFalse( Capabilities::current_user_can_manage() );
+		Capabilities::add_roles();
+		bfrc_test_add_user( 9, [ 'roles' => [ Capabilities::ROLE_WRITER ] ] );
+		wp_set_current_user( 9 );
+		$this->assertFalse( Capabilities::current_user_can_manage(), 'a writer cannot manage' );
+		( new \WP_User( 9 ) )->set_role( Capabilities::ROLE_MANAGER );
+		$this->assertTrue( Capabilities::current_user_can_manage(), 'a manager can' );
+		$this->assertFalse( user_can( 9, 'edit_others_bfrc_recipes' ) === false, 'user_can reads the role too' );
+		wp_set_current_user( 0 );
 		$this->assertFalse( Capabilities::current_user_can_manage() );
 		bfrc_test_grant( Capabilities::MANAGE );
-		$this->assertTrue( Capabilities::current_user_can_manage() );
+		$this->assertTrue( Capabilities::current_user_can_manage(), 'the explicit test grant still works as an override' );
 	}
 }

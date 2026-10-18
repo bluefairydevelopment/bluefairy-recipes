@@ -19,36 +19,35 @@ if ( ! defined( 'ABSPATH' ) ) {
  * so), writes the default settings and version markers, and flags a rewrite
  * flush for the first `init` on which the post type exists.
  *
- * Deactivation flushes rewrite rules and nothing else: the roles stay,
- * because removing them would strip every writer of their role, and that is
- * data, not configuration. uninstall.php removes the roles.
+ * Deactivation deletes the stored rewrite rules and nothing else: core
+ * rebuilds them on the next request, when this plugin is no longer loaded to
+ * add its own, so `/recipes/…` stops resolving. The roles stay, because
+ * removing them would strip every writer of their role, and that is data,
+ * not configuration. uninstall.php removes the roles.
  */
 final class Installer {
 
 	/**
-	 * Options this plugin creates. uninstall.php holds a copy.
+	 * Options this plugin creates by name. uninstall.php holds a copy.
 	 *
 	 * @var list<string>
 	 */
 	public const OPTIONS = [
-		'bfrc_settings',
+		Settings::OPTION,
 		'bfrc_db_version',
 		'bfrc_version',
+		Settings::FLUSH_OPTION,
 	];
 
 	/**
-	 * Transients this plugin creates. uninstall.php holds a copy.
-	 *
-	 * @var list<string>
+	 * Sites per page when a network-wide hook walks the network.
 	 */
-	public const TRANSIENTS = [
-		Settings::FLUSH_TRANSIENT,
-	];
+	public const SITES_PER_PAGE = 200;
 
 	/**
 	 * Activation hook. A network-wide activation provisions every site;
 	 * otherwise only the current one. (Network activation is not a tested
-	 * configuration in 1.0; the readme says so. It is handled rather than
+	 * configuration in 1.0; README.md says so. It is handled rather than
 	 * refused so a network that does it is not left half-installed.)
 	 *
 	 * @param bool $network_wide True when activated for the whole network.
@@ -69,28 +68,43 @@ final class Installer {
 	/**
 	 * Everything one site needs. Idempotent: an existing `bfrc_settings` is
 	 * never rewritten, so a re-activation keeps the administrator's choices.
+	 *
+	 * The flush flag is an option that always exists (0 or 1) rather than a
+	 * transient: an autoloaded option that is present costs no query to read
+	 * on every request, and it cannot be evicted or expire before the next
+	 * `init` consumes it. It is raised only when the version write succeeded,
+	 * so a site whose database refuses the write does not re-provision and
+	 * flush its rewrite rules on every request.
 	 */
 	public static function provision_site(): void {
 		Capabilities::add_roles();
 		if ( ! get_option( Settings::OPTION ) ) {
-			update_option( Settings::OPTION, Settings::DEFAULTS, true );
+			update_option( Settings::OPTION, ( new Settings() )->sanitize( Settings::DEFAULTS ), true );
 		}
 		if ( ( new Settings() )->get( 'grant_core_roles' ) ) {
 			Capabilities::grant_core_roles();
 		}
 		update_option( 'bfrc_version', BFRC_VERSION, true );
+		add_option( Settings::FLUSH_OPTION, 0, '', true );
 		update_option( 'bfrc_db_version', BFRC_DB_VERSION, true );
-		set_transient( Settings::FLUSH_TRANSIENT, 1, DAY_IN_SECONDS );
+		if ( BFRC_DB_VERSION === (string) get_option( 'bfrc_db_version', '' ) ) {
+			self::request_rewrite_flush();
+		}
 	}
 
 	/**
-	 * Deactivation for one site: the rewrite rules this plugin added go,
-	 * so `/recipes/…` stops resolving at once rather than 404-ing inside a
-	 * plugin that is no longer there. Roles, settings and content stay.
+	 * Deactivation for one site. Settings, roles, versions and content stay.
 	 */
 	public static function unprovision_site(): void {
-		delete_transient( Settings::FLUSH_TRANSIENT );
-		flush_rewrite_rules( false );
+		update_option( Settings::FLUSH_OPTION, 0, true );
+		delete_option( 'rewrite_rules' );
+	}
+
+	/**
+	 * Ask for a rewrite flush on the next `init` (see maybe_flush_rewrite()).
+	 */
+	public static function request_rewrite_flush(): void {
+		update_option( Settings::FLUSH_OPTION, 1, true );
 	}
 
 	/**
@@ -102,19 +116,19 @@ final class Installer {
 	 * still leaves the right number behind.
 	 */
 	public static function maybe_upgrade(): void {
-		$current = get_option( 'bfrc_db_version', '' );
-		$missing = '' === $current || false === $current;
+		$current = (string) get_option( 'bfrc_db_version', '' );
+		$missing = '' === $current;
 		if ( ! $missing && BFRC_VERSION !== (string) get_option( 'bfrc_version', '' ) ) {
 			update_option( 'bfrc_version', BFRC_VERSION, true );
 		}
-		if ( ! $missing && version_compare( (string) $current, BFRC_DB_VERSION, '>=' ) ) {
+		if ( ! $missing && version_compare( $current, BFRC_DB_VERSION, '>=' ) ) {
 			return;
 		}
 		if ( $missing ) {
 			self::provision_site();
 			return;
 		}
-		self::upgrade_data( (string) $current );
+		self::upgrade_data( $current );
 		Capabilities::add_roles();
 		update_option( 'bfrc_db_version', BFRC_DB_VERSION, true );
 	}
@@ -136,19 +150,21 @@ final class Installer {
 	/**
 	 * Hooked late on `init`: flush rewrite rules once when the flag is set
 	 * (activation, or a changed archive slug). Late, so the post type and
-	 * taxonomies registered on `init` are part of the rules written.
+	 * taxonomies registered on `init` are part of the rules written. The
+	 * flag is lowered before the flush so a concurrent request cannot loop.
 	 */
 	public static function maybe_flush_rewrite(): void {
-		if ( ! get_transient( Settings::FLUSH_TRANSIENT ) ) {
+		if ( '1' !== (string) get_option( Settings::FLUSH_OPTION, '0' ) ) {
 			return;
 		}
-		delete_transient( Settings::FLUSH_TRANSIENT );
+		update_option( Settings::FLUSH_OPTION, 0, true );
 		flush_rewrite_rules( false );
 	}
 
 	/**
 	 * Run $callback on every site of the network when $network_wide and
-	 * this is a multisite install, else on the current site only.
+	 * this is a multisite install, else on the current site only. Sites are
+	 * read in pages of SITES_PER_PAGE.
 	 *
 	 * @param bool     $network_wide Whether the hook fired for the whole network.
 	 * @param callable $callback     What to run per site.
@@ -158,18 +174,26 @@ final class Installer {
 			$callback();
 			return;
 		}
-		foreach ( get_sites(
-			[
-				'fields' => 'ids',
-				'number' => 0,
-			]
-		) as $site_id ) {
-			switch_to_blog( (int) $site_id );
-			try {
-				$callback();
-			} finally {
-				restore_current_blog(); // A callback that throws must not leave the request on another site.
+		$offset = 0;
+		do {
+			$page = get_sites(
+				[
+					'fields'  => 'ids',
+					'number'  => self::SITES_PER_PAGE,
+					'offset'  => $offset,
+					'orderby' => 'id',
+				]
+			);
+			foreach ( $page as $site_id ) {
+				switch_to_blog( (int) $site_id );
+				try {
+					$callback();
+				} finally {
+					restore_current_blog(); // A callback that throws must not leave the request on another site.
+				}
 			}
-		}
+			$offset += self::SITES_PER_PAGE;
+			$got     = count( $page );
+		} while ( self::SITES_PER_PAGE === $got );
 	}
 }

@@ -59,7 +59,7 @@ final class SettingsTest extends TestCase {
 		$settings = new Settings();
 		$settings->update( [ 'per_page' => 5 ] );
 		$this->assertFalse( $settings->last_update_succeeded() );
-		$this->assertFalse( get_transient( Settings::FLUSH_TRANSIENT ), 'no flush flagged for a write that did not happen' );
+		$this->assertFalse( get_option( Settings::FLUSH_OPTION ), 'no flush flagged for a write that did not happen' );
 	}
 
 	public function test_an_unchanged_value_counts_as_stored(): void {
@@ -74,9 +74,9 @@ final class SettingsTest extends TestCase {
 	public function test_changing_the_archive_slug_flags_a_rewrite_flush_and_keeping_it_does_not(): void {
 		$settings = new Settings();
 		$settings->update( [ 'archive_slug' => 'recipes' ] );
-		$this->assertFalse( get_transient( Settings::FLUSH_TRANSIENT ), 'same slug: no flush' );
+		$this->assertFalse( get_option( Settings::FLUSH_OPTION ), 'same slug: no flush' );
 		$settings->update( [ 'archive_slug' => 'cookbook' ] );
-		$this->assertSame( '1', (string) get_transient( Settings::FLUSH_TRANSIENT ), 'changed slug: flush flagged' );
+		$this->assertSame( '1', get_option( Settings::FLUSH_OPTION ), 'changed slug: flush flagged' );
 	}
 
 	public function test_sanitize_clamps_per_page_at_both_bounds(): void {

@@ -28,9 +28,10 @@ final class Settings {
 	public const OPTION = 'bfrc_settings';
 
 	/**
-	 * Set when the archive slug changes, consumed by Installer::maybe_flush_rewrite().
+	 * Always-present autoloaded flag (0/1): raised when the archive slug
+	 * changes or the plugin is activated, consumed by Installer::maybe_flush_rewrite().
 	 */
-	public const FLUSH_TRANSIENT = 'bfrc_flush_rewrite';
+	public const FLUSH_OPTION = 'bfrc_flush_rewrite';
 
 	/**
 	 * The four taxonomies this plugin ships. Codes are the part after `bfrc_`.
@@ -139,7 +140,7 @@ final class Settings {
 	/**
 	 * Replace the stored option with a sanitised copy of $values.
 	 *
-	 * A changed archive slug flags a rewrite flush (FLUSH_TRANSIENT), which
+	 * A changed archive slug flags a rewrite flush (FLUSH_OPTION), which
 	 * Installer::maybe_flush_rewrite() performs once the post type and
 	 * taxonomies are registered. Whether the write reached the database is
 	 * kept for last_update_succeeded(): `update_option()` alone cannot tell
@@ -154,7 +155,7 @@ final class Settings {
 		$this->last_update_ok = $this->write_option( self::OPTION, $clean, true ); // Autoloaded: read on every request.
 		$this->cache          = null;
 		if ( $this->last_update_ok && $clean['archive_slug'] !== $previous_slug ) {
-			set_transient( self::FLUSH_TRANSIENT, 1, DAY_IN_SECONDS );
+			Installer::request_rewrite_flush();
 		}
 		return $clean;
 	}

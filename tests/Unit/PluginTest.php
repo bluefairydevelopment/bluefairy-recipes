@@ -75,14 +75,33 @@ final class PluginTest extends TestCase {
 		$this->assertTrue( Plugin::is_pro() );
 	}
 
-	public function test_the_entry_file_declares_the_versions_the_harness_and_readme_expect(): void {
+	public function test_every_place_a_version_is_declared_agrees(): void {
 		$source = (string) file_get_contents( BFRC_FILE );
-		$this->assertStringContainsString( " * Version:           1.0.0\n", $source );
-		$this->assertStringContainsString( "define( 'BFRC_VERSION', '1.0.0' );", $source );
+		$this->assertSame( 1, preg_match( '/^ \* Version:\s+(\S+)$/m', $source, $header ) );
+		$this->assertSame( BFRC_VERSION, $header[1], 'header vs constant (the harness reads the constant from this file)' );
+		$this->assertSame( 1, preg_match( '/^Stable tag: (\S+)$/m', (string) file_get_contents( BFRC_DIR . 'readme.txt' ), $stable ) );
+		$this->assertSame( BFRC_VERSION, $stable[1], 'readme.txt Stable tag' );
+		$this->assertStringContainsString( "define( 'BFRC_VERSION', '" . BFRC_VERSION . "' );", (string) file_get_contents( BFRC_DIR . 'phpstan-bootstrap.php' ), 'phpstan bootstrap' );
+		$composer = json_decode( (string) file_get_contents( BFRC_DIR . 'composer.json' ), true );
+		$this->assertIsArray( $composer );
+		$this->assertArrayNotHasKey( 'version', $composer, 'composer.json carries no version: the header is the one declaration' );
+		$this->assertStringContainsString( '## 1.0.0', (string) file_get_contents( BFRC_DIR . 'CHANGELOG.md' ) );
 		$this->assertStringContainsString( " * Requires at least: 6.7\n", $source, 'register_block_template and the Interactivity API need 6.7' );
 		$this->assertStringContainsString( " * Requires PHP:      8.1\n", $source );
 		$this->assertStringNotContainsString( 'Update URI', $source, 'a free plugin on WordPress.org has no updater' );
 		$this->assertStringContainsString( "add_action( 'plugins_loaded', [ BlueFairy\\Recipes\\Plugin::class, 'boot' ], 10 );", $source );
 		$this->assertStringContainsString( 'function bfrc_plugin(): string', $source );
+	}
+
+	public function test_directly_hooked_callbacks_take_no_typed_first_parameter(): void {
+		foreach ( [ [ Plugin::class, 'boot' ], [ Installer::class, 'maybe_flush_rewrite' ] ] as [ $class, $method ] ) {
+			$params = ( new \ReflectionMethod( $class, $method ) )->getParameters();
+			$this->assertTrue( [] === $params || null === $params[0]->getType(), "{$class}::{$method}: WordPress passes '' to an argument-less action's callbacks" );
+		}
+		foreach ( [ [ Installer::class, 'activate' ], [ Installer::class, 'deactivate' ] ] as [ $class, $method ] ) {
+			$params = ( new \ReflectionMethod( $class, $method ) )->getParameters();
+			$this->assertSame( 'bool', (string) $params[0]->getType(), "{$class}::{$method} receives network_wide as a bool from core" );
+			$this->assertTrue( $params[0]->isDefaultValueAvailable() );
+		}
 	}
 }

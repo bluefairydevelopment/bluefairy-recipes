@@ -30,6 +30,7 @@ class FakeWpdb {
 	public string $terms    = 'bfw_terms';
 	public string $term_taxonomy = 'bfw_term_taxonomy';
 	public string $term_relationships = 'bfw_term_relationships';
+	public string $termmeta = 'bfw_termmeta';
 	public string $usermeta = 'bfw_usermeta';
 	public int $insert_id   = 0;
 	public int $rows_affected = 0;
@@ -221,9 +222,10 @@ class FakeWpdb {
 	}
 
 	private function next( string $method, mixed $default ): mixed {
-		if ( ! empty( $this->queue[ $method ] ) ) {
-			return array_shift( $this->queue[ $method ] );
+		$value = ! empty( $this->queue[ $method ] ) ? array_shift( $this->queue[ $method ] ) : ( $this->fallback[ $method ] ?? $default );
+		if ( $value instanceof \Closure ) {
+			$value = $value(); // A queued closure runs when the call happens, so a test can make the database throw.
 		}
-		return $this->fallback[ $method ] ?? $default;
+		return $value;
 	}
 }

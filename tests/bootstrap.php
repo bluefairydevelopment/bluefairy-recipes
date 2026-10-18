@@ -51,12 +51,17 @@ spl_autoload_register(
 if ( ! defined( 'ABSPATH' ) ) {
 	define( 'ABSPATH', __DIR__ . '/fixtures/abspath/' );
 }
+// Both versions are read from the plugin file, never mirrored here: a mirror
+// drifts (this harness once said 1.0.1 while the plugin said 1.0.0, and no
+// test could tell).
+$bfrc_plugin_source = (string) file_get_contents( dirname( __DIR__ ) . '/bluefairy-recipes.php' );
 if ( ! defined( 'BFRC_VERSION' ) ) {
-	define( 'BFRC_VERSION', '1.0.1' );
+	if ( 1 !== preg_match( "/define\\( 'BFRC_VERSION', '([^']+)' \\);/", $bfrc_plugin_source, $bfrc_version_match ) ) {
+		throw new RuntimeException( 'tests/bootstrap.php: BFRC_VERSION not found in bluefairy-recipes.php' );
+	}
+	define( 'BFRC_VERSION', $bfrc_version_match[1] );
 }
 if ( ! defined( 'BFRC_DB_VERSION' ) ) {
-	// N-16: read from the plugin file, never mirrored here — a mirror drifted to 1.0.0 while the plugin shipped 1.0.1.
-	$bfrc_plugin_source = (string) file_get_contents( dirname( __DIR__ ) . '/bluefairy-recipes.php' );
 	if ( 1 !== preg_match( "/define\\( 'BFRC_DB_VERSION', '([^']+)' \\);/", $bfrc_plugin_source, $bfrc_db_version_match ) ) {
 		throw new RuntimeException( 'tests/bootstrap.php: BFRC_DB_VERSION not found in bluefairy-recipes.php' );
 	}
@@ -110,7 +115,11 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_is_admin']      = false;
 	$GLOBALS['bfrc_test_nonce_valid']   = true;
 	$GLOBALS['bfrc_test_time']          = null;
-	$GLOBALS['bfrc_test_roles']         = [ 'administrator' => new WP_Role( 'administrator', [] ) ];
+	$GLOBALS['bfrc_test_roles']         = bfrc_test_core_roles();
+	$GLOBALS['bfrc_test_role_removal_blocked'] = false; // true models a plugin vetoing WP_User::remove_role().
+	$GLOBALS['bfrc_test_activation_hooks'] = []; // register_(de)activation_hook() calls.
+	$GLOBALS['bfrc_test_cache_flushes']    = 0;
+	$GLOBALS['bfrc_test_suspended_invalidation'] = [];
 	$GLOBALS['bfrc_test_posts']         = [];
 	$GLOBALS['bfrc_test_db_delta']      = [];
 	$GLOBALS['bfrc_test_db_delta_errors'] = [];
@@ -302,6 +311,7 @@ function wp_cache_flush_group( string $group ): bool {
 	return true;
 }
 function wp_cache_flush(): bool {
+	$GLOBALS['bfrc_test_cache_flushes'] = ( $GLOBALS['bfrc_test_cache_flushes'] ?? 0 ) + 1;
 	$GLOBALS['bfrc_test_cache']         = [];
 	$GLOBALS['bfrc_test_cache_expires'] = [];
 	return true;
@@ -433,8 +443,11 @@ function sanitize_email( mixed $email ): string {
 function is_email( mixed $email ): string|false {
 	return is_string( $email ) && false !== filter_var( $email, FILTER_VALIDATE_EMAIL ) ? $email : false;
 }
+/** As core's sanitize_title_with_dashes: lower-cased, non-ASCII percent-encoded (utf8_uri_encode), everything else but [a-z0-9-%] becomes a dash. */
 function sanitize_title( mixed $title ): string {
-	return trim( preg_replace( '/[^a-z0-9\-]+/', '-', strtolower( is_scalar( $title ) ? (string) $title : '' ) ) ?? '', '-' );
+	$title   = is_scalar( $title ) ? mb_strtolower( (string) $title ) : '';
+	$encoded = preg_replace_callback( '/[^\x00-\x7F]+/u', static fn( array $m ): string => strtolower( rawurlencode( $m[0] ) ), $title ) ?? '';
+	return trim( preg_replace( '/[^a-z0-9%\-]+/', '-', $encoded ) ?? '', '-' );
 }
 function esc_url_raw( mixed $url, ?array $protocols = null ): string {
 	$url = is_scalar( $url ) ? trim( (string) $url ) : '';
@@ -705,7 +718,7 @@ class WP_User {
 		return $this->ID > 0;
 	}
 	public function has_cap( string $cap ): bool {
-		return current_user_can( $cap );
+		return user_can( $this, $cap ) || ( $this->ID === get_current_user_id() && ! empty( $GLOBALS['bfrc_test_caps'][ $cap ] ) );
 	}
 	/** As core: replaces every role with $role ('' removes them all). */
 	public function set_role( string $role ): void {
@@ -719,6 +732,9 @@ class WP_User {
 		bfrc_test_store_user( $this );
 	}
 	public function remove_role( string $role ): void {
+		if ( ! empty( $GLOBALS['bfrc_test_role_removal_blocked'] ) ) {
+			return; // A plugin vetoed the change: the role stays, as core's remove_role() would leave it when update_user_meta is filtered out.
+		}
 		$this->roles = array_values( array_diff( $this->roles, [ $role ] ) );
 		bfrc_test_store_user( $this );
 	}
@@ -733,11 +749,35 @@ function bfrc_test_store_user( WP_User $user ): void {
 function get_role( string $role ): ?WP_Role {
 	return $GLOBALS['bfrc_test_roles'][ $role ] ?? null;
 }
-function current_user_can( string $capability, mixed ...$args ): bool {
-	return ! empty( $GLOBALS['bfrc_test_caps'][ $capability ] );
+/** The five roles a fresh WordPress site has, each with core's `read`. Per site on multisite, as core. */
+function bfrc_test_core_roles(): array {
+	$roles = [];
+	foreach ( [ 'administrator', 'editor', 'author', 'contributor', 'subscriber' ] as $name ) {
+		$roles[ $name ] = new WP_Role( $name, [ 'read' => true ] );
+	}
+	return $roles;
 }
+/**
+ * As core: the current user has a capability when one of their roles grants
+ * it. bfrc_test_grant() is an explicit override for the current user, so a
+ * test can say "the current user can" without building a role.
+ */
+function current_user_can( string $capability, mixed ...$args ): bool {
+	if ( ! empty( $GLOBALS['bfrc_test_caps'][ $capability ] ) ) {
+		return true;
+	}
+	return user_can( get_current_user_id(), $capability );
+}
+/** Resolves the user's roles through the role registry; a deleted role grants nothing, as core. */
 function user_can( mixed $user, string $capability, mixed ...$args ): bool {
-	return current_user_can( $capability );
+	$user = $user instanceof WP_User ? $user : new WP_User( (int) $user );
+	foreach ( $user->roles as $role ) {
+		$object = get_role( $role );
+		if ( $object instanceof WP_Role && $object->has_cap( $capability ) ) {
+			return true;
+		}
+	}
+	return false;
 }
 function bfrc_test_grant( string ...$caps ): void {
 	foreach ( $caps as $cap ) {
@@ -810,7 +850,7 @@ function bfrc_test_load_site( int $blog_id ): void {
 	$GLOBALS['bfrc_test_option_autoload'] = $state['autoload'] ?? [];
 	$GLOBALS['bfrc_test_cron']          = $state['cron'] ?? [];
 	$GLOBALS['bfrc_test_single_events'] = $state['single_events'] ?? [];
-	$GLOBALS['bfrc_test_roles']         = $state['roles'] ?? [ 'administrator' => new WP_Role( 'administrator', [] ) ];
+	$GLOBALS['bfrc_test_roles']         = $state['roles'] ?? bfrc_test_core_roles();
 	$GLOBALS['wpdb']->prefix            = 1 === $blog_id ? 'bfw_' : 'bfw_' . $blog_id . '_';
 	$GLOBALS['wpdb']->options           = $GLOBALS['wpdb']->prefix . 'options';
 }

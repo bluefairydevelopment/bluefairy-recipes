@@ -75,17 +75,6 @@ final class Capabilities {
 	];
 
 	/**
-	 * The role users fall back to when a plugin role is removed and it was
-	 * their only one. Core's own default for a new user.
-	 */
-	public const FALLBACK_ROLE = 'subscriber';
-
-	/**
-	 * Users moved per page when a role is removed.
-	 */
-	public const USERS_PER_PAGE = 200;
-
-	/**
 	 * Every capability this plugin knows about, deduplicated.
 	 *
 	 * @return list<string>
@@ -126,12 +115,17 @@ final class Capabilities {
 	/**
 	 * Create the two roles (or, when they already exist, make sure they hold
 	 * every capability — a role saved by an older version keeps its row) and
-	 * give administrators MANAGE.
+	 * give administrators MANAGE. Removing the roles is uninstall.php's job:
+	 * it runs without this class, so the removal lives there and only there.
 	 */
 	public static function add_roles(): void {
+		// Stored untranslated, as core stores its own role names: add_roles()
+		// runs at plugins_loaded, before translations may load (WordPress 6.7+
+		// notices on an early __()), and a label translated at install time
+		// would be frozen in that locale.
 		$labels = [
-			self::ROLE_WRITER  => __( 'Recipe Writer', 'bluefairy-recipes' ),
-			self::ROLE_MANAGER => __( 'Recipe Manager', 'bluefairy-recipes' ),
+			self::ROLE_WRITER  => 'Recipe Writer',
+			self::ROLE_MANAGER => 'Recipe Manager',
 		];
 		foreach ( $labels as $role => $label ) {
 			$caps     = self::caps_for( $role );
@@ -147,45 +141,6 @@ final class Capabilities {
 		$admin = get_role( 'administrator' );
 		if ( $admin instanceof \WP_Role ) {
 			$admin->add_cap( self::MANAGE );
-		}
-	}
-
-	/**
-	 * Remove the two roles. A user whose only role was one of them becomes a
-	 * FALLBACK_ROLE user rather than a user with no role at all; a user who
-	 * also holds another role just loses this one. Paged, so a site with
-	 * thousands of writers is handled in bounded reads.
-	 */
-	public static function remove_roles(): void {
-		foreach ( [ self::ROLE_WRITER, self::ROLE_MANAGER ] as $role ) {
-			if ( ! get_role( $role ) instanceof \WP_Role ) {
-				continue;
-			}
-			// Always page 1: each pass removes the role from the users it saw,
-			// so the next page-1 read is the next batch.
-			do {
-				$ids  = get_users(
-					[
-						'role'   => $role,
-						'fields' => 'ID',
-						'number' => self::USERS_PER_PAGE,
-						'paged'  => 1,
-					]
-				);
-				$seen = count( $ids );
-				foreach ( $ids as $id ) {
-					$user = new \WP_User( (int) $id );
-					$user->remove_role( $role );
-					if ( [] === $user->roles ) {
-						$user->set_role( self::FALLBACK_ROLE );
-					}
-				}
-			} while ( self::USERS_PER_PAGE === $seen );
-			remove_role( $role );
-		}
-		$admin = get_role( 'administrator' );
-		if ( $admin instanceof \WP_Role ) {
-			$admin->remove_cap( self::MANAGE );
 		}
 	}
 
