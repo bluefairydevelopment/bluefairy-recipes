@@ -51,4 +51,10 @@ final class WritesOptionsTest extends TestCase {
 		$GLOBALS['bfrc_test_option_write_fails'][] = 'bfrc_other';
 		$this->assertFalse( $this->writer()->write( 'bfrc_other', 'y', false ), 'a refused change to an existing option is a failure, not "unchanged"' );
 	}
+
+	public function test_a_falsy_value_refused_for_a_missing_option_is_not_mistaken_for_unchanged(): void {
+		$GLOBALS['bfrc_test_option_write_fails'][] = 'bfrc_w';
+		$this->assertFalse( $this->writer()->write( 'bfrc_w', false, true ), 'no row exists: (string) false === (string) false must not read as stored' );
+		$this->assertFalse( $this->writer()->write( 'bfrc_w', '', true ) );
+	}
 }

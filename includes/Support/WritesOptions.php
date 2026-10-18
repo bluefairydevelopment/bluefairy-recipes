@@ -16,9 +16,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * `update_option()` returns false both when the database refused the write
  * and when the value was already stored (core skips the write then), so its
- * result alone cannot be trusted either way (F21 / WPMAP-110). On false the
- * stored value is read back and compared in its stored form: the same value
- * means "unchanged", anything else means the write failed.
+ * result alone cannot be trusted either way. On false the stored value is
+ * read back and compared in its stored form: the same value means
+ * "unchanged", anything else (including no row at all) means the write
+ * failed.
+ *
+ * Known limit: a `pre_update_option_{name}` filter that changes the value on
+ * the way in makes the read-back differ from $value, and a successful write
+ * is then reported as failed. No such filter exists for this plugin's
+ * options; a caller that adds one must compare against the filtered value.
  */
 trait WritesOptions {
 
@@ -33,7 +39,11 @@ trait WritesOptions {
 		if ( update_option( $option, $value, $autoload ) ) {
 			return true;
 		}
-		$stored = get_option( $option, null );
+		$absent = new \stdClass();
+		$stored = get_option( $option, $absent );
+		if ( $stored === $absent ) {
+			return false; // No row: core refused to add it (or declined to store a value equal to its own default, which is the same to a reader that asked for it).
+		}
 		if ( is_scalar( $value ) || null === $value ) {
 			return ( is_scalar( $stored ) || null === $stored ) && (string) $stored === (string) $value;
 		}

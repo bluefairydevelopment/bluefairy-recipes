@@ -1,8 +1,8 @@
 # BlueFairy Recipes
 
 Recipes for WordPress. **In development: 1.0.0 is not released.** This file is completed
-milestone by milestone (plan: WPMAP-181); every statement in it is checked against the code
-before the release tag.
+milestone by milestone; every statement in it is checked against the code before the
+release tag.
 
 ## Requirements
 
@@ -13,6 +13,18 @@ before the release tag.
 
 - Plugin bootstrap, settings model, roles and capabilities, activation, deactivation and
   uninstall. No recipe content model yet.
+
+## Notes for site owners
+
+- **Network activation is not a tested configuration in 1.0.** On a multisite network,
+  activate the plugin on each site. Network activation is handled, but nothing in the
+  release process exercises it.
+- **Uninstall keeps your recipes** unless "Delete all data on uninstall" is on. With it on,
+  a site with thousands of recipes may not finish inside one web request; run
+  `wp plugin uninstall bluefairy-recipes` instead, or simply repeat the uninstall (it picks
+  up where it stopped).
+- After an uninstall and reinstall, recipes and writer profiles are intact, but users must
+  be given the Recipe Writer role again (uninstall removes the plugin's roles).
 
 ## Development
 

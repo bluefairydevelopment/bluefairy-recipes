@@ -21,6 +21,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// A second copy of this plugin (a renamed folder, a zip uploaded twice) must
+// not fatal on "cannot redeclare": the first copy loaded wins.
+if ( defined( 'BFRC_VERSION' ) ) {
+	return;
+}
+
 define( 'BFRC_FILE', __FILE__ );
 define( 'BFRC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BFRC_URL', plugin_dir_url( __FILE__ ) );
@@ -28,7 +34,8 @@ define( 'BFRC_VERSION', '1.0.0' );
 define( 'BFRC_DB_VERSION', '1.0.0' );
 
 // Autoloader — no Composer required at runtime. Only this plugin's namespace;
-// the Pro add-on loads its own classes.
+// the Pro add-on loads its own classes. The class name is validated before it
+// becomes a path, so nothing outside includes/ can ever be loaded through it.
 spl_autoload_register(
 	static function ( string $class_name ): void {
 		$prefix = 'BlueFairy\\Recipes\\';
@@ -36,7 +43,10 @@ spl_autoload_register(
 			return;
 		}
 		$relative = substr( $class_name, strlen( $prefix ) );
-		$file     = __DIR__ . '/includes/' . str_replace( '\\', '/', $relative ) . '.php';
+		if ( 1 !== preg_match( '/\A[A-Za-z0-9_]+(?:\\\\[A-Za-z0-9_]+)*\z/', $relative ) ) {
+			return;
+		}
+		$file = __DIR__ . '/includes/' . str_replace( '\\', '/', $relative ) . '.php';
 		if ( is_readable( $file ) ) {
 			require $file;
 		}
@@ -47,14 +57,15 @@ spl_autoload_register(
 register_activation_hook( __FILE__, [ BlueFairy\Recipes\Installer::class, 'activate' ] );
 register_deactivation_hook( __FILE__, [ BlueFairy\Recipes\Installer::class, 'deactivate' ] );
 
-/**
- * Accessor the Pro add-on uses to confirm the base plugin is really loaded.
- *
- * BFRC_VERSION alone is not proof: a constant can be defined by anything.
- * Pro checks for this function AND the constant.
- */
-function bfrc_plugin(): string {
-	return BFRC_VERSION;
+if ( ! function_exists( 'bfrc_plugin' ) ) {
+	/**
+	 * The loaded plugin's version, for the Pro add-on to confirm the base is
+	 * really loaded. BFRC_VERSION alone is not proof: a constant can be
+	 * defined by anything. Pro checks for this function AND the constant.
+	 */
+	function bfrc_plugin(): string {
+		return BFRC_VERSION;
+	}
 }
 
 // Boot after all plugins have loaded. Plugin::boot() fires `bfrc_loaded`

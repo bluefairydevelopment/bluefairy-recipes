@@ -112,7 +112,10 @@ final class Plugin {
 	}
 
 	/**
-	 * Reset boot state. A test seam: nothing in the plugin calls it.
+	 * Reset boot state. A test seam: nothing in the plugin calls it, and
+	 * nothing outside the test suite should.
+	 *
+	 * @internal
 	 */
 	public static function reset(): void {
 		self::$booted   = false;

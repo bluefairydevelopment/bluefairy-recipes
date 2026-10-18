@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace BlueFairy\Recipes\Tests\Unit;
 
+use BlueFairy\Recipes\Capabilities;
 use BlueFairy\Recipes\Settings;
 use BlueFairy\Recipes\Tests\TestCase;
 
@@ -19,11 +20,14 @@ final class SettingsTest extends TestCase {
 		$this->assertSame( 'recipes', $settings->get( 'archive_slug' ) );
 	}
 
-	public function test_stored_values_are_merged_over_defaults(): void {
-		update_option( 'bfrc_settings', [ 'per_page' => 24 ] );
+	public function test_stored_values_are_merged_over_defaults_and_normalised_on_read(): void {
+		update_option( 'bfrc_settings', [ 'per_page' => '24', 'grant_core_roles' => 'false', 'taxonomies' => [ 'diet' => [ 'enabled' => 0 ] ] ] );
 		$settings = new Settings();
-		$this->assertSame( 24, $settings->get( 'per_page' ) );
+		$this->assertSame( 24, $settings->get( 'per_page' ), 'a raw string is read as the int it should be' );
+		$this->assertFalse( $settings->get( 'grant_core_roles' ), '"false" written around the class reads as false, not as a truthy string' );
 		$this->assertSame( 'Recipes', $settings->get( 'archive_title' ) );
+		$this->assertSame( [ 'meal_type', 'diet', 'season', 'cuisine' ], array_keys( $settings->get( 'taxonomies' ) ), 'a stored map missing system codes still has them' );
+		$this->assertFalse( $settings->get( 'taxonomies' )['diet']['enabled'] );
 	}
 
 	public function test_corrupt_option_falls_back_to_defaults(): void {
@@ -35,18 +39,19 @@ final class SettingsTest extends TestCase {
 		$this->assertNull( ( new Settings() )->get( 'nope' ) );
 	}
 
-	public function test_update_sanitises_stores_and_refreshes_the_cache(): void {
+	public function test_update_has_form_semantics_sanitises_stores_and_refreshes_the_cache(): void {
 		$settings = new Settings();
 		$stored   = $settings->update(
 			[
-				'per_page'  => '999',
-				'enabled'   => 'on',
-				'bogus'     => 1,
+				'per_page'   => '999',
+				'enabled'    => 'on',
+				'bogus'      => 1,
 				'taxonomies' => [ 'diet' => [ 'enabled' => '0' ] ],
 			]
 		);
 		$this->assertSame( 100, $stored['per_page'] );
 		$this->assertTrue( $stored['enabled'] );
+		$this->assertFalse( $stored['grant_core_roles'], 'form semantics: an absent checkbox is unticked' );
 		$this->assertArrayNotHasKey( 'bogus', $stored );
 		$this->assertSame( $stored, get_option( 'bfrc_settings' ) );
 		$this->assertSame( 100, $settings->get( 'per_page' ), 'per-request cache refreshed after update' );
@@ -54,17 +59,30 @@ final class SettingsTest extends TestCase {
 		$this->assertTrue( $settings->last_update_succeeded() );
 	}
 
-	public function test_a_refused_write_is_reported(): void {
+	public function test_patch_changes_only_the_given_keys_and_keeps_pro_taxonomy_codes(): void {
+		$settings = new Settings();
+		$settings->update( array_merge( Settings::DEFAULTS, [ 'taxonomies' => Settings::DEFAULTS['taxonomies'] + [ 'occasion' => [ 'enabled' => true, 'sort_order' => 50 ] ] ] ) );
+		$stored = $settings->patch( [ 'per_page' => 5 ] );
+		$this->assertSame( 5, $stored['per_page'] );
+		$this->assertTrue( $stored['enabled'], 'merge semantics: an absent bool keeps its stored value' );
+		$this->assertTrue( $stored['grant_core_roles'] );
+		$this->assertSame( [ 'enabled' => true, 'sort_order' => 50 ], $stored['taxonomies']['occasion'], 'the add-on\'s filter type survives a one-key change' );
+		$this->assertSame( $stored, get_option( 'bfrc_settings' ) );
+		$this->assertSame( 5, $settings->get( 'per_page' ) );
+	}
+
+	public function test_a_refused_write_is_reported_and_implies_nothing(): void {
 		$GLOBALS['bfrc_test_option_write_fails'][] = 'bfrc_settings';
 		$settings = new Settings();
-		$settings->update( [ 'per_page' => 5 ] );
+		$settings->update( [ 'per_page' => 5, 'archive_slug' => 'cookbook' ] );
 		$this->assertFalse( $settings->last_update_succeeded() );
 		$this->assertFalse( get_option( Settings::FLUSH_OPTION ), 'no flush flagged for a write that did not happen' );
+		$this->assertFalse( get_role( 'author' )->has_cap( 'edit_bfrc_recipes' ), 'no grant change for a write that did not happen' );
 	}
 
 	public function test_an_unchanged_value_counts_as_stored(): void {
 		$settings = new Settings();
-		$clean    = $settings->update( [ 'per_page' => 12 ] );
+		$clean    = $settings->update( Settings::DEFAULTS );
 		$this->assertTrue( $settings->last_update_succeeded() );
 		$again = $settings->update( $clean );
 		$this->assertSame( $clean, $again );
@@ -73,19 +91,43 @@ final class SettingsTest extends TestCase {
 
 	public function test_changing_the_archive_slug_flags_a_rewrite_flush_and_keeping_it_does_not(): void {
 		$settings = new Settings();
-		$settings->update( [ 'archive_slug' => 'recipes' ] );
+		$settings->patch( [ 'archive_slug' => 'recipes' ] );
 		$this->assertFalse( get_option( Settings::FLUSH_OPTION ), 'same slug: no flush' );
-		$settings->update( [ 'archive_slug' => 'cookbook' ] );
+		$settings->patch( [ 'archive_slug' => 'cookbook' ] );
 		$this->assertSame( '1', get_option( Settings::FLUSH_OPTION ), 'changed slug: flush flagged' );
 	}
 
-	public function test_sanitize_clamps_per_page_at_both_bounds(): void {
+	public function test_flipping_grant_core_roles_grants_and_revokes_the_core_roles_capabilities(): void {
+		Capabilities::add_roles();
+		$settings = new Settings();
+		$this->assertFalse( get_role( 'author' )->has_cap( 'edit_bfrc_recipes' ) );
+		$settings->patch( [ 'grant_core_roles' => true ] );
+		$this->assertFalse( get_role( 'author' )->has_cap( 'edit_bfrc_recipes' ), 'default is already true: no change, no grant (activation grants)' );
+		$settings->patch( [ 'grant_core_roles' => false ] );
+		$this->assertFalse( get_role( 'editor' )->has_cap( 'edit_others_bfrc_recipes' ) );
+		Capabilities::grant_core_roles();
+		$settings->patch( [ 'grant_core_roles' => false ] );
+		$this->assertTrue( get_role( 'editor' )->has_cap( 'edit_others_bfrc_recipes' ), 'false → false: nothing revoked' );
+		$settings->patch( [ 'grant_core_roles' => true ] );
+		$settings->patch( [ 'grant_core_roles' => false ] );
+		$this->assertFalse( get_role( 'editor' )->has_cap( 'edit_others_bfrc_recipes' ), 'true → false revokes' );
+		$this->assertFalse( get_role( 'author' )->has_cap( 'publish_bfrc_recipes' ) );
+		$this->assertTrue( get_role( 'administrator' )->has_cap( Capabilities::MANAGE ), 'MANAGE on administrators is not part of the grant' );
+		$settings->patch( [ 'grant_core_roles' => true ] );
+		$this->assertTrue( get_role( 'author' )->has_cap( 'publish_bfrc_recipes' ), 'false → true grants' );
+	}
+
+	public function test_sanitize_clamps_per_page_at_both_bounds_and_a_non_number_takes_the_default(): void {
 		$s = new Settings();
 		$this->assertSame( 1, $s->sanitize( [ 'per_page' => 0 ] )['per_page'] );
 		$this->assertSame( 1, $s->sanitize( [ 'per_page' => -7 ] )['per_page'] );
 		$this->assertSame( 100, $s->sanitize( [ 'per_page' => 101 ] )['per_page'] );
 		$this->assertSame( 100, $s->sanitize( [ 'per_page' => 100 ] )['per_page'], 'the bound itself is allowed' );
 		$this->assertSame( 37, $s->sanitize( [ 'per_page' => '37' ] )['per_page'] );
+		$this->assertSame( 12, $s->sanitize( [ 'per_page' => 12.9 ] )['per_page'] );
+		foreach ( [ '', 'abc', null, true, [ 3 ] ] as $garbage ) {
+			$this->assertSame( 12, $s->sanitize( [ 'per_page' => $garbage ] )['per_page'], var_export( $garbage, true ) . ' is not a number: the default, not 1' );
+		}
 	}
 
 	public function test_missing_checkbox_means_false_but_missing_field_keeps_default(): void {
@@ -112,8 +154,44 @@ final class SettingsTest extends TestCase {
 		$this->assertSame( 'recipes', Settings::sanitize_slug( '' ) );
 		$this->assertSame( 'recipes', Settings::sanitize_slug( '!!!' ) );
 		$this->assertSame( 'recipes', Settings::sanitize_slug( 42 ) );
-		$this->assertSame( 64, strlen( Settings::sanitize_slug( str_repeat( 'a', 70 ) ) ), 'cut to 64' );
-		$this->assertSame( 'abc', Settings::sanitize_slug( 'abc-' . str_repeat( '-', 70 ) ), 'a trailing dash left by the cut is trimmed' );
+		$this->assertSame( str_repeat( 'a', 64 ), Settings::sanitize_slug( str_repeat( 'a', 70 ) ), 'cut to 64' );
+		$this->assertSame( str_repeat( 'a', 63 ), Settings::sanitize_slug( str_repeat( 'a', 63 ) . '-b' ), 'a dash left dangling by the cut is trimmed' );
+	}
+
+	public function test_sanitize_slug_cuts_percent_encoded_slugs_on_a_whole_character(): void {
+		$slug = Settings::sanitize_slug( str_repeat( 'ñ', 40 ) ); // each ñ encodes to %c3%b1 (6 bytes)
+		$this->assertLessThanOrEqual( 64, strlen( $slug ) );
+		$this->assertSame( 0, strlen( $slug ) % 6, 'whole characters only: ' . $slug );
+		$this->assertSame( 60, strlen( $slug ), '10 whole characters fit in 64 bytes' );
+		$this->assertTrue( mb_check_encoding( rawurldecode( $slug ), 'UTF-8' ) );
+		$this->assertStringEndsNotWith( '%', $slug );
+		$this->assertSame( '%e4%b8%ad%e6%96%87', Settings::sanitize_slug( '中文' ), 'short non-ASCII slugs are kept whole' );
+	}
+
+	/**
+	 * @return array<string, array{string}>
+	 */
+	public static function reserved_slugs(): array {
+		$cases = [];
+		foreach ( Settings::RESERVED_SLUGS as $slug ) {
+			$cases[ $slug ] = [ $slug ];
+		}
+		$cases['a year'] = [ '2024' ];
+		return $cases;
+	}
+
+	/**
+	 * @dataProvider reserved_slugs
+	 */
+	public function test_sanitize_slug_refuses_routes_wordpress_owns( string $slug ): void {
+		$this->assertSame( 'recipes', Settings::sanitize_slug( $slug ) );
+		$this->assertSame( 'recipes', Settings::sanitize_slug( strtoupper( $slug ) ) );
+	}
+
+	public function test_sanitize_slug_allows_names_near_the_reserved_ones(): void {
+		$this->assertSame( 'feeds', Settings::sanitize_slug( 'feeds' ) );
+		$this->assertSame( 'our-feed', Settings::sanitize_slug( 'our feed' ) );
+		$this->assertSame( '20245', Settings::sanitize_slug( '20245' ) );
 	}
 
 	public function test_archive_title_is_text_bounded_and_never_empty(): void {
@@ -127,27 +205,41 @@ final class SettingsTest extends TestCase {
 	public function test_sanitize_taxonomies_keeps_system_codes_valid_custom_codes_and_drops_the_rest(): void {
 		$clean = Settings::sanitize_taxonomies(
 			[
-				'diet'      => [
+				'diet'                => [
 					'enabled'    => 'off',
 					'sort_order' => '5000',
 				],
-				'occasion'  => [
+				'occasion'            => [
 					'enabled'    => '1',
 					'sort_order' => '-3',
 				],
-				'holiday'   => 'not an array',
-				'Bad Code'  => [ 'enabled' => true ],
-				'a'         => [ 'enabled' => true ],
+				'holiday'             => 'not an array',
+				'Bad Code'            => [ 'enabled' => true ],
+				'a'                   => [ 'enabled' => true ],
 				str_repeat( 'x', 28 ) => [ 'enabled' => true ],
-				7           => [ 'enabled' => true ],
+				"newline\n"           => [ 'enabled' => true ],
+				7                     => [ 'enabled' => true ],
+				'texture'             => [ 'sort_order' => 'abc' ],
 			]
 		);
-		$this->assertSame( [ 'meal_type', 'diet', 'season', 'cuisine', 'occasion', 'holiday' ], array_keys( $clean ), 'system codes first, then the valid custom ones in input order' );
+		$this->assertSame( [ 'meal_type', 'diet', 'season', 'cuisine', 'occasion', 'holiday', 'texture' ], array_keys( $clean ), 'system codes first, then the valid custom ones in input order' );
 		$this->assertSame( [ 'enabled' => false, 'sort_order' => 999 ], $clean['diet'] );
 		$this->assertSame( [ 'enabled' => true, 'sort_order' => 10 ], $clean['meal_type'], 'a missing system code takes its default' );
 		$this->assertSame( [ 'enabled' => true, 'sort_order' => 0 ], $clean['occasion'] );
 		$this->assertSame( [ 'enabled' => true, 'sort_order' => 100 ], $clean['holiday'], 'a non-array entry for a valid code takes the custom defaults' );
-		$this->assertSame( [], Settings::sanitize_taxonomies( 'garbage' )['meal_type'] === [ 'enabled' => true, 'sort_order' => 10 ] ? [] : [ 'wrong' ] );
+		$this->assertSame( [ 'enabled' => true, 'sort_order' => 100 ], $clean['texture'], 'a non-numeric sort order takes the default, not 0' );
+		$this->assertSame( [ 'enabled' => true, 'sort_order' => 10 ], Settings::sanitize_taxonomies( 'garbage' )['meal_type'] );
+	}
+
+	public function test_sanitize_taxonomies_caps_the_custom_codes(): void {
+		$raw = [];
+		for ( $i = 1; $i <= Settings::MAX_CUSTOM_TAXONOMIES + 5; $i++ ) {
+			$raw[ 'custom_' . $i ] = [ 'enabled' => true ];
+		}
+		$clean = Settings::sanitize_taxonomies( $raw );
+		$this->assertCount( 4 + Settings::MAX_CUSTOM_TAXONOMIES, $clean );
+		$this->assertArrayHasKey( 'custom_' . Settings::MAX_CUSTOM_TAXONOMIES, $clean );
+		$this->assertArrayNotHasKey( 'custom_' . ( Settings::MAX_CUSTOM_TAXONOMIES + 1 ), $clean );
 	}
 
 	public function test_taxonomy_code_pattern_bounds(): void {
@@ -158,6 +250,7 @@ final class SettingsTest extends TestCase {
 		$this->assertSame( 0, preg_match( Settings::TAXONOMY_CODE_PATTERN, '1abc' ), 'must start with a letter' );
 		$this->assertSame( 0, preg_match( Settings::TAXONOMY_CODE_PATTERN, 'Abc' ), 'lower case only' );
 		$this->assertSame( 0, preg_match( Settings::TAXONOMY_CODE_PATTERN, 'a-b' ), 'no dashes' );
+		$this->assertSame( 0, preg_match( Settings::TAXONOMY_CODE_PATTERN, "ab\n" ), 'a trailing newline is not a match (\z, not $)' );
 	}
 
 	public function test_system_taxonomies_match_the_defaults_map(): void {

@@ -1,21 +1,23 @@
 # BlueFairy Recipes — Features Guide
 
 **In development: 1.0.0 is not released.** Sections are added as each milestone lands and
-every claim is verified against the code (a doc-vs-code test enforces the labels, defaults
-and hook names below).
+every claim is verified against the code before the release.
 
-## Settings (Recipes → Settings)
+## Settings
+
+Stored in one option, `bfrc_settings`. The settings screen arrives with a later milestone;
+until then the values below are the defaults the plugin installs.
 
 | Setting | Default | Notes |
 |---|---|---|
 | Enabled | On | |
 | Rich snippets | On | |
-| Archive slug | `recipes` | Changing it flushes rewrite rules on the next page load |
+| Archive slug | `recipes` | Changing it flushes rewrite rules on the next page load. Routes WordPress owns (`feed`, `page`, `wp-json`, a year, …) are refused |
 | Archive title | Recipes | |
 | Recipes per page | 12 | 1–100 |
 | Social share | On | Facebook, X and Pinterest each have their own switch |
 | Writer listing | On | |
-| Grant core roles | On | Authors can write recipes, Editors and Administrators can manage them |
+| Grant core roles | On | Authors can write recipes, Editors and Administrators can manage them; turning it off takes those capabilities back |
 | Delete all data on uninstall | Off | |
 
 ## Roles
@@ -37,4 +39,4 @@ Administrators can always change settings.
 
 ## Differences from the Magento extension
 
-See the plan until the content model lands; this section is written with milestone A7.
+Written with the content model and front end (later milestones).
