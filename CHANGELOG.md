@@ -14,3 +14,6 @@
 - Public pages: recipe archive with filter panel, title search and pagination; filter-type
   pages; recipe page with photo or cookie-less video, ingredients, method, nutrition facts,
   share buttons and print; writers listing and writer pages; block and classic templates.
+- A password-protected recipe shows only its title, photo and writer on cards and keeps its
+  fields out of the REST API until unlocked; writer pages have one canonical address; the
+  Single Recipe template previews a recipe in the Site Editor.

@@ -72,6 +72,8 @@ final class Templates {
 		add_filter( 'body_class', [ $this, 'body_class' ] );
 		add_filter( 'document_title_parts', [ $this, 'document_title' ] );
 		add_filter( 'wp_sitemaps_users_query_args', [ $this->writers, 'sitemap_users_query' ] );
+		add_action( 'pre_user_query', [ $this->writers, 'exclude_opted_out' ] );
+		add_action( 'wp_head', [ $this, 'rel_canonical' ] );
 	}
 
 	/**
@@ -211,7 +213,10 @@ final class Templates {
 	/**
 	 * 404 a writer page that must not exist, the listing while it is off,
 	 * and a listing page past the last writer. Runs whether or not the
-	 * plugin is enabled: the query vars are registered either way.
+	 * plugin is enabled: the query vars are registered either way. The
+	 * query's posts are emptied too: core's feed loader does not look at
+	 * `set_404()`, so a 404ed writer feed would otherwise still carry the
+	 * recipes.
 	 */
 	public function guard(): void {
 		global $wp_query;
@@ -233,17 +238,104 @@ final class Templates {
 			$ok = (bool) $this->settings->get( 'enabled' ) && null !== $this->writers->public_writer( (string) $wp_query->get( 'author_name' ) );
 		}
 		if ( $ok ) {
+			$this->redirect_to_canonical( $wp_query );
 			return;
 		}
+		$wp_query->posts         = [];
+		$wp_query->post_count    = 0;
+		$wp_query->found_posts   = 0;
+		$wp_query->max_num_pages = 0;
 		$wp_query->set_404();
 		status_header( 404 );
 		nocache_headers();
 	}
 
 	/**
+	 * The pretty URL of the current writer view (`{archive}/chef/`,
+	 * `{archive}/chef/{nicename}/`, with `/page/N/`), or '' when the query is
+	 * not a writer view or the writer has no page.
+	 *
+	 * @param \WP_Query $query The main query.
+	 */
+	public function canonical_url( \WP_Query $query ): string {
+		$page = max( 1, (int) $query->get( 'paged' ) );
+		if ( (bool) $query->get( Writers::LIST_VAR ) ) {
+			$base = $this->writers->listing_url();
+		} elseif ( (bool) $query->get( Writers::QUERY_VAR ) ) {
+			$writer = $this->writers->public_writer( (string) $query->get( 'author_name' ) );
+			if ( null === $writer ) {
+				return '';
+			}
+			$base = $this->writers->url( $writer );
+		} else {
+			return '';
+		}
+		if ( $page > 1 ) {
+			$base = trailingslashit( $base ) . user_trailingslashit( 'page/' . $page, 'paged' );
+		}
+		return $base;
+	}
+
+	/**
+	 * The writer views answer to their pretty URLs only. The rewrite rules
+	 * pass the writer vars inside the request, never through the query
+	 * string, so `?bfrc_writers=1` or `?bfrc_writer=1&author_name=…` in
+	 * `$_GET` is the duplicate form: redirect it (301) when pretty permalinks
+	 * are on. Nothing happens for feeds (their URLs are core's) or without
+	 * permalinks (the query string is then the only URL there is).
+	 *
+	 * @param \WP_Query $query The main query, already judged valid.
+	 */
+	private function redirect_to_canonical( \WP_Query $query ): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- presence of a public query var, no value read.
+		$in_query_string = isset( $_GET[ Writers::LIST_VAR ] ) || isset( $_GET[ Writers::QUERY_VAR ] );
+		if ( ! $in_query_string || $query->is_feed() || '' === (string) get_option( 'permalink_structure' ) ) {
+			return;
+		}
+		$url = $this->canonical_url( $query );
+		if ( '' === $url ) {
+			return;
+		}
+		wp_safe_redirect( $url, 301, 'BlueFairy Recipes' );
+		exit;
+	}
+
+	/**
+	 * `wp_head`: a self-referencing canonical on the writer views. Core
+	 * prints one for singular pages only; a writer page or the listing is an
+	 * archive, so without this an SEO plugin that reads the queried object
+	 * (the post type) may point the canonical somewhere else. Filter
+	 * `bfrc_writer_canonical` (return '' to print nothing).
+	 */
+	public function rel_canonical(): void {
+		global $wp_query;
+		if ( ! $wp_query instanceof \WP_Query || $wp_query->is_404() || ! $this->is_recipe_query( $wp_query ) ) {
+			return;
+		}
+		$url = $this->canonical_url( $wp_query );
+		if ( '' === $url ) {
+			return;
+		}
+		/**
+		 * The canonical URL printed on a writer page or the writers listing.
+		 *
+		 * @param string    $url   The pretty URL of the view.
+		 * @param \WP_Query $query The main query.
+		 */
+		$url = (string) apply_filters( 'bfrc_writer_canonical', $url, $wp_query );
+		if ( '' !== $url ) {
+			echo '<link rel="canonical" href="' . esc_url( $url ) . '">' . "\n";
+		}
+	}
+
+	/**
 	 * Classic themes: our template unless the theme overrides it, either
 	 * with `bluefairy-recipes/{name}.php` or with its own recipe template
 	 * (`single-bfrc_recipe.php`, `archive-bfrc_recipe.php`, `taxonomy-bfrc_*.php`).
+	 * The writer views are not recipe archives (the listing's post query is
+	 * one recipe per page, a vehicle for the template), so a theme's own
+	 * `archive-bfrc_recipe.php` does not catch them; `bluefairy-recipes/archive-recipe.php`
+	 * still does, as it calls the Renderer.
 	 *
 	 * @param string $template The template core chose.
 	 */
@@ -255,7 +347,8 @@ final class Templates {
 		if ( function_exists( 'wp_is_block_theme' ) && wp_is_block_theme() ) {
 			return $template; // The block templates registered above apply through the hierarchy.
 		}
-		if ( self::is_theme_recipe_template( $template ) ) {
+		$writer_view = (bool) $wp_query->get( Writers::LIST_VAR ) || (bool) $wp_query->get( Writers::QUERY_VAR );
+		if ( ! $writer_view && self::is_theme_recipe_template( $template ) ) {
 			return $template;
 		}
 		return self::locate( $wp_query->is_singular( PostType::NAME ) ? 'single-recipe' : 'archive-recipe' );
@@ -370,10 +463,36 @@ final class Templates {
 	public function render_single_block(): string {
 		$post = get_post();
 		if ( ! $post instanceof \WP_Post || PostType::NAME !== $post->post_type ) {
-			return '';
+			if ( ! self::is_editor_preview() ) {
+				return '';
+			}
+			// The Site Editor renders the block over REST with no recipe in context: preview the
+			// newest published recipe, or say what the block is when there is none yet.
+			$latest = get_posts(
+				[
+					'post_type'        => PostType::NAME,
+					'post_status'      => 'publish',
+					'numberposts'      => 1,
+					'orderby'          => 'date',
+					'order'            => 'DESC',
+					'suppress_filters' => false,
+				]
+			);
+			$post   = $latest[0] ?? null;
+			if ( ! $post instanceof \WP_Post ) {
+				return '<article class="bfrc-recipe bfrc-recipe--placeholder"><p>' . esc_html__( 'The recipe shows here: its title, writer, timings, photo or video, ingredients, method, nutrition and share buttons. Publish a recipe to preview one.', 'bluefairy-recipes' ) . '</p></article>';
+			}
 		}
 		self::enqueue_assets();
 		return $this->renderer->single( $post );
+	}
+
+	/**
+	 * Is this the block editor asking for a server-rendered preview (the
+	 * block-renderer REST route), rather than a visitor's page?
+	 */
+	public static function is_editor_preview(): bool {
+		return function_exists( 'wp_is_serving_rest_request' ) && wp_is_serving_rest_request();
 	}
 
 	/**
@@ -384,6 +503,19 @@ final class Templates {
 		global $wp_query;
 		if ( ! $wp_query instanceof \WP_Query ) {
 			return '';
+		}
+		if ( self::is_editor_preview() && [] === (array) $wp_query->posts ) {
+			// The Site Editor's query has no recipes: preview the newest page of them.
+			$wp_query->posts = get_posts(
+				[
+					'post_type'        => PostType::NAME,
+					'post_status'      => 'publish',
+					'numberposts'      => $this->per_page(),
+					'orderby'          => 'date',
+					'order'            => 'DESC',
+					'suppress_filters' => false,
+				]
+			);
 		}
 		self::enqueue_assets();
 		return $this->renderer->archive( $wp_query );

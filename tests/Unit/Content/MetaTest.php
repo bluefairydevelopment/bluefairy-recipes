@@ -43,10 +43,58 @@ final class MetaTest extends TestCase {
 		$this->assertSame( Meta::empty_nutrition(), $registered[ Meta::NUTRITION ]['default'] );
 	}
 
+	public function test_defaults_are_the_registered_defaults(): void {
+		( new Meta() )->register();
+		$registered = $GLOBALS['bfrc_test_registered_meta']['bfrc_recipe'];
+		$this->assertSame( Meta::keys(), array_keys( Meta::defaults() ) );
+		foreach ( Meta::defaults() as $key => $fallback ) {
+			$this->assertSame( $fallback, $registered[ $key ]['default'], "$key: defaults() drifted from register()" );
+		}
+	}
+
+	public function test_a_password_protected_recipes_rest_item_shows_every_field_at_its_default_until_unlocked(): void {
+		bfrc_test_add_post( [ 'ID' => 41, 'post_type' => 'bfrc_recipe', 'post_password' => 'hunter2' ] );
+		$meta = [
+			Meta::PREP_MINUTES => 20,
+			Meta::INGREDIENTS  => [ [ 'measure' => '1', 'label' => 'secret spice', 'type' => 'plain' ] ],
+			Meta::STEPS        => [ [ 'text' => 'Stir' ] ],
+			Meta::NUTRITION    => [ 'calories' => 250.0 ] + Meta::empty_nutrition(),
+			'other_plugin_key' => 'kept',
+		];
+		$make = static fn(): \WP_REST_Response => new \WP_REST_Response( [ 'id' => 41, 'title' => [ 'rendered' => 'Protected: Soup' ], 'meta' => $meta ] );
+		$post = get_post( 41 );
+
+		$locked = Meta::hide_protected_meta( $make(), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) )->get_data();
+		$this->assertSame( 0, $locked['meta'][ Meta::PREP_MINUTES ] );
+		$this->assertSame( [], $locked['meta'][ Meta::INGREDIENTS ] );
+		$this->assertSame( [], $locked['meta'][ Meta::STEPS ] );
+		$this->assertSame( Meta::empty_nutrition(), $locked['meta'][ Meta::NUTRITION ] );
+		$this->assertSame( 'kept', $locked['meta']['other_plugin_key'], 'only our keys are blanked' );
+		$this->assertSame( 'Protected: Soup', $locked['title']['rendered'], 'the rest of the item is core\'s business' );
+		$this->assertStringNotContainsString( 'secret spice', wp_json_encode( $locked ) );
+
+		$wrong = new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' );
+		$wrong->set_param( 'password', 'hunter3' );
+		$this->assertSame( [], Meta::hide_protected_meta( $make(), $post, $wrong )->get_data()['meta'][ Meta::INGREDIENTS ], 'a wrong password unlocks nothing' );
+		$right = new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' );
+		$right->set_param( 'password', 'hunter2' );
+		$this->assertSame( $meta, Meta::hide_protected_meta( $make(), $post, $right )->get_data()['meta'], 'core\'s own rule: the right ?password= reads the item' );
+
+		$GLOBALS['bfrc_test_caps']['edit_post'] = static fn( array $args ): bool => 41 === ( $args[0] ?? 0 );
+		$this->assertSame( $meta, Meta::hide_protected_meta( $make(), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) )->get_data()['meta'], 'the recipe\'s editor sees it (the block editor needs it)' );
+		$GLOBALS['bfrc_test_caps'] = [];
+
+		bfrc_test_add_post( [ 'ID' => 42, 'post_type' => 'bfrc_recipe' ] );
+		$this->assertSame( $meta, Meta::hide_protected_meta( $make(), get_post( 42 ), new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/42' ) )->get_data()['meta'], 'no password, nothing to hide' );
+		$bare = Meta::hide_protected_meta( new \WP_REST_Response( [ 'id' => 41 ] ), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) );
+		$this->assertSame( [ 'id' => 41 ], $bare->get_data(), 'an item without meta (a context that omits it) passes through' );
+	}
+
 	public function test_register_hooks_registers_on_init_after_the_post_type(): void {
 		$m = new Meta();
 		$m->register_hooks();
 		$this->assertSame( 7, has_action( 'init', [ $m, 'register' ] ) );
+		$this->assertSame( 10, has_filter( 'rest_prepare_bfrc_recipe', [ Meta::class, 'hide_protected_meta' ] ), 'a locked recipe\'s REST item carries no field values' );
 		foreach ( [ 'added_post_meta', 'updated_post_meta', 'deleted_post_meta' ] as $hook ) {
 			$this->assertSame( 10, has_action( $hook, [ Meta::class, 'flush_featured_ids' ] ), $hook );
 		}

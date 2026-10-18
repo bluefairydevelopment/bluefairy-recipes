@@ -21,7 +21,9 @@ if ( ! class_exists( 'WP_Query' ) ) {
 		/** @var array<int, WP_Post> */
 		public array $posts        = [];
 		public int $found_posts    = 0;
+		public int $post_count     = 0;
 		public int $max_num_pages  = 0;
+		public bool $is_feed       = false;
 		public mixed $queried_object = null;
 		public bool $is_singular   = false;
 		public bool $is_archive    = false;
@@ -76,6 +78,9 @@ if ( ! class_exists( 'WP_Query' ) ) {
 		public function is_author(): bool {
 			return $this->is_author;
 		}
+		public function is_feed(): bool {
+			return $this->is_feed;
+		}
 		public function is_404(): bool {
 			return $this->is_404;
 		}
@@ -97,6 +102,7 @@ if ( ! class_exists( 'WP_User_Query' ) ) {
 	final class WP_User_Query {
 		/** @var array<string, mixed> */
 		public array $query_vars;
+		public string $query_where = ' WHERE 1=1';
 		/** @var array<int, object> */
 		private array $results = [];
 		/**
@@ -105,10 +111,15 @@ if ( ! class_exists( 'WP_User_Query' ) ) {
 		public function __construct( array $args = [] ) {
 			$this->query_vars                   = $args;
 			$GLOBALS['bfrc_test_user_queries'][] = $args;
+			do_action( 'pre_user_query', $this ); // As core: the SQL may be edited here; the stub then applies the plugin's flag itself.
+			$GLOBALS['bfrc_test_user_query_where'][] = $this->query_where;
 			$users                              = [];
 			foreach ( $GLOBALS['bfrc_test_users'] ?? [] as $id => $user ) {
 				if ( ! $user instanceof WP_User ) {
 					continue;
+				}
+				if ( ! empty( $args['bfrc_not_opted_out'] ) && '0' === (string) ( $GLOBALS['bfrc_test_user_meta'][ $id ]['bfrc_listed'] ?? '' ) ) {
+					continue; // Writers::exclude_opted_out(): NOT EXISTS a '0' row.
 				}
 				if ( isset( $args['role__in'] ) && [] === array_intersect( (array) $args['role__in'], $user->roles ) ) {
 					continue;
@@ -146,12 +157,16 @@ if ( ! class_exists( 'WP_User_Query' ) ) {
 				$users = array_slice( $users, 0, (int) $args['number'] );
 			}
 			if ( isset( $args['fields'] ) && is_array( $args['fields'] ) ) {
-				// As core: a list of fields returns plain objects with those properties only.
+				// As core: a list of fields returns plain stdClass rows from $wpdb with those properties only;
+				// every value is a string (ID included) and core adds a lowercase `id` alias.
 				$users = array_map(
 					static function ( WP_User $u ) use ( $args ): object {
 						$row = new stdClass();
 						foreach ( $args['fields'] as $f ) {
-							$row->$f = $u->$f;
+							$row->$f = (string) $u->$f;
+						}
+						if ( isset( $row->ID ) ) {
+							$row->id = $row->ID;
 						}
 						return $row;
 					},
@@ -163,6 +178,9 @@ if ( ! class_exists( 'WP_User_Query' ) ) {
 		/** @return array<int, object> */
 		public function get_results(): array {
 			return $this->results;
+		}
+		public function get( string $var ): mixed {
+			return $this->query_vars[ $var ] ?? null;
 		}
 	}
 }

@@ -24,7 +24,7 @@ final class WritersTest extends TestCase {
 		$this->settings = new Settings();
 		$this->writers  = new Writers( $this->settings );
 		// Writers (role): Ann (2 recipes), Bob (a draft only), Cal (opted out, 1 recipe). Opted-in editor Dee (1 recipe). Subscriber Eve (1 recipe, not listed).
-		bfrc_test_add_user( 5, [ 'roles' => [ 'bfrc_writer' ], 'display_name' => 'Ann', 'user_nicename' => 'ann' ] );
+		bfrc_test_add_user( 5, [ 'roles' => [ 'bfrc_writer' ], 'display_name' => 'Ann', 'user_nicename' => 'ann', 'user_email' => 'ann@example.test' ] );
 		bfrc_test_add_user( 6, [ 'roles' => [ 'bfrc_writer' ], 'display_name' => 'Bob', 'user_nicename' => 'bob' ] );
 		bfrc_test_add_user( 7, [ 'roles' => [ 'bfrc_writer' ], 'display_name' => 'cal', 'user_nicename' => 'cal' ] );
 		bfrc_test_add_user( 8, [ 'roles' => [ 'editor' ], 'display_name' => 'Dee', 'user_nicename' => 'dee' ] );
@@ -114,12 +114,18 @@ final class WritersTest extends TestCase {
 			$this->assertSame( Writers::LIMIT, $q['number'], 'bounded' );
 			$this->assertSame( [ 'ID', 'display_name', 'user_nicename' ], $q['fields'], 'ids and names only: no 500 user objects' );
 			$this->assertFalse( $q['count_total'], 'no FOUND_ROWS query' );
+			$this->assertArrayNotHasKey( 'meta_query', $q, 'never an OR meta_query: core joins usermeta twice without the key, quadratic in meta rows' );
 		}
+		$this->assertTrue( $queries[0][ Writers::NOT_OPTED_OUT ], 'the role query carries the NOT EXISTS flag instead' );
+		$this->assertArrayNotHasKey( Writers::NOT_OPTED_OUT, $queries[1], 'the opt-in query needs no exclusion' );
+		$this->assertSame( 5, $page['writers'][0]['user']->ID, 'the string ID core returns for an array fields query is cast' );
+		$this->assertSame( 'ann@example.test', $page['writers'][0]['user']->user_email, 'the page\'s writers are full user objects from the cache, not the id-only rows' );
 		$this->assertCount( 1, $GLOBALS['bfrc_test_count_calls'], 'one count_many_users_posts for everyone' );
 		$this->assertTrue( $GLOBALS['bfrc_test_count_calls'][0][2], 'public (published) only: Bob\'s draft does not count' );
 		$this->assertSame( [ [ 5, 8 ] ], $GLOBALS['bfrc_test_cached_users'], 'only the page\'s writers are loaded as objects' );
 		$this->assertSame( [], $this->writers->listed( 2 )['writers'], 'past the last page' );
 		$this->assertCount( 2, $GLOBALS['bfrc_test_user_queries'], 'computed once per request' );
+		$this->assertSame( $page, $this->writers->listed( 0 ), 'page 0 is page 1' );
 	}
 
 	public function test_listed_paginates_at_24_and_orders_names_case_insensitively_with_the_id_as_tiebreak(): void {
@@ -129,12 +135,29 @@ final class WritersTest extends TestCase {
 		}
 		bfrc_test_add_user( 299, [ 'roles' => [ 'bfrc_writer' ], 'display_name' => 'ann', 'user_nicename' => 'ann2' ] );
 		bfrc_test_add_post( [ 'ID' => 399, 'post_type' => 'bfrc_recipe', 'post_status' => 'publish', 'post_author' => 299 ] );
+		// An opted-in editor named "ann" with a LOWER id than Ann: she comes from the second query, so the
+		// merged input has her after Ann; only the id tiebreak puts her first.
+		bfrc_test_add_user( 3, [ 'roles' => [ 'editor' ], 'display_name' => 'ann', 'user_nicename' => 'ann3' ] );
+		update_user_meta( 3, 'bfrc_listed', '1' );
+		bfrc_test_add_post( [ 'ID' => 398, 'post_type' => 'bfrc_recipe', 'post_status' => 'publish', 'post_author' => 3 ] );
 		$one = $this->writers->listed( 1 );
 		$two = $this->writers->listed( 2 );
 		$this->assertCount( 24, $one['writers'] );
-		$this->assertCount( 9, $two['writers'], '33 public writers in all' );
+		$this->assertCount( 10, $two['writers'], '34 public writers in all' );
 		$this->assertSame( 2, $two['pages'] );
-		$this->assertSame( [ 5, 299 ], [ $one['writers'][0]['user']->ID, $one['writers'][1]['user']->ID ], 'Ann then ann: same name case-insensitively, lower id first' );
+		$this->assertSame( [ 3, 5, 299 ], array_map( static fn( array $w ): int => $w['user']->ID, array_slice( $one['writers'], 0, 3 ) ), 'ann (3), Ann (5), ann (299): same name case-insensitively, lower id first, whichever query found them' );
+	}
+
+	public function test_exclude_opted_out_adds_one_not_exists_clause_to_flagged_user_queries_only(): void {
+		add_action( 'pre_user_query', [ $this->writers, 'exclude_opted_out' ] );
+		$this->writers->listed( 1 );
+		$where = $GLOBALS['bfrc_test_user_query_where'];
+		$this->assertCount( 2, $where );
+		$this->assertSame( " WHERE 1=1 AND NOT EXISTS ( SELECT 1 FROM bfw_usermeta bfrc_lm WHERE bfrc_lm.user_id = bfw_users.ID AND bfrc_lm.meta_key = 'bfrc_listed' AND bfrc_lm.meta_value = '0' )", $where[0], 'the role query: one correlated subquery on the key' );
+		$this->assertSame( ' WHERE 1=1', $where[1], 'the opt-in query is untouched' );
+		$plain = new \WP_User_Query( [ 'number' => 3 ] );
+		$this->writers->exclude_opted_out( $plain );
+		$this->assertSame( ' WHERE 1=1', $plain->query_where, 'no flag, no clause: other plugins\' user queries are not ours to filter' );
 	}
 
 	public function test_listed_is_empty_when_nobody_qualifies(): void {
@@ -143,14 +166,18 @@ final class WritersTest extends TestCase {
 		$this->assertSame( [], $GLOBALS['bfrc_test_cached_users'] );
 	}
 
-	public function test_sitemap_users_query_leaves_out_writers_who_opted_out(): void {
-		$args = $this->writers->sitemap_users_query( [ 'number' => 2000, 'meta_query' => [ [ 'key' => 'x', 'value' => 'y' ] ] ] );
+	public function test_sitemap_users_query_leaves_out_writers_who_opted_out_without_touching_other_clauses(): void {
+		$in   = [ 'number' => 2000, 'meta_query' => [ 'relation' => 'OR', [ 'key' => 'x', 'value' => 'y' ] ] ];
+		$args = $this->writers->sitemap_users_query( $in );
 		$this->assertSame( 2000, $args['number'] );
-		$this->assertSame( [ 'key' => 'x', 'value' => 'y' ], $args['meta_query'][0], 'core\'s clauses stay' );
-		$this->assertSame( 'OR', $args['meta_query'][1]['relation'] );
-		$this->assertSame( [ 'key' => 'bfrc_listed', 'compare' => 'NOT EXISTS' ], $args['meta_query'][1][0] );
-		$this->assertSame( [ 'key' => 'bfrc_listed', 'value' => '0', 'compare' => '!=' ], $args['meta_query'][1][1] );
-		$this->assertArrayHasKey( 'meta_query', $this->writers->sitemap_users_query( [] ) );
+		$this->assertSame( $in['meta_query'], $args['meta_query'], 'another plugin\'s meta_query, relation included, is exactly as it was' );
+		$this->assertTrue( $args[ Writers::NOT_OPTED_OUT ], 'the exclusion is the flag exclude_opted_out() reads' );
+		$this->assertSame( [ Writers::NOT_OPTED_OUT => true ], $this->writers->sitemap_users_query( [] ) );
+		add_action( 'pre_user_query', [ $this->writers, 'exclude_opted_out' ] );
+		$ids = array_map( static fn( object $r ): int => (int) $r->ID, ( new \WP_User_Query( $this->writers->sitemap_users_query( [ 'fields' => [ 'ID' ] ] ) ) )->get_results() );
+		$this->assertContains( 5, $ids, 'Ann is listed' );
+		$this->assertNotContains( 7, $ids, 'Cal opted out: out of the sitemap' );
+		$this->assertStringContainsString( 'NOT EXISTS', $GLOBALS['bfrc_test_user_query_where'][0] );
 	}
 
 	public function test_profile_reads_the_fields_and_keeps_only_http_links(): void {

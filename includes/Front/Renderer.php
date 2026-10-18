@@ -123,7 +123,11 @@ final class Renderer {
 
 	/**
 	 * The terms of every enabled taxonomy, one query, keyed by taxonomy
-	 * name, ≤ TERMS_LIMIT per taxonomy, name order.
+	 * name, ≤ TERMS_LIMIT per taxonomy, name order. The query's budget is
+	 * TERMS_LIMIT × taxonomies, ordered by name across all of them, so on a
+	 * site where one taxonomy alone has more in-use terms than the whole
+	 * budget, a later taxonomy's dropdown can come up short; the per-taxonomy
+	 * cap is then the smaller limit anyway.
 	 *
 	 * @return array<string, array<int, \WP_Term>>
 	 */
@@ -175,30 +179,51 @@ final class Renderer {
 
 	/**
 	 * One recipe card. A password-protected recipe shows core's protected
-	 * title and no excerpt (core withholds it); its photo shows, as core's
-	 * own loops do.
+	 * title and its photo (as core's own loops do), and none of its fields:
+	 * no badges and no excerpt (core would print "There is no excerpt
+	 * because this is a protected post." in its place).
 	 *
 	 * @param \WP_Post    $post       The recipe.
 	 * @param string|null $writer_url The writer's public URL, or null when they have no page.
 	 */
 	public function card( \WP_Post $post, ?string $writer_url = null ): string {
-		$data   = RecipeData::for_post( $post );
-		$url    = get_permalink( $post );
-		$title  = get_the_title( $post );
-		$html   = '<article class="bfrc-card' . ( $data->featured ? ' bfrc-card--featured' : '' ) . '">';
-		$thumb  = get_the_post_thumbnail( $post, self::GRID_IMAGE, [ 'class' => 'bfrc-card__image' ] );
-		$html  .= '<a class="bfrc-card__media" href="' . esc_url( (string) $url ) . '" tabindex="-1" aria-hidden="true">' . ( '' !== $thumb ? $thumb : '<span class="bfrc-card__placeholder"></span>' ) . '</a>';
-		$html  .= '<div class="bfrc-card__body"><h2 class="bfrc-card__title"><a href="' . esc_url( (string) $url ) . '">' . esc_html( $title ) . '</a></h2>';
-		$html  .= $this->badges( $data, false );
+		$data      = RecipeData::for_post( $post );
+		$protected = post_password_required( $post );
+		$url       = get_permalink( $post );
+		$title     = get_the_title( $post );
+		$html      = '<article class="bfrc-card' . ( $data->featured ? ' bfrc-card--featured' : '' ) . ( $protected ? ' bfrc-card--protected' : '' ) . '">';
+		$thumb     = get_the_post_thumbnail( $post, self::GRID_IMAGE, [ 'class' => 'bfrc-card__image' ] );
+		$html     .= '<a class="bfrc-card__media" href="' . esc_url( (string) $url ) . '" tabindex="-1" aria-hidden="true">' . ( '' !== $thumb ? $thumb : '<span class="bfrc-card__placeholder"></span>' ) . '</a>';
+		$html     .= '<div class="bfrc-card__body"><h2 class="bfrc-card__title"><a href="' . esc_url( (string) $url ) . '">' . esc_html( $title ) . '</a></h2>';
+		if ( ! $protected ) {
+			$html .= $this->badges( $data, false ); // As the recipe page: a locked recipe shows its title and photo, nothing of its contents.
+		}
 		$author = $this->author_line( $post, $writer_url );
 		if ( '' !== $author ) {
 			$html .= '<p class="bfrc-card__writer">' . $author . '</p>';
 		}
-		$text = has_excerpt( $post ) ? get_the_excerpt( $post ) : '';
+		$text = ! $protected && has_excerpt( $post ) ? get_the_excerpt( $post ) : '';
 		if ( '' !== $text ) {
 			$html .= '<p class="bfrc-card__excerpt">' . esc_html( wp_trim_words( wp_strip_all_tags( $text ), 24, '…' ) ) . '</p>';
 		}
 		return $html . '</div></article>';
+	}
+
+	/**
+	 * Did the writer write a body? Text once block comments, tags and
+	 * non-breaking spaces are gone, or a media element (an image, gallery,
+	 * video, audio or embed block alone is a body). An empty paragraph block
+	 * left behind by the editor is not.
+	 *
+	 * @param string $content Raw post content.
+	 */
+	public static function has_body( string $content ): bool {
+		$stripped = (string) preg_replace( '/<!--.*?-->/s', '', $content );
+		if ( 1 === preg_match( '/<(img|picture|video|audio|iframe|embed|object|figure|svg)\b/i', $stripped ) ) {
+			return true;
+		}
+		$text = str_replace( [ '&nbsp;', "\xC2\xA0" ], ' ', wp_strip_all_tags( $stripped ) );
+		return '' !== trim( $text );
 	}
 
 	/**
@@ -337,7 +362,7 @@ final class Renderer {
 		if ( '' !== $excerpt ) {
 			$html .= '<p class="bfrc-recipe__summary">' . esc_html( wp_strip_all_tags( $excerpt ) ) . '</p>';
 		}
-		if ( '' !== trim( $post->post_content ) ) {
+		if ( self::has_body( $post->post_content ) ) {
 			// Only when the writer wrote something: `the_content` filters from other plugins append their
 			// own blocks (related products, share bars) and must not decorate an empty body. A body of
 			// media alone (an image or gallery block) counts as written.

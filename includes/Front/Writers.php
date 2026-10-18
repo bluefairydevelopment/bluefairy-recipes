@@ -39,6 +39,8 @@ final class Writers {
 	public const QUERY_VAR = 'bfrc_writer';
 	public const LIST_VAR  = 'bfrc_writers';
 	public const SEGMENT   = 'chef';
+	/** WP_User_Query flag read by exclude_opted_out(). */
+	public const NOT_OPTED_OUT = 'bfrc_not_opted_out';
 
 	/**
 	 * Memo of public_writer() per nicename, per request.
@@ -108,27 +110,37 @@ final class Writers {
 
 	/**
 	 * Core's users sitemap lists authors of public post types; a writer who
-	 * opted out of the listing is left out of it too.
+	 * opted out of the listing is left out of it too, through the same
+	 * `NOT EXISTS` clause as the listing (`exclude_opted_out()`), so another
+	 * plugin's `meta_query` on the sitemap is left exactly as it was.
 	 *
 	 * @param array<string, mixed> $args The user query arguments.
 	 * @return array<string, mixed>
 	 */
 	public function sitemap_users_query( array $args ): array {
-		$existing           = isset( $args['meta_query'] ) && is_array( $args['meta_query'] ) ? $args['meta_query'] : [];
-		$existing[]         = [
-			'relation' => 'OR',
-			[
-				'key'     => WriterProfile::LISTED,
-				'compare' => 'NOT EXISTS',
-			],
-			[
-				'key'     => WriterProfile::LISTED,
-				'value'   => '0',
-				'compare' => '!=',
-			],
-		];
-		$args['meta_query'] = $existing; // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- core's own sitemap query, already bounded by its page size.
+		$args[ self::NOT_OPTED_OUT ] = true;
 		return $args;
+	}
+
+	/**
+	 * `pre_user_query`: a user query flagged `bfrc_not_opted_out` leaves out
+	 * everyone whose listing switch is stored as `'0'`, with one correlated
+	 * `NOT EXISTS` on the key. The same rule as a `meta_query` of
+	 * "absent OR != '0'", which core builds as two usermeta joins that are
+	 * not keyed on `meta_key`, so every user fans out to all their meta rows
+	 * (seconds on a site with tens of thousands of users).
+	 *
+	 * @param \WP_User_Query $query The query being prepared.
+	 */
+	public function exclude_opted_out( \WP_User_Query $query ): void {
+		if ( ! (bool) $query->get( self::NOT_OPTED_OUT ) ) {
+			return;
+		}
+		global $wpdb;
+		$query->query_where .= $wpdb->prepare(
+			" AND NOT EXISTS ( SELECT 1 FROM {$wpdb->usermeta} bfrc_lm WHERE bfrc_lm.user_id = {$wpdb->users}.ID AND bfrc_lm.meta_key = %s AND bfrc_lm.meta_value = '0' )",
+			WriterProfile::LISTED
+		);
 	}
 
 	/**
@@ -165,7 +177,8 @@ final class Writers {
 	 * display-name order, one page of PER_PAGE. Two bounded id-only user
 	 * queries (the Writer role, and anyone who switched the listing on),
 	 * one `count_many_users_posts()`, then only the page's writers are
-	 * loaded as objects. Computed once per request.
+	 * loaded as full `WP_User` objects (one `cache_users()`, then
+	 * `get_userdata()` from the cache). Computed once per request.
 	 *
 	 * @param int $page 1-based page.
 	 * @return array{writers: array<int, array{user: \WP_User, count: int}>, total: int, pages: int}
@@ -178,6 +191,12 @@ final class Writers {
 		$slice = array_slice( $all, ( $page - 1 ) * self::PER_PAGE, self::PER_PAGE );
 		if ( [] !== $slice ) {
 			cache_users( array_map( static fn( array $w ): int => $w['user']->ID, $slice ) );
+			foreach ( $slice as $i => $w ) {
+				$user = get_userdata( $w['user']->ID );
+				if ( $user instanceof \WP_User ) {
+					$slice[ $i ]['user'] = $user; // The id-only row becomes the real user: email, login, caps, every field a template may ask for.
+				}
+			}
 		}
 		return [
 			'writers' => $slice,
@@ -188,7 +207,10 @@ final class Writers {
 
 	/**
 	 * Every public writer with their count, in display-name order (ids and
-	 * display names only until a page is sliced).
+	 * display names only until a page is sliced). Each query takes its first
+	 * LIMIT users by display name before the recipe counts are checked, so a
+	 * site with more than LIMIT Writer-role users (or opt-ins) can leave some
+	 * writers with recipes off the listing; their own pages still work.
 	 *
 	 * @return array<int, array{user: \WP_User, count: int}>
 	 */
@@ -198,24 +220,13 @@ final class Writers {
 		}
 		$by_role  = new \WP_User_Query(
 			[
-				'role__in'    => [ Capabilities::ROLE_WRITER ],
-				'number'      => self::LIMIT,
-				'orderby'     => 'display_name',
-				'order'       => 'ASC',
-				'fields'      => [ 'ID', 'display_name', 'user_nicename' ],
-				'count_total' => false,
-				'meta_query'  => [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- bounded by `number`; the listing is one page of 24.
-					'relation' => 'OR',
-					[
-						'key'     => WriterProfile::LISTED,
-						'compare' => 'NOT EXISTS',
-					],
-					[
-						'key'     => WriterProfile::LISTED,
-						'value'   => '0',
-						'compare' => '!=',
-					],
-				],
+				'role__in'          => [ Capabilities::ROLE_WRITER ],
+				'number'            => self::LIMIT,
+				'orderby'           => 'display_name',
+				'order'             => 'ASC',
+				'fields'            => [ 'ID', 'display_name', 'user_nicename' ],
+				'count_total'       => false,
+				self::NOT_OPTED_OUT => true, // exclude_opted_out(): never a meta_query here (see that method).
 			]
 		);
 		$opted_in = new \WP_User_Query(

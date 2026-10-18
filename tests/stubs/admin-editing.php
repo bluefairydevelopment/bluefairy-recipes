@@ -178,7 +178,8 @@ if ( ! function_exists( 'metadata_exists' ) ) {
 }
 if ( ! function_exists( '_prime_post_caches' ) ) {
 	function _prime_post_caches( array $ids, bool $update_term_cache = true, bool $update_meta_cache = true ): void {
-		$GLOBALS['bfrc_test_primed'][] = $ids;
+		$GLOBALS['bfrc_test_primed'][]     = $ids;
+		$GLOBALS['bfrc_test_prime_args'][] = [ $ids, $update_term_cache, $update_meta_cache ];
 	}
 }
 if ( ! function_exists( 'get_posts' ) ) {
@@ -190,6 +191,9 @@ if ( ! function_exists( 'get_posts' ) ) {
 			if ( isset( $args['post_type'] ) && $post->post_type !== $args['post_type'] ) {
 				continue;
 			}
+			if ( isset( $args['post_status'] ) && 'any' !== $args['post_status'] && $post->post_status !== $args['post_status'] ) {
+				continue;
+			}
 			if ( isset( $args['meta_key'] ) ) {
 				$value = $GLOBALS['bfrc_test_post_meta'][ $post->ID ][ $args['meta_key'] ] ?? null;
 				if ( null === $value || ( isset( $args['meta_value'] ) && (string) ( is_bool( $value ) ? ( $value ? '1' : '' ) : $value ) !== (string) $args['meta_value'] ) ) {
@@ -197,6 +201,9 @@ if ( ! function_exists( 'get_posts' ) ) {
 				}
 			}
 			$out[] = ( $args['fields'] ?? '' ) === 'ids' ? $post->ID : $post;
+		}
+		if ( isset( $args['numberposts'] ) && (int) $args['numberposts'] > 0 ) {
+			$out = array_slice( $out, 0, (int) $args['numberposts'] );
 		}
 		return $out;
 	}

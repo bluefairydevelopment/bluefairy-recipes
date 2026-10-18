@@ -90,10 +90,33 @@ final class Meta {
 	}
 
 	/**
-	 * Register on init, after the post type; keep servings consistent on every write path.
+	 * The registered default of every key (what REST returns for a recipe
+	 * that never had the key, and what a locked recipe's REST item shows).
+	 *
+	 * @return array<string, mixed>
+	 */
+	public static function defaults(): array {
+		return [
+			self::MEDIA_TYPE   => 'image',
+			self::VIDEO_URL    => '',
+			self::PREP_MINUTES => 0,
+			self::COOK_MINUTES => 0,
+			self::SERVINGS_MIN => 0,
+			self::SERVINGS_MAX => 0,
+			self::FEATURED     => false,
+			self::INGREDIENTS  => [],
+			self::STEPS        => [],
+			self::NUTRITION    => self::empty_nutrition(),
+		];
+	}
+
+	/**
+	 * Register on init, after the post type; keep servings consistent on every write path;
+	 * keep a password-protected recipe's fields out of its REST item.
 	 */
 	public function register_hooks(): void {
 		add_action( 'init', [ $this, 'register' ], 7 );
+		add_filter( 'rest_prepare_' . PostType::NAME, [ self::class, 'hide_protected_meta' ], 10, 3 );
 		add_action( 'added_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
 		add_action( 'updated_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
 		add_action( 'added_post_meta', [ self::class, 'flush_featured_ids' ], 10, 3 );
@@ -352,6 +375,38 @@ final class Meta {
 				'auth_callback'     => $auth,
 			]
 		);
+	}
+
+	/**
+	 * `rest_prepare_bfrc_recipe`: a password-protected recipe's REST item
+	 * shows every field at its default until the caller may read the post
+	 * (core's own rule for `content`: an editor of the post, or the right
+	 * `password` parameter). The page shows the password form and nothing
+	 * else; the API must not hand out what the page withholds.
+	 *
+	 * @param \WP_REST_Response $response The item.
+	 * @param \WP_Post          $post     The recipe.
+	 * @param \WP_REST_Request  $request  The request.
+	 */
+	public static function hide_protected_meta( \WP_REST_Response $response, \WP_Post $post, \WP_REST_Request $request ): \WP_REST_Response {
+		if ( '' === (string) $post->post_password || current_user_can( 'edit_post', $post->ID ) ) {
+			return $response;
+		}
+		$password = $request['password'] ?? null;
+		if ( is_string( $password ) && '' !== $password && hash_equals( (string) $post->post_password, $password ) ) {
+			return $response;
+		}
+		$data = $response->get_data();
+		if ( ! is_array( $data ) || ! isset( $data['meta'] ) || ! is_array( $data['meta'] ) ) {
+			return $response;
+		}
+		foreach ( self::defaults() as $key => $fallback ) {
+			if ( array_key_exists( $key, $data['meta'] ) ) {
+				$data['meta'][ $key ] = $fallback;
+			}
+		}
+		$response->set_data( $data );
+		return $response;
 	}
 
 	/**

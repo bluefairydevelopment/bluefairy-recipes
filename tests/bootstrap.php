@@ -132,6 +132,7 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_count_calls']      = [];
 	$GLOBALS['bfrc_test_dropdowns']        = [];
 	$GLOBALS['bfrc_test_user_queries']     = [];
+	$GLOBALS['bfrc_test_user_query_where'] = [];
 	$GLOBALS['bfrc_test_get_terms_calls']  = [];
 	$GLOBALS['bfrc_test_password_unlocked'] = [];
 	$GLOBALS['bfrc_test_rewrite_rules']    = [];
@@ -146,6 +147,7 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_archive_slugs']    = [];
 	unset( $GLOBALS['wp_query'] );
 	$GLOBALS['bfrc_test_primed']           = [];
+	$GLOBALS['bfrc_test_prime_args']       = [];
 	$GLOBALS['bfrc_test_thumbnail_cache_calls'] = [];
 	$GLOBALS['bfrc_test_get_posts_calls']  = [];
 	unset( $GLOBALS['post'] );
