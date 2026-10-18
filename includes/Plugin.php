@@ -81,6 +81,18 @@ final class Plugin {
 		self::set( 'content.meta', $meta );
 		self::set( 'content.slugs', $slugs );
 
+		if ( is_admin() ) {
+			$editor = new Admin\RecipeEditor();
+			$editor->register_hooks();
+			self::set( 'admin.editor', $editor );
+			$list = new Admin\ListTable();
+			$list->register_hooks();
+			self::set( 'admin.list_table', $list );
+			$profile = new Admin\WriterProfile();
+			$profile->register_hooks();
+			self::set( 'admin.writer_profile', $profile );
+		}
+
 		/**
 		 * Every subsystem is wired. Add-ons that need an instance (the
 		 * settings, a repository) fetch it with Plugin::service().

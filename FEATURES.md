@@ -17,9 +17,21 @@ A recipe is a post of type `bfrc_recipe`, edited in the block editor. The post t
 | Ingredients | up to 200 rows of measure (≤ 64 characters) and label (≤ 255) | a row without a label is dropped |
 | Steps | up to 200 numbered steps | post-safe HTML allowed |
 | Nutrition | calories (kcal), fat, saturated fat, carbohydrates, sugar, fiber, protein (g), sodium (mg) | numbers up to 100,000 with two decimals; `12,5` is read as 12.5 but `1,200` is refused as ambiguous; an empty field is not shown |
-| Servings | | max is never below min: whichever you change last, the other follows |
+| Servings | | max is never below min: on the edit screen a minimum above the maximum raises the maximum; through the REST API whichever value was written last wins and the other follows |
 
-A published recipe's slug may not be `chef`, `submit`, `page`, `embed`, `trackback`, a feed name or a filter type's name: such a slug gets a numeric suffix (`chef-2`) when the recipe is published.
+### Editing a recipe
+
+The recipe fields are edited in five panels on the recipe screen, in both the block editor and the classic editor: **Recipe Details** (times, servings, Featured), **Recipe Video** (photo or video, and the video URL), **Ingredients**, **Steps** and **Nutrition**. Ingredient and step rows can be added, removed, moved with the arrow buttons or dragged by their handle into order; a recipe can hold up to 200 of each, and a new recipe starts with one blank row so it can be filled even without JavaScript. Servings are checked together as you typed them: a minimum above the maximum raises the maximum. Times and servings are whole numbers; a decimal is rounded down. A video URL that is not a YouTube or Vimeo video is not saved: the block editor shows a warning under the field as soon as the save finishes, the classic editor shows it after the page reloads, and either way the warning names the URL that was refused. Fields are saved only by the recipe form itself: a quick edit, an autosave or a request that did not post the panels never clears them, and a panel that did not reach the server in full keeps its previous values. **Featured** is a curation flag: Recipe Managers and Administrators set it, and Editors while the "grant core roles" setting is on (in the panel, by bulk action, or through the REST API); writers see it read-only, their saves never change it, and restoring an older revision never changes it either. In the block editor the panels keep showing what you typed until the page is reloaded, even where the server rounded or clamped a value; the video URL is the one field checked back straight after saving.
+
+Very long recipes: a web server accepts a limited number of form fields per request (PHP's `max_input_vars`, usually 1000). A recipe of 200 ingredients and 200 steps fits within that default; the editor warns before the form outgrows the limit, and a panel that was cut off keeps its previous values instead of being emptied.
+
+### The Recipes list
+
+The list shows the photo, prep and cook time, servings and a featured star for each recipe, plus a column for every enabled filter type. Above the list you can filter by any filter type that has terms and by featured or not, and sort by the Featured column (recipes that were never marked sort as not featured). Curators get two bulk actions, **Mark featured** and **Unmark featured**, which apply to the recipes they may edit and report how many recipes actually changed.
+
+### Writer profiles
+
+Every user who can edit recipes has a **Recipe writer profile** section on their profile screen: a profile photo and a header image from the media library (shown to users who may upload files), an About paragraph (basic formatting kept, up to 5000 characters), a website and YouTube, Facebook, Instagram and Snapchat links (http or https with a host; anything else is cleared), and **List this writer on the public writers page**, which is on by default for the Recipe Writer role and off for everyone else. Only an image you uploaded yourself, or may edit, is accepted as a photo; any other choice keeps the previous image. Only someone who may edit that user can save the section.
 
 ## Filter types (taxonomies)
 
@@ -71,6 +83,10 @@ Administrators can always change settings.
 | `bfrc_ingredient_types` | filter | Add ingredient row types beyond `plain` |
 | `bfrc_ingredient_row_fields` | filter | Extra fields, with sanitisers, for an ingredient row type |
 | `bfrc_reserved_slugs` | filter | More recipe slugs to refuse |
+| `bfrc_recipe_meta_boxes` | action | Add your own panels to the recipe edit screen (receives the post) |
+| `bfrc_ingredient_type_labels` | filter | Name your ingredient row types in the editor |
+| `bfrc_ingredient_row_field_labels` | filter | Label the extra fields of an ingredient row type |
+| `bfrc_recipe_saved` | action | The recipe form was saved; receives the post id and every value written |
 
 ## Differences from the Magento extension
 

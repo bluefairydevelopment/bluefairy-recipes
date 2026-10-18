@@ -1,0 +1,11 @@
+{
+  "name": "bluefairy-recipes-dev",
+  "private": true,
+  "description": "Development dependencies for the BlueFairy Recipes JavaScript tests (not shipped).",
+  "scripts": {
+    "test": "node --test tests/js/*.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
+}

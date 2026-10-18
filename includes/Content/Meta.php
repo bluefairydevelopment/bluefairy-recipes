@@ -17,9 +17,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Every recipe field is registered post meta: single, typed for REST with a
- * schema, revisioned (restoring a revision restores the ingredients), writable
- * only by someone who can edit the recipe, and sanitised by one callback per
- * key whichever path writes it (meta box, REST, WP-CLI).
+ * schema, revisioned (restoring a revision restores the ingredients) except
+ * Featured, writable only by someone who can edit the recipe (Featured: by a
+ * curator, see can_curate()), and sanitised by one callback per key whichever
+ * path writes it (meta box, REST, WP-CLI).
  *
  * The one rule that spans two keys, servings max ≥ min, is owned here too:
  * whichever of the two is written last wins and the other follows, on
@@ -41,9 +42,13 @@ final class Meta {
 	public const SERVINGS_MIN = '_bfrc_servings_min';
 	public const SERVINGS_MAX = '_bfrc_servings_max';
 	public const FEATURED     = '_bfrc_featured';
-	public const INGREDIENTS  = '_bfrc_ingredients';
-	public const STEPS        = '_bfrc_steps';
-	public const NUTRITION    = '_bfrc_nutrition';
+	/** The capability that may set Featured. */
+	public const CURATE_CAP = 'edit_others_bfrc_recipes';
+	/** Object-cache key of the featured id set. */
+	public const FEATURED_IDS_CACHE = 'featured_ids';
+	public const INGREDIENTS        = '_bfrc_ingredients';
+	public const STEPS              = '_bfrc_steps';
+	public const NUTRITION          = '_bfrc_nutrition';
 
 	public const MAX_MINUTES   = 6000;
 	public const MAX_SERVINGS  = 999;
@@ -91,6 +96,60 @@ final class Meta {
 		add_action( 'init', [ $this, 'register' ], 7 );
 		add_action( 'added_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
 		add_action( 'updated_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
+		add_action( 'added_post_meta', [ self::class, 'flush_featured_ids' ], 10, 3 );
+		add_action( 'updated_post_meta', [ self::class, 'flush_featured_ids' ], 10, 3 );
+		add_action( 'deleted_post_meta', [ self::class, 'flush_featured_ids' ], 10, 3 );
+	}
+
+	/**
+	 * May the current user curate (set Featured)? Recipe Managers,
+	 * Administrators, and Editors while the core-role grant is on, hold
+	 * `edit_others_bfrc_recipes`; a Writer does not.
+	 */
+	public static function can_curate(): bool {
+		return current_user_can( self::CURATE_CAP );
+	}
+
+	/**
+	 * Ids of every recipe marked featured, any status: one indexed postmeta
+	 * lookup, cached for the request (and in a persistent object cache until
+	 * a featured value changes). The list's featured filter and sort, and the
+	 * front end's featured block, work from this set, so no query ever joins
+	 * postmeta for the key.
+	 *
+	 * @return array<int, int>
+	 */
+	public static function featured_ids(): array {
+		$cached = wp_cache_get( self::FEATURED_IDS_CACHE, 'bfrc' );
+		if ( is_array( $cached ) ) {
+			return array_values( array_map( 'intval', $cached ) );
+		}
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- the one indexed lookup every featured list query works from; cached just below and flushed on any featured write.
+		$ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT pm.post_id FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE pm.meta_key = %s AND pm.meta_value = '1' AND p.post_type = %s",
+				self::FEATURED,
+				PostType::NAME
+			)
+		);
+		$ids = array_values( array_map( 'intval', is_array( $ids ) ? $ids : [] ) );
+		wp_cache_set( self::FEATURED_IDS_CACHE, $ids, 'bfrc' );
+		return $ids;
+	}
+
+	/**
+	 * A featured value changed: forget the cached id set.
+	 *
+	 * @param int|array<int> $meta_ids  Ignored.
+	 * @param int            $object_id Ignored.
+	 * @param string         $meta_key  The key written.
+	 */
+	public static function flush_featured_ids( int|array $meta_ids, int $object_id, string $meta_key ): void {
+		unset( $meta_ids, $object_id );
+		if ( self::FEATURED === $meta_key ) {
+			wp_cache_delete( self::FEATURED_IDS_CACHE, 'bfrc' );
+		}
 	}
 
 	/**
@@ -211,7 +270,8 @@ final class Meta {
 			0,
 			$auth
 		);
-		$this->register_key( self::FEATURED, 'boolean', [ 'type' => 'boolean' ], [ self::class, 'sanitize_bool' ], false, $auth );
+		// Not revisioned: core's revision restore copies meta without the auth callback, so a writer could re-apply or wipe a curator's flag.
+		$this->register_key( self::FEATURED, 'boolean', [ 'type' => 'boolean' ], [ self::class, 'sanitize_bool' ], false, $auth, false );
 		$this->register_key(
 			self::INGREDIENTS,
 			'array',
@@ -276,8 +336,9 @@ final class Meta {
 	 * @param callable             $sanitize Sanitiser.
 	 * @param mixed                $fallback Default value.
 	 * @param callable             $auth     Auth callback.
+	 * @param bool                 $revisions Whether revisions keep and restore the key.
 	 */
-	private function register_key( string $key, string $type, array $schema, callable $sanitize, mixed $fallback, callable $auth ): void {
+	private function register_key( string $key, string $type, array $schema, callable $sanitize, mixed $fallback, callable $auth, bool $revisions = true ): void {
 		register_post_meta(
 			PostType::NAME,
 			$key,
@@ -286,7 +347,7 @@ final class Meta {
 				'single'            => true,
 				'default'           => $fallback,
 				'show_in_rest'      => [ 'schema' => $schema ],
-				'revisions_enabled' => true,
+				'revisions_enabled' => $revisions,
 				'sanitize_callback' => $sanitize,
 				'auth_callback'     => $auth,
 			]
@@ -303,8 +364,13 @@ final class Meta {
 	 * @param int    $user_id   The user being checked.
 	 */
 	public static function can_edit( bool $allowed, string $meta_key, int $object_id, int $user_id = 0 ): bool {
-		unset( $allowed, $meta_key );
-		return $user_id > 0 ? user_can( $user_id, 'edit_post', $object_id ) : current_user_can( 'edit_post', $object_id );
+		unset( $allowed );
+		$can = $user_id > 0 ? user_can( $user_id, 'edit_post', $object_id ) : current_user_can( 'edit_post', $object_id );
+		if ( $can && self::FEATURED === $meta_key ) {
+			// Featured is curation (see can_curate()), not the recipe's own writer's call.
+			$can = $user_id > 0 ? user_can( $user_id, self::CURATE_CAP ) : current_user_can( self::CURATE_CAP );
+		}
+		return $can;
 	}
 
 	/**
