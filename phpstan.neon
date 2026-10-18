@@ -1,0 +1,17 @@
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+    level: 6
+    paths:
+        - bluefairy-recipes.php
+        - includes/
+        - uninstall.php
+
+    excludePaths:
+        - vendor/
+
+    bootstrapFiles:
+        - phpstan-bootstrap.php
+
+    treatPhpDocTypesAsCertain: false

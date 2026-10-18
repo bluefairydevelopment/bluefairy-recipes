@@ -1,0 +1,147 @@
+<?php
+/**
+ * @package BlueFairy\Recipes
+ */
+
+declare(strict_types=1);
+
+namespace BlueFairy\Recipes\Tests\Unit;
+
+use BlueFairy\Recipes\Capabilities;
+use BlueFairy\Recipes\Installer;
+use BlueFairy\Recipes\Settings;
+use BlueFairy\Recipes\Tests\TestCase;
+
+final class InstallerTest extends TestCase {
+
+	protected function setUp(): void {
+		parent::setUp();
+		foreach ( [ 'editor', 'author' ] as $role ) {
+			$GLOBALS['bfrc_test_roles'][ $role ] = new \WP_Role( $role, [ 'read' => true ] );
+		}
+	}
+
+	public function test_the_option_and_transient_lists_match_uninstall_php_in_both_directions(): void {
+		$uninstall = (string) file_get_contents( BFRC_DIR . 'uninstall.php' );
+		$this->assertSame( 1, preg_match( '/\$bfrc_option_keys = \[(.*?)\];/s', $uninstall, $m ) );
+		preg_match_all( "/'([a-z_]+)'/", $m[1], $keys );
+		$this->assertSame( Installer::OPTIONS, $keys[1] );
+		$this->assertSame( 1, preg_match( '/\$bfrc_transients = \[(.*?)\];/s', $uninstall, $t ) );
+		preg_match_all( "/'([a-z_]+)'/", $t[1], $tkeys );
+		$this->assertSame( Installer::TRANSIENTS, $tkeys[1] );
+		$this->assertSame( 1, preg_match( '/\$bfrc_caps = \[(.*?)\];/s', $uninstall, $c ) );
+		preg_match_all( "/'([a-z_]+)'/", $c[1], $ckeys );
+		$this->assertSame( array_values( array_diff( Capabilities::all_caps(), [ 'upload_files', 'read' ] ) ), $ckeys[1], 'uninstall revokes exactly our caps' );
+	}
+
+	public function test_db_version_in_the_harness_is_read_from_the_plugin_file(): void {
+		$this->assertSame( 1, preg_match( "/define\\( 'BFRC_DB_VERSION', '([^']+)' \\);/", (string) file_get_contents( BFRC_FILE ), $v ) );
+		$this->assertSame( $v[1], BFRC_DB_VERSION );
+		$this->assertSame( '1.0.0', $v[1] );
+	}
+
+	public function test_activate_creates_roles_writes_defaults_and_versions_grants_core_roles_and_flags_a_flush(): void {
+		Installer::activate();
+		$this->assertInstanceOf( \WP_Role::class, get_role( Capabilities::ROLE_WRITER ) );
+		$this->assertSame( Settings::DEFAULTS, get_option( 'bfrc_settings' ) );
+		$this->assertSame( 'on', $GLOBALS['bfrc_test_option_autoload']['bfrc_settings'] );
+		$this->assertSame( BFRC_VERSION, get_option( 'bfrc_version' ) );
+		$this->assertSame( BFRC_DB_VERSION, get_option( 'bfrc_db_version' ) );
+		$this->assertTrue( get_role( 'author' )->has_cap( 'edit_bfrc_recipes' ), 'grant_core_roles defaults on' );
+		$this->assertSame( '1', (string) get_transient( Settings::FLUSH_TRANSIENT ) );
+		$this->assertSame( [], $GLOBALS['bfrc_test_rewrite_flushes'], 'the flush itself waits for init' );
+	}
+
+	public function test_activate_keeps_existing_settings_and_honours_grant_core_roles_off(): void {
+		update_option( 'bfrc_settings', [ 'per_page' => 7, 'grant_core_roles' => false ] );
+		Installer::activate();
+		$this->assertSame( [ 'per_page' => 7, 'grant_core_roles' => false ], get_option( 'bfrc_settings' ), 'never rewritten' );
+		$this->assertFalse( get_role( 'author' )->has_cap( 'edit_bfrc_recipes' ) );
+		$this->assertTrue( get_role( 'administrator' )->has_cap( Capabilities::MANAGE ), 'administrators hold MANAGE regardless' );
+	}
+
+	public function test_provision_site_is_idempotent_and_unprovision_site_only_undoes_the_rewrite_flag(): void {
+		Installer::provision_site();
+		Installer::provision_site();
+		$this->assertSame( Settings::DEFAULTS, get_option( 'bfrc_settings' ) );
+		$this->assertInstanceOf( \WP_Role::class, get_role( Capabilities::ROLE_WRITER ) );
+		Installer::unprovision_site();
+		$this->assertFalse( get_transient( Settings::FLUSH_TRANSIENT ) );
+		$this->assertSame( [ false ], $GLOBALS['bfrc_test_rewrite_flushes'] );
+		$this->assertInstanceOf( \WP_Role::class, get_role( Capabilities::ROLE_WRITER ), 'roles stay' );
+		$this->assertSame( BFRC_VERSION, get_option( 'bfrc_version' ), 'versions stay' );
+	}
+
+	public function test_deactivate_flushes_rewrite_rules_and_keeps_roles_settings_and_versions(): void {
+		Installer::activate();
+		Installer::deactivate();
+		$this->assertSame( [ false ], $GLOBALS['bfrc_test_rewrite_flushes'], 'a soft flush' );
+		$this->assertFalse( get_transient( Settings::FLUSH_TRANSIENT ) );
+		$this->assertInstanceOf( \WP_Role::class, get_role( Capabilities::ROLE_WRITER ), 'roles are data: they stay until uninstall' );
+		$this->assertSame( Settings::DEFAULTS, get_option( 'bfrc_settings' ) );
+		$this->assertSame( BFRC_VERSION, get_option( 'bfrc_version' ) );
+	}
+
+	public function test_maybe_upgrade_provisions_a_site_with_no_version(): void {
+		Installer::maybe_upgrade();
+		$this->assertSame( BFRC_DB_VERSION, get_option( 'bfrc_db_version' ) );
+		$this->assertInstanceOf( \WP_Role::class, get_role( Capabilities::ROLE_MANAGER ) );
+		$this->assertSame( Settings::DEFAULTS, get_option( 'bfrc_settings' ) );
+	}
+
+	public function test_maybe_upgrade_is_a_no_op_at_the_current_version(): void {
+		Installer::activate();
+		$GLOBALS['bfrc_test_roles'][ Capabilities::ROLE_WRITER ]->remove_cap( 'publish_bfrc_recipes' );
+		Installer::maybe_upgrade();
+		$this->assertFalse( get_role( Capabilities::ROLE_WRITER )->has_cap( 'publish_bfrc_recipes' ), 'nothing re-asserted when the version is current' );
+	}
+
+	public function test_maybe_upgrade_from_an_older_data_version_runs_the_steps_reasserts_roles_and_records_the_version(): void {
+		Installer::activate();
+		update_option( 'bfrc_db_version', '0.9.0' );
+		update_option( 'bfrc_version', '0.9.0' );
+		$GLOBALS['bfrc_test_roles'][ Capabilities::ROLE_WRITER ]->remove_cap( 'publish_bfrc_recipes' );
+		Installer::maybe_upgrade();
+		$this->assertSame( BFRC_DB_VERSION, get_option( 'bfrc_db_version' ) );
+		$this->assertSame( BFRC_VERSION, get_option( 'bfrc_version' ), 'the plugin version is brought up to date too' );
+		$this->assertTrue( get_role( Capabilities::ROLE_WRITER )->has_cap( 'publish_bfrc_recipes' ), 'roles re-asserted on upgrade' );
+	}
+
+	public function test_maybe_upgrade_updates_only_the_plugin_version_on_a_code_only_release(): void {
+		Installer::activate();
+		update_option( 'bfrc_version', '0.9.9' );
+		Installer::maybe_upgrade();
+		$this->assertSame( BFRC_VERSION, get_option( 'bfrc_version' ) );
+		$this->assertSame( BFRC_DB_VERSION, get_option( 'bfrc_db_version' ) );
+	}
+
+	public function test_upgrade_data_has_no_steps_yet_and_touches_nothing(): void {
+		Installer::upgrade_data( '0.0.1' );
+		$this->assertSame( [], $GLOBALS['bfrc_test_options'] );
+	}
+
+	public function test_maybe_flush_rewrite_flushes_once_when_flagged_and_never_otherwise(): void {
+		Installer::maybe_flush_rewrite();
+		$this->assertSame( [], $GLOBALS['bfrc_test_rewrite_flushes'] );
+		set_transient( Settings::FLUSH_TRANSIENT, 1, 60 );
+		Installer::maybe_flush_rewrite();
+		Installer::maybe_flush_rewrite();
+		$this->assertSame( [ false ], $GLOBALS['bfrc_test_rewrite_flushes'], 'the flag is consumed: one flush' );
+		$this->assertFalse( get_transient( Settings::FLUSH_TRANSIENT ) );
+	}
+
+	public function test_network_activation_provisions_every_site_and_single_activation_only_the_current_one(): void {
+		$GLOBALS['bfrc_test_multisite'] = true;
+		$GLOBALS['bfrc_test_sites']     = [ 1, 2, 3 ];
+		Installer::activate( false );
+		$this->assertSame( [], $GLOBALS['bfrc_test_switched'] );
+		Installer::activate( true );
+		$this->assertSame( [ 1, 2, 3 ], $GLOBALS['bfrc_test_switched'] );
+		$this->assertSame( 1, get_current_blog_id(), 'restored to the main site' );
+		foreach ( [ 2, 3 ] as $id ) {
+			switch_to_blog( $id );
+			$this->assertSame( BFRC_DB_VERSION, get_option( 'bfrc_db_version' ), "site {$id}" );
+			restore_current_blog();
+		}
+	}
+}

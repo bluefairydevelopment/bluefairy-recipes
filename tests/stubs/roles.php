@@ -1,0 +1,66 @@
+<?php
+/**
+ * Role and rewrite stubs the bootstrap does not model: add_role/remove_role,
+ * get_users() by role, flush_rewrite_rules() and wp_delete_post().
+ *
+ * @package BlueFairy\Recipes
+ */
+
+declare(strict_types=1);
+
+// phpcs:disable WordPress.NamingConventions, Squiz.Commenting
+
+if ( ! function_exists( 'add_role' ) ) {
+	/** As core: returns the new role, or null when it already exists. */
+	function add_role( string $role, string $display_name, array $capabilities = [] ): ?WP_Role {
+		if ( isset( $GLOBALS['bfrc_test_roles'][ $role ] ) ) {
+			return null;
+		}
+		$GLOBALS['bfrc_test_roles'][ $role ] = new WP_Role( $role, array_fill_keys( array_keys( array_filter( $capabilities ) ), true ) );
+		$GLOBALS['bfrc_test_role_names'][ $role ] = $display_name;
+		return $GLOBALS['bfrc_test_roles'][ $role ];
+	}
+}
+
+if ( ! function_exists( 'remove_role' ) ) {
+	function remove_role( string $role ): void {
+		unset( $GLOBALS['bfrc_test_roles'][ $role ], $GLOBALS['bfrc_test_role_names'][ $role ] );
+	}
+}
+
+if ( ! function_exists( 'get_users' ) ) {
+	/**
+	 * Supports the arguments the plugin uses: `role`, `fields => 'ID'`,
+	 * `number`, `paged`. Reads the user registry.
+	 */
+	function get_users( array $args = [] ): array {
+		$users = array_values( array_filter( $GLOBALS['bfrc_test_users'] ?? [], static fn( WP_User $u ): bool => ! isset( $args['role'] ) || in_array( $args['role'], $u->roles, true ) ) );
+		usort( $users, static fn( WP_User $a, WP_User $b ): int => $a->ID <=> $b->ID );
+		$number = (int) ( $args['number'] ?? -1 );
+		$paged  = max( 1, (int) ( $args['paged'] ?? 1 ) );
+		if ( $number > 0 ) {
+			$users = array_slice( $users, ( $paged - 1 ) * $number, $number );
+		}
+		$GLOBALS['bfrc_test_get_users_calls'][] = $args;
+		if ( 'ID' === ( $args['fields'] ?? '' ) ) {
+			return array_map( static fn( WP_User $u ): int => $u->ID, $users );
+		}
+		return $users;
+	}
+}
+
+if ( ! function_exists( 'flush_rewrite_rules' ) ) {
+	function flush_rewrite_rules( bool $hard = true ): void {
+		$GLOBALS['bfrc_test_rewrite_flushes'][] = $hard;
+	}
+}
+
+if ( ! function_exists( 'wp_delete_post' ) ) {
+	/** Records the deletion; returns the (fake) post as core does when it existed. */
+	function wp_delete_post( int $post_id, bool $force_delete = false ): WP_Post|false|null {
+		$GLOBALS['bfrc_test_deleted_posts'][] = [ $post_id, $force_delete ];
+		$post = $GLOBALS['bfrc_test_posts'][ $post_id ] ?? null;
+		unset( $GLOBALS['bfrc_test_posts'][ $post_id ] );
+		return $post instanceof WP_Post ? $post : false;
+	}
+}
