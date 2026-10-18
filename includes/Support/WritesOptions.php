@@ -1,0 +1,52 @@
+<?php
+/**
+ * An option write whose outcome is known.
+ *
+ * @package BlueFairy\Recipes
+ */
+
+declare(strict_types=1);
+
+namespace BlueFairy\Recipes\Support;
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+/**
+ * `update_option()` returns false both when the database refused the write
+ * and when the value was already stored (core skips the write then), so its
+ * result alone cannot be trusted either way. On false the stored value is
+ * read back and compared in its stored form: the same value means
+ * "unchanged", anything else (including no row at all) means the write
+ * failed.
+ *
+ * Known limit: a `pre_update_option_{name}` filter that changes the value on
+ * the way in makes the read-back differ from $value, and a successful write
+ * is then reported as failed. No such filter exists for this plugin's
+ * options; a caller that adds one must compare against the filtered value.
+ */
+trait WritesOptions {
+
+	/**
+	 * Store $value in $option and say whether the option now holds it.
+	 *
+	 * @param string $option   Option name.
+	 * @param mixed  $value    Value to store.
+	 * @param bool   $autoload Autoload flag passed to update_option().
+	 */
+	private function write_option( string $option, mixed $value, bool $autoload ): bool {
+		if ( update_option( $option, $value, $autoload ) ) {
+			return true;
+		}
+		$absent = new \stdClass();
+		$stored = get_option( $option, $absent );
+		if ( $stored === $absent ) {
+			return false; // No row: core refused to add it (or declined to store a value equal to its own default, which is the same to a reader that asked for it).
+		}
+		if ( is_scalar( $value ) || null === $value ) {
+			return ( is_scalar( $stored ) || null === $stored ) && (string) $stored === (string) $value;
+		}
+		return maybe_serialize( $stored ) === maybe_serialize( $value );
+	}
+}
