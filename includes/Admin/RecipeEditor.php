@@ -432,6 +432,9 @@ final class RecipeEditor {
 		if ( '' !== $video_raw && '' === $clean[ Meta::VIDEO_URL ] && ! isset( $_REQUEST['meta-box-loader'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- the nonce was verified above; this only picks the channel for the notice.
 			set_transient( self::notice_key(), [ 'video_url' => mb_substr( $video_raw, 0, self::NOTICE_MAX ) ], self::NOTICE_TTL );
 		}
+		if ( ! self::can_curate() ) {
+			unset( $raw['featured'] ); // Add-ons must not honour a writer's Featured either.
+		}
 		/**
 		 * The recipe edit form was saved; `$clean` holds every value written,
 		 * keyed by meta key, after sanitising. Capability and nonce have been
@@ -446,9 +449,6 @@ final class RecipeEditor {
 		 *                                      (an add-on box should end with its own `bfrc[_has][name]`
 		 *                                      sentinel and read it from `$raw['_has']`).
 		 */
-		if ( ! self::can_curate() ) {
-			unset( $raw['featured'] ); // Add-ons must not honour a writer's Featured either.
-		}
 		do_action( 'bfrc_recipe_saved', $post_id, $clean, $raw );
 	}
 

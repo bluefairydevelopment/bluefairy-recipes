@@ -17,7 +17,7 @@ A recipe is a post of type `bfrc_recipe`, edited in the block editor. The post t
 | Ingredients | up to 200 rows of measure (≤ 64 characters) and label (≤ 255) | a row without a label is dropped |
 | Steps | up to 200 numbered steps | post-safe HTML allowed |
 | Nutrition | calories (kcal), fat, saturated fat, carbohydrates, sugar, fiber, protein (g), sodium (mg) | numbers up to 100,000 with two decimals; `12,5` is read as 12.5 but `1,200` is refused as ambiguous; an empty field is not shown |
-| Servings | | max is never below min: whichever you change last, the other follows |
+| Servings | | max is never below min: on the edit screen a minimum above the maximum raises the maximum; through the REST API whichever value was written last wins and the other follows |
 
 ### Editing a recipe
 

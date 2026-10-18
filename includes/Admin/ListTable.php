@@ -152,7 +152,7 @@ final class ListTable {
 	 * @return array<string, mixed>
 	 */
 	public function sortable_columns( array $columns ): array {
-		$columns['bfrc_featured'] = 'bfrc_featured';
+		$columns['bfrc_featured'] = [ 'bfrc_featured', true ]; // First click: featured first (desc).
 		return $columns;
 	}
 

@@ -171,20 +171,21 @@ final class WriterProfileTest extends TestCase {
 
 	public function test_attachment_rules_an_unusable_or_junk_id_keeps_the_old_value(): void {
 		bfrc_test_grant( 'edit_user' );
-		$this->own_image( 70 );
+		$this->own_image( 70 ); // A usable image whose id appears inside the junk values below: a bare (int) cast would store it.
+		$this->own_image( 71 );
 		$this->own_image( 77, 8 ); // Someone else's upload.
 		$this->own_image( 78, 5, 'application/pdf' );
-		update_user_meta( 5, 'bfrc_avatar_id', 70 );
+		update_user_meta( 5, 'bfrc_avatar_id', 71 );
 		$p = new WriterProfile();
 		foreach ( [ '999' => 'no such attachment', '78' => 'not an image', '41' => 'not an attachment', '77' => 'another user\'s image the saver may not edit', '-70' => 'a negative id', 'abc' => 'junk', '70.5' => 'not an integer', '70abc' => 'digits then junk (a cast would read 70)', '99999999999999999999' => 'more digits than any id' ] as $id => $why ) {
 			bfrc_test_add_post( [ 'ID' => 41, 'post_type' => 'bfrc_recipe' ] );
 			$this->post_form( [ 'bfrc_avatar_id' => (string) $id ] );
 			$p->save( 5 );
-			$this->assertSame( 70, get_user_meta( 5, 'bfrc_avatar_id', true ), $why );
+			$this->assertSame( 71, get_user_meta( 5, 'bfrc_avatar_id', true ), $why );
 		}
 		$this->post_form( [ 'bfrc_avatar_id' => [ '70' ] ] );
 		$p->save( 5 );
-		$this->assertSame( 70, get_user_meta( 5, 'bfrc_avatar_id', true ), 'an array keeps the old value' );
+		$this->assertSame( 71, get_user_meta( 5, 'bfrc_avatar_id', true ), 'an array keeps the old value' );
 		$this->post_form( [ 'bfrc_avatar_id' => '' ] );
 		$p->save( 5 );
 		$this->assertSame( '', get_user_meta( 5, 'bfrc_avatar_id', true ), 'an empty string clears, like 0' );

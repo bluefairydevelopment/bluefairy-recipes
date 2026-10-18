@@ -162,8 +162,9 @@ test( 'drag starts from the handle only and reorders on drop', () => {
 	assert.equal( transfer.effectAllowed, 'move' );
 	assert.deepEqual( transfer.data, { 'text/plain': '' }, 'Firefox needs data for a drag to start' );
 	const over = new p.win.Event( 'dragover', { bubbles: true, cancelable: true } );
-	r[ 2 ].dispatchEvent( over );
+	r[ 1 ].dispatchEvent( over );
 	assert.ok( over.defaultPrevented, 'a drop is allowed over another row of the same list' );
+	r[ 2 ].dispatchEvent( new p.win.Event( 'dragover', { bubbles: true, cancelable: true } ) ); // The pointer moved on before the frame fired: the last row wins.
 	return new Promise( ( resolve ) => p.win.requestAnimationFrame( () => {
 		p.doc.dispatchEvent( new p.win.Event( 'dragend' ) );
 		assert.deepEqual( p.rowsOf().map( ( x ) => x.querySelector( '[name$="[label]"]' ).value ), [ 'l1', 'l2', 'l0' ] );

@@ -83,7 +83,7 @@ final class ListTableTest extends TestCase {
 	}
 
 	public function test_sortable_columns(): void {
-		$this->assertSame( [ 'title' => 'title', 'bfrc_featured' => 'bfrc_featured' ], ( new ListTable() )->sortable_columns( [ 'title' => 'title' ] ) );
+		$this->assertSame( [ 'title' => 'title', 'bfrc_featured' => [ 'bfrc_featured', true ] ], ( new ListTable() )->sortable_columns( [ 'title' => 'title' ] ), 'desc first: the first click on Featured puts featured recipes at the top' );
 	}
 
 	public function test_filters_render_labelled_dropdowns_for_taxonomies_with_terms_and_the_featured_select_on_the_recipe_list_only(): void {

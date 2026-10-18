@@ -17,9 +17,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Every recipe field is registered post meta: single, typed for REST with a
- * schema, revisioned (restoring a revision restores the ingredients), writable
- * only by someone who can edit the recipe, and sanitised by one callback per
- * key whichever path writes it (meta box, REST, WP-CLI).
+ * schema, revisioned (restoring a revision restores the ingredients) except
+ * Featured, writable only by someone who can edit the recipe (Featured: by a
+ * curator, see can_curate()), and sanitised by one callback per key whichever
+ * path writes it (meta box, REST, WP-CLI).
  *
  * The one rule that spans two keys, servings max ≥ min, is owned here too:
  * whichever of the two is written last wins and the other follows, on
