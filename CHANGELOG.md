@@ -11,3 +11,6 @@
   sort by featured; bulk Mark/Unmark featured for curators.
 - Writer profile fields: profile photo, header image, about, website and social links,
   and the writer-listing switch.
+- Public pages: recipe archive with filter panel, title search and pagination; filter-type
+  pages; recipe page with photo or cookie-less video, ingredients, method, nutrition facts,
+  share buttons and print; writers listing and writer pages; block and classic templates.

@@ -124,8 +124,8 @@ final class TemplatesTest extends TestCase {
 		$q = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writers' => '1', 'paged' => 3 ] );
 		$this->templates->shape_query( $q );
 		$this->assertSame( 1, $q->get( 'posts_per_page' ) );
-		$this->assertTrue( $q->get( 'no_found_rows' ) );
-		$this->assertSame( 1, $q->get( 'paged' ), 'the listing paginates writers, not posts' );
+		$this->assertSame( 3, $q->get( 'paged' ), 'paged stays: the writers listing reads it and core\'s canonical redirect must see a real page' );
+		$this->assertSame( '', $q->get( 'no_found_rows' ), 'found rows are needed so core knows the page exists' );
 		$single                 = bfrc_test_front_query( [], 'single' );
 		$single->queried_object = get_post( 41 );
 		$this->templates->shape_query( $single );

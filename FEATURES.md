@@ -33,6 +33,14 @@ The list shows the photo, prep and cook time, servings and a featured star for e
 
 Every user who can edit recipes has a **Recipe writer profile** section on their profile screen: a profile photo and a header image from the media library (shown to users who may upload files), an About paragraph (basic formatting kept, up to 5000 characters), a website and YouTube, Facebook, Instagram and Snapchat links (http or https with a host; anything else is cleared), and **List this writer on the public writers page**, which is on by default for the Recipe Writer role and off for everyone else. Only an image you uploaded yourself, or may edit, is accepted as a photo; any other choice keeps the previous image. Only someone who may edit that user can save the section.
 
+### On the site
+
+- **Recipe archive** at `/{archive slug}/` (default `/recipes/`): a card grid (photo, title, prep and cook time, servings, writer, short description) with a filter panel above it: one dropdown per filter type that has terms, a title keyword search, Filter and Reset. Choosing a filter applies at once; typing waits until you pause. Pages follow your "Recipes per page" setting. Each filter type also has its own page, `/recipes/meal-type/dinner/` and so on, with the same panel.
+- **Recipe page**: title, writer and date, timings and servings, the filter-type tags, the photo or the embedded video (YouTube or Vimeo, loaded without cookies), the short description, your text, Ingredients, Method, Nutrition (per serving; only the values you entered), share buttons (Facebook, X, Pinterest with the recipe photo) and a Print button; the print layout drops navigation, filters and buttons.
+- **Writer pages**: `/recipes/chef/` lists every public writer (name order, 24 per page, photo or Gravatar, recipe count, a line of their About text); `/recipes/chef/{username}/` shows a writer's header image, photo, About, links and their recipes. A writer has a public page only when they are listed (Recipe Writers by default; anyone else by switching it on in their profile) and have at least one published recipe. Everyone else's writer URL is a 404, and their recipes show the name without a link. "Browse recipe writers" appears on the archive while the listing is on.
+- **Themes**: block themes get two templates (Single Recipe, Recipes Archive) you can customise in the Site Editor; classic themes get the plugin's templates, which you can override by copying them to `{your theme}/bluefairy-recipes/single-recipe.php` or `archive-recipe.php`.
+- With the plugin **disabled**, every recipe URL, filter-type page and writer page is a 404.
+
 ## Filter types (taxonomies)
 
 Recipes are browsed by four filter types, each a taxonomy under the recipe archive:
@@ -87,6 +95,12 @@ Administrators can always change settings.
 | `bfrc_ingredient_type_labels` | filter | Name your ingredient row types in the editor |
 | `bfrc_ingredient_row_field_labels` | filter | Label the extra fields of an ingredient row type |
 | `bfrc_recipe_saved` | action | The recipe form was saved; receives the post id and every value written |
+| `bfrc_archive_query` | action | The public recipe list query, after per-page, search and filters are applied |
+| `bfrc_ingredient_label_html` | filter | The label markup of one ingredient row on the recipe page |
+| `bfrc_render_ingredient_actions` | action | After the ingredient list on the recipe page |
+| `bfrc_single_after_steps` | action | After the method |
+| `bfrc_single_after_nutrition` | action | After the nutrition facts |
+| `bfrc_single_footer` | action | At the end of the recipe page |
 
 ## Differences from the Magento extension
 

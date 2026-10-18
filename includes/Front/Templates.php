@@ -151,11 +151,11 @@ final class Templates {
 		}
 		$query->set( 'post_type', PostType::NAME );
 		if ( (bool) $query->get( Writers::LIST_VAR ) ) {
-			// The listing page: the post query is only a vehicle for the template; keep it to one row.
+			// The listing page: the post query is only a vehicle for the template, one recipe per
+			// page. `paged` stays: the writers listing reads it, and core's canonical redirect must
+			// see a real page (every public writer has a recipe, so recipe pages ≥ writer pages).
 			$query->set( 'posts_per_page', 1 );
-			$query->set( 'no_found_rows', true );
 			$query->set( 'ignore_sticky_posts', true );
-			$query->set( 'paged', 1 );
 			return;
 		}
 		$query->set( 'posts_per_page', $this->per_page() );

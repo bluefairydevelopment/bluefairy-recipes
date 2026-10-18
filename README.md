@@ -9,7 +9,7 @@ release tag.
 - WordPress 6.7 or newer, with pretty permalinks
 - PHP 8.1 or newer
 
-## What is in the tree today (milestones A1–A3)
+## What is in the tree today (milestones A1–A4)
 
 - Plugin bootstrap, settings model, roles and capabilities, activation, deactivation and
   uninstall.
@@ -17,7 +17,10 @@ release tag.
   terms, the registered recipe fields, reserved recipe slugs.
 - Admin editing: the recipe edit screen (five panels, repeatable rows, block and classic
   editors), the Recipes list (columns, filters, bulk featured) and the writer profile fields.
-  No front end yet.
+- The public pages: the recipe archive with filters, title search and pagination, the
+  filter-type pages, recipe pages (photo or video, ingredients, method, nutrition, share and
+  print), the writers listing and writer pages; block and classic theme templates.
+  Blocks, shortcodes, the REST endpoint and JSON-LD follow in A5 and A6.
 
 ## Notes for site owners
 
