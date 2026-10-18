@@ -418,7 +418,7 @@ final class RendererTest extends TestCase {
 		$html                                        = $this->renderer->share_buttons( get_post( 41 ) );
 		$this->assertStringContainsString( '&amp;text=Tomato%20%27Soup%27%20%26%20Bread"', $html, 'X: quotes decoded (ENT_QUOTES), tags stripped, then URL-encoded' );
 		$this->assertStringContainsString( '&amp;description=Tomato%20%27Soup%27%20%26%20Bread', $html, 'Pinterest the same' );
-		$GLOBALS['bfrc_test_posts'][41]->post_title = "Grandma's  <Soup> & Co";
+		$GLOBALS['bfrc_test_posts'][41]->post_title = "Grandma's <Soup> & Co"; // One space each side of the tag: stripping it leaves two.
 		$this->assertStringContainsString( '&amp;text=Grandma%27s%20%26%20Co"', $this->renderer->share_buttons( get_post( 41 ) ), 'a bracketed word is stripped as a tag (as core\'s <title> does) and the whitespace collapses' );
 		$this->assertStringNotContainsString( '%3Cb%3E', $html, 'no markup in the share text' );
 	}
