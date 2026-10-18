@@ -301,9 +301,13 @@ final class Renderer {
 		if ( '' !== $excerpt ) {
 			$html .= '<p class="bfrc-recipe__summary">' . esc_html( wp_strip_all_tags( $excerpt ) ) . '</p>';
 		}
-		$content = (string) apply_filters( 'the_content', $post->post_content ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- core's own filter, applied as core does.
-		if ( '' !== trim( wp_strip_all_tags( $content ) ) ) {
-			$html .= '<div class="bfrc-recipe__content">' . $content . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- the_content output, as core prints it.
+		if ( '' !== trim( $post->post_content ) ) {
+			// Only when the writer wrote something: `the_content` filters from other plugins append their
+			// own blocks (related products, share bars) and must not decorate an empty body.
+			$content = (string) apply_filters( 'the_content', $post->post_content ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- core's own filter, applied as core does.
+			if ( '' !== trim( wp_strip_all_tags( $content ) ) ) {
+				$html .= '<div class="bfrc-recipe__content">' . $content . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- the_content output, as core prints it.
+			}
 		}
 		$html .= $this->ingredients( $data );
 		$html .= $this->steps( $data );

@@ -217,6 +217,11 @@ final class RendererTest extends TestCase {
 		$this->assertStringContainsString( 'target="_blank" rel="noopener nofollow"', $html );
 		$this->assertStringContainsString( 'data-bfrc-print', $html );
 		$this->assertStringNotContainsString( 'bfrc-recipe__content', $html, 'no body content: no block' );
+		add_filter( 'the_content', static fn( string $c ): string => $c . '<aside>promo</aside>' );
+		$this->assertStringNotContainsString( 'promo', $this->renderer->single( get_post( 41 ) ), 'other plugins\' the_content additions do not decorate an empty body' );
+		$GLOBALS['bfrc_test_posts'][41]->post_content = '<p>Grandma\'s way.</p>';
+		$with = $this->renderer->single( get_post( 41 ) );
+		$this->assertStringContainsString( '<div class="bfrc-recipe__content"><p>Grandma\'s way.</p><aside>promo</aside></div>', $with, 'with content, the_content runs as core does' );
 	}
 
 	public function test_single_shows_the_video_embed_instead_of_the_photo_and_honours_share_settings(): void {
