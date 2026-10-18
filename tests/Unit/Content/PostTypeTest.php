@@ -99,6 +99,20 @@ final class PostTypeTest extends TestCase {
 		$this->assertSame( 6, has_action( 'init', [ $pt, 'register' ] ) );
 		$this->assertSame( 10, has_filter( 'wp_sitemaps_post_types', [ $pt, 'filter_sitemap_post_types' ] ) );
 		$this->assertSame( 10, has_filter( 'rest_pre_dispatch', [ $pt, 'gate_rest_when_disabled' ] ) );
+		$this->assertSame( 10, has_filter( 'rest_post_search_query', [ $pt, 'filter_rest_search_when_disabled' ] ) );
+	}
+
+	public function test_rest_search_lists_no_recipes_to_visitors_while_disabled(): void {
+		$request = new \WP_REST_Request( 'GET', '/wp/v2/search' );
+		$args    = [ 'post_type' => [ 'post', 'page', 'bfrc_recipe' ], 'post_status' => 'publish' ];
+		$this->assertSame( $args, $this->post_type()->filter_rest_search_when_disabled( $args, $request ), 'enabled: untouched' );
+		update_option( 'bfrc_settings', [ 'enabled' => false ] );
+		$pt = $this->post_type();
+		$this->assertSame( [ 'post_type' => [ 'post', 'page' ], 'post_status' => 'publish' ], $pt->filter_rest_search_when_disabled( $args, $request ), 'recipes dropped from the search subtypes' );
+		$only = $pt->filter_rest_search_when_disabled( [ 'post_type' => [ 'bfrc_recipe' ] ], $request );
+		$this->assertSame( [ 0 ], $only['post__in'], 'only recipes asked for: nothing can match' );
+		bfrc_test_grant( 'edit_bfrc_recipes' );
+		$this->assertSame( $args, $pt->filter_rest_search_when_disabled( $args, $request ), 'an editor still searches recipes' );
 	}
 
 	public function test_args_is_what_register_uses(): void {
