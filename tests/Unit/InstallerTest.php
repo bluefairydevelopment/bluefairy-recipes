@@ -47,7 +47,17 @@ final class InstallerTest extends TestCase {
 		$this->assertTrue( get_role( 'author' )->has_cap( 'edit_bfrc_recipes' ), 'grant_core_roles defaults on' );
 		$this->assertSame( '1', get_option( Settings::FLUSH_OPTION ) );
 		$this->assertSame( 'on', $GLOBALS['bfrc_test_option_autoload'][ Settings::FLUSH_OPTION ], 'the flag is autoloaded, so reading it costs no query' );
+		$this->assertSame( [ 'bfrc_meal_type', 'bfrc_diet', 'bfrc_season', 'bfrc_cuisine' ], array_keys( $GLOBALS['bfrc_test_taxonomies'] ), 'the taxonomies are registered on the fly: activation runs after init' );
+		$this->assertSame( [ 'Breakfast', 'Dessert', 'Dinner', 'Lunch', 'Snack' ], get_terms( [ 'taxonomy' => 'bfrc_meal_type', 'fields' => 'names', 'hide_empty' => false ] ), 'starter terms seeded' );
 		$this->assertSame( [], $GLOBALS['bfrc_test_rewrite_flushes'], 'the flush itself waits for init' );
+	}
+
+	public function test_activate_leaves_existing_terms_alone(): void {
+		( new \BlueFairy\Recipes\Content\Taxonomies( new Settings() ) )->register();
+		wp_insert_term( 'Brunch', 'bfrc_meal_type' );
+		Installer::activate();
+		$this->assertSame( [ 'Brunch' ], get_terms( [ 'taxonomy' => 'bfrc_meal_type', 'fields' => 'names', 'hide_empty' => false ] ) );
+		$this->assertSame( [ 'Vegan', 'Vegetarian', 'Gluten-Free', 'Dairy-Free' ] === [] ? [] : [ 'Dairy-Free', 'Gluten-Free', 'Vegan', 'Vegetarian' ], get_terms( [ 'taxonomy' => 'bfrc_diet', 'fields' => 'names', 'hide_empty' => false ] ), 'an empty taxonomy still gets its starters' );
 	}
 
 	public function test_activate_keeps_existing_settings_and_honours_grant_core_roles_off(): void {

@@ -84,6 +84,11 @@ final class Installer {
 		if ( ( new Settings() )->get( 'grant_core_roles' ) ) {
 			Capabilities::grant_core_roles();
 		}
+		// The activation request has already passed `init`, so the taxonomies are
+		// registered here on the fly before their default terms are seeded.
+		$taxonomies = new Content\Taxonomies( new Settings() );
+		$taxonomies->register();
+		$taxonomies->ensure_default_terms();
 		update_option( 'bfrc_version', BFRC_VERSION, true );
 		add_option( Settings::FLUSH_OPTION, 0, '', true );
 		update_option( 'bfrc_db_version', BFRC_DB_VERSION, true );

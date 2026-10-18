@@ -119,6 +119,12 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_role_removal_blocked'] = false; // true models a plugin vetoing WP_User::remove_role().
 	$GLOBALS['bfrc_test_activation_hooks'] = []; // register_(de)activation_hook() calls.
 	$GLOBALS['bfrc_test_cache_flushes']    = 0;
+	$GLOBALS['bfrc_test_post_types']       = []; // register_post_type() name => args.
+	$GLOBALS['bfrc_test_taxonomies']       = []; // register_taxonomy() name => [object_type, args].
+	$GLOBALS['bfrc_test_registered_meta']  = []; // register_post_meta() type => key => args.
+	$GLOBALS['bfrc_test_terms']            = []; // taxonomy => term_id => WP_Term.
+	$GLOBALS['bfrc_test_next_term_id']     = 100;
+	$GLOBALS['bfrc_test_post_meta']        = []; // post id => key => value.
 	$GLOBALS['bfrc_test_group_flushes']    = [];
 	$GLOBALS['bfrc_test_runtime_flushes']  = 0;
 	$GLOBALS['bfrc_test_sanitize_title_raw'] = false; // true: a plugin's filter keeps raw UTF-8 instead of percent-encoding.
@@ -487,7 +493,10 @@ function esc_textarea( mixed $text ): string {
 	return esc_html( $text );
 }
 function wp_kses_post( mixed $data ): string {
-	return is_scalar( $data ) ? (string) $data : '';
+	// Closer to core than a pass-through: script/style blocks go, and only post-safe tags stay.
+	$data = is_scalar( $data ) ? (string) $data : '';
+	$data = preg_replace( '#<(script|style)\b[^>]*>.*?</\1>#is', '', $data ) ?? $data;
+	return strip_tags( $data, '<a><abbr><b><blockquote><br><cite><code><del><div><em><h1><h2><h3><h4><h5><h6><i><img><ins><li><ol><p><pre><q><s><span><strong><sub><sup><table><tbody><td><th><thead><tr><u><ul>' );
 }
 function wp_kses( mixed $data, mixed $allowed ): string {
 	// Keeps the allowed elements (attributes unchecked), strips everything else.
