@@ -90,22 +90,25 @@
 
 		function checkFieldCount() {
 			var warn = rows.tooManyFields( countFields(), maxInputVars );
-			doc.querySelectorAll( '[data-bfrc-rows]' ).forEach( function ( box ) {
-				var existing = box.querySelector( '.bfrc-fields-notice' );
-				if ( ! warn ) {
-					if ( existing ) {
-						existing.remove();
-					}
-					return;
+			var box = doc.querySelector( '[data-bfrc-rows]' );
+			if ( ! box ) {
+				return;
+			}
+			var existing = doc.querySelector( '.bfrc-fields-notice' );
+			if ( ! warn ) {
+				if ( existing ) {
+					existing.remove();
 				}
-				if ( ! existing ) {
-					existing = doc.createElement( 'div' );
-					existing.className = 'notice notice-warning inline bfrc-fields-notice';
-					existing.setAttribute( 'role', 'alert' );
-					box.insertBefore( existing, box.firstChild );
-				}
-				existing.textContent = i18n.tooManyFields || '';
-			} );
+				return;
+			}
+			if ( ! existing ) {
+				// One notice, in the first rows box: a second copy would be announced twice.
+				existing = doc.createElement( 'div' );
+				existing.className = 'notice notice-warning inline bfrc-fields-notice';
+				existing.setAttribute( 'role', 'alert' );
+				box.insertBefore( existing, box.firstChild );
+			}
+			existing.textContent = i18n.tooManyFields || '';
 		}
 
 		function addRow( box ) {
@@ -174,6 +177,7 @@
 		// Drag by the handle only: a draggable row would turn text selection in its fields into a drag.
 		var dragging = null;
 		var pending = false;
+		var overRow = null;
 		doc.addEventListener( 'dragstart', function ( event ) {
 			var handle = event.target && event.target.closest ? event.target.closest( '.bfrc-rows__handle' ) : null;
 			if ( ! handle ) {
@@ -191,22 +195,24 @@
 				return;
 			}
 			event.preventDefault();
+			overRow = row;
 			if ( pending ) {
 				return;
 			}
 			pending = true;
 			( win.requestAnimationFrame || function ( f ) { f(); } )( function () {
 				pending = false;
-				if ( ! dragging ) {
+				var target = overRow;
+				if ( ! dragging || ! target || target === dragging ) {
 					return;
 				}
-				var all = rowsOf( container( row ) );
+				var all = rowsOf( container( target ) );
 				var from = all.indexOf( dragging );
-				var to = all.indexOf( row );
+				var to = all.indexOf( target );
 				if ( from < 0 || to < 0 ) {
 					return;
 				}
-				listOf( container( row ) ).insertBefore( dragging, from < to ? row.nextSibling : row );
+				listOf( container( target ) ).insertBefore( dragging, from < to ? target.nextSibling : target );
 			} );
 		} );
 		doc.addEventListener( 'dragend', function () {
@@ -218,9 +224,15 @@
 
 		// Classic editor: a constraint-invalid field inside a collapsed box would block Publish with no message. Open the box.
 		doc.addEventListener( 'invalid', function ( event ) {
-			var box = event.target && event.target.closest ? event.target.closest( '.postbox.closed' ) : null;
-			if ( box ) {
-				box.classList.remove( 'closed' );
+			var box = event.target && event.target.closest ? event.target.closest( '.postbox' ) : null;
+			if ( ! box ) {
+				return;
+			}
+			box.classList.remove( 'closed' );
+			box.classList.remove( 'hide-if-js' ); // Hidden via Screen Options: the browser cannot focus the field otherwise.
+			var handle = box.querySelector( '.handlediv' );
+			if ( handle ) {
+				handle.setAttribute( 'aria-expanded', 'true' );
 			}
 		}, true );
 

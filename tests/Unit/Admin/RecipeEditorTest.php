@@ -78,12 +78,14 @@ final class RecipeEditorTest extends TestCase {
 		update_post_meta( 41, Meta::SERVINGS_MAX, 6 );
 		update_post_meta( 41, Meta::FEATURED, true );
 		$html = bfrc_test_render( fn() => ( new RecipeEditor() )->render_details( $this->recipe ) );
-		$this->assertStringContainsString( 'name="bfrc_recipe_nonce"', $html );
-		$this->assertStringNotContainsString( '_wp_http_referer', $html, 'the form already has one' );
+		$this->assertStringContainsString( 'name="bfrc_recipe_nonce" value="nonce-bfrc_recipe_meta"', $html );
+		$this->assertStringNotContainsString( '_wp_http_referer', $html );
 		$this->assertStringContainsString( 'name="bfrc[prep_minutes]" value="20"', $html );
 		$this->assertStringContainsString( 'name="bfrc[servings_max]" value="6"', $html );
 		$this->assertStringNotContainsString( 'max="', $html, 'no HTML constraint: it would block Publish from a collapsed classic-editor box' );
 		$this->assertStringNotContainsString( 'min="', $html );
+		$this->assertStringNotContainsString( 'step="1"', $html, 'step=1 is a constraint too (2.5 would block Publish); the sanitiser floors' );
+		$this->assertSame( 4, substr_count( $html, 'step="any"' ) );
 		$this->assertStringContainsString( 'name="bfrc[_has][details]" value="1"', $html, 'the sentinel' );
 		$this->assertStringNotContainsString( 'name="bfrc[featured]"', $html, 'a writer sees Featured read-only' );
 		$this->assertStringContainsString( 'Featured recipe: yes', $html );
@@ -100,7 +102,7 @@ final class RecipeEditorTest extends TestCase {
 		$this->assertStringContainsString( 'value="video" checked="checked"', $media );
 		$this->assertStringContainsString( 'type="text" inputmode="url" id="bfrc-video-url"', $media, 'not type=url: the server decides and says so' );
 		$this->assertStringContainsString( 'value="https://www.youtube.com/watch?v=dQw4w9WgXcQ"', $media );
-		$this->assertStringContainsString( 'name="bfrc[_has][media]" value="1"', $media );
+		$this->assertStringContainsString( 'name="bfrc_recipe_nonce" value="nonce-bfrc_recipe_meta"><input type="hidden" name="bfrc[_has][media]" value="1"', $media, 'every box carries the nonce with its sentinel, so removing any one box never discards the others\' edits' );
 		$nutrition = bfrc_test_render( fn() => ( new RecipeEditor() )->render_nutrition( $this->recipe ) );
 		$this->assertStringContainsString( 'name="bfrc[nutrition][calories]" value="250"', $nutrition );
 		$this->assertStringContainsString( 'name="bfrc[nutrition][sodium]" value="12.5"', $nutrition );
@@ -119,7 +121,7 @@ final class RecipeEditorTest extends TestCase {
 		$this->assertStringContainsString( 'aria-label="Ingredient 2 name"', $ing );
 		$this->assertStringContainsString( 'name="bfrc[ingredients][1][measure]" value=""', $ing );
 		$this->assertStringContainsString( 'name="bfrc[ingredients][__INDEX__][label]"', $ing, 'the template row for the script' );
-		$this->assertStringContainsString( 'type="hidden" name="bfrc[ingredients][0][type]" value="plain"', $ing, 'one type: no selector' );
+		$this->assertStringContainsString( '<td class="bfrc-rows__actions"><input type="hidden" name="bfrc[ingredients][0][type]" value="plain">', $ing, 'one type: no selector; the hidden input sits inside a cell, not loose in the row' );
 		$this->assertStringContainsString( 'data-bfrc-max="200"', $ing );
 		$this->assertStringContainsString( '<td class="bfrc-rows__handle" draggable="true"', $ing, 'the handle drags, not the row' );
 		$this->assertStringNotContainsString( '<tr class="bfrc-rows__row" draggable', $ing );
@@ -138,6 +140,7 @@ final class RecipeEditorTest extends TestCase {
 		$this->assertStringContainsString( 'name="bfrc[ingredients][0][label]" value=""', $ing );
 		$this->assertStringContainsString( '<noscript>', $ing );
 		$this->assertStringContainsString( 'name="bfrc[steps][0][text]" aria-label="Step 1"></textarea>', $steps );
+		$this->assertStringContainsString( '<noscript>', $steps );
 	}
 
 	public function test_render_ingredients_shows_a_type_selector_with_labels_and_only_the_active_types_extras_enabled(): void {
@@ -222,11 +225,11 @@ final class RecipeEditorTest extends TestCase {
 		( new RecipeEditor() )->save( 41, $this->recipe );
 		$this->assertSame( 'video', get_post_meta( 41, Meta::MEDIA_TYPE, true ) );
 		$this->assertSame( 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', get_post_meta( 41, Meta::VIDEO_URL, true ) );
-		$this->assertSame( 25, get_post_meta( 41, Meta::PREP_MINUTES, true ) );
-		$this->assertSame( 6000, get_post_meta( 41, Meta::COOK_MINUTES, true ), 'clamped' );
-		$this->assertSame( 2, get_post_meta( 41, Meta::SERVINGS_MIN, true ) );
-		$this->assertSame( 4, get_post_meta( 41, Meta::SERVINGS_MAX, true ) );
-		$this->assertTrue( get_post_meta( 41, Meta::FEATURED, true ) );
+		$this->assertSame( '25', get_post_meta( 41, Meta::PREP_MINUTES, true ) );
+		$this->assertSame( '6000', get_post_meta( 41, Meta::COOK_MINUTES, true ), 'clamped' );
+		$this->assertSame( '2', get_post_meta( 41, Meta::SERVINGS_MIN, true ) );
+		$this->assertSame( '4', get_post_meta( 41, Meta::SERVINGS_MAX, true ) );
+		$this->assertSame( '1', get_post_meta( 41, Meta::FEATURED, true ) );
 		$this->assertSame( [ [ 'measure' => '1 tsp', 'label' => 'salt', 'type' => 'plain' ] ], get_post_meta( 41, Meta::INGREDIENTS, true ) );
 		$this->assertSame( [ [ 'text' => 'Mix 1\\2 tsp' ] ], get_post_meta( 41, Meta::STEPS, true ), 'core unslashes on write, so the value is slashed first: the backslash survives' );
 		$this->assertSame( 250.0, get_post_meta( 41, Meta::NUTRITION, true )['calories'] );
@@ -241,12 +244,12 @@ final class RecipeEditorTest extends TestCase {
 		update_post_meta( 41, Meta::FEATURED, true );
 		$this->post_form( [ 'prep_minutes' => '5', 'featured' => '0' ] );
 		( new RecipeEditor() )->save( 41, $this->recipe );
-		$this->assertTrue( get_post_meta( 41, Meta::FEATURED, true ), 'the manager\'s flag survives the writer\'s save' );
-		$this->assertSame( 5, get_post_meta( 41, Meta::PREP_MINUTES, true ) );
+		$this->assertSame( '1', get_post_meta( 41, Meta::FEATURED, true ), 'the manager\'s flag survives the writer\'s save' );
+		$this->assertSame( '5', get_post_meta( 41, Meta::PREP_MINUTES, true ) );
 		update_post_meta( 41, Meta::FEATURED, false );
 		$this->post_form( [ 'featured' => '1' ] );
 		( new RecipeEditor() )->save( 41, $this->recipe );
-		$this->assertFalse( get_post_meta( 41, Meta::FEATURED, true ), 'a crafted featured=1 from a writer is ignored' );
+		$this->assertSame( '', get_post_meta( 41, Meta::FEATURED, true ), 'a crafted featured=1 from a writer is ignored' );
 	}
 
 	public function test_an_unticked_checkbox_and_missing_rows_clear_the_stored_values(): void {
@@ -255,7 +258,7 @@ final class RecipeEditorTest extends TestCase {
 		update_post_meta( 41, Meta::INGREDIENTS, [ [ 'measure' => '', 'label' => 'x', 'type' => 'plain' ] ] );
 		$this->post_form( [ 'prep_minutes' => '5' ] );
 		( new RecipeEditor() )->save( 41, $this->recipe );
-		$this->assertFalse( get_post_meta( 41, Meta::FEATURED, true ), 'form semantics: an absent checkbox is unticked' );
+		$this->assertSame( '', get_post_meta( 41, Meta::FEATURED, true ), 'form semantics: an absent checkbox is unticked' );
 		$this->assertSame( [], get_post_meta( 41, Meta::INGREDIENTS, true ), 'all rows removed in the editor' );
 	}
 
@@ -268,33 +271,64 @@ final class RecipeEditorTest extends TestCase {
 		// The form was truncated after the media box (or the other boxes were removed): only details + media arrived.
 		$this->post_form( [ 'prep_minutes' => '7', 'video_url' => '' ], true, [ 'details', 'media' ] );
 		( new RecipeEditor() )->save( 41, $this->recipe );
-		$this->assertSame( 7, get_post_meta( 41, Meta::PREP_MINUTES, true ), 'the sections that arrived are written' );
-		$this->assertFalse( get_post_meta( 41, Meta::FEATURED, true ), 'details arrived: its unticked box counts' );
+		$this->assertSame( '7', get_post_meta( 41, Meta::PREP_MINUTES, true ), 'the sections that arrived are written' );
+		$this->assertSame( '', get_post_meta( 41, Meta::FEATURED, true ), 'details arrived: its unticked box counts' );
 		$this->assertSame( 'kept', get_post_meta( 41, Meta::INGREDIENTS, true )[0]['label'] );
 		$this->assertSame( 'kept too', get_post_meta( 41, Meta::STEPS, true )[0]['text'] );
 		$this->assertSame( 9.0, get_post_meta( 41, Meta::NUTRITION, true )['calories'] );
 		$this->post_form( [ 'prep_minutes' => '8' ], true, [] );
 		( new RecipeEditor() )->save( 41, $this->recipe );
-		$this->assertSame( 7, get_post_meta( 41, Meta::PREP_MINUTES, true ), 'no sentinel at all: nothing written' );
+		$this->assertSame( '7', get_post_meta( 41, Meta::PREP_MINUTES, true ), 'no sentinel at all: nothing written' );
 	}
 
-	public function test_servings_are_judged_as_a_whole_so_the_field_the_writer_changed_wins(): void {
+	public function test_servings_are_judged_from_the_posted_pair_alone_so_saving_the_same_form_twice_is_stable(): void {
 		bfrc_test_grant( 'edit_post' );
 		( new Meta() )->register_hooks();
+		$pair = fn(): array => [ get_post_meta( 41, Meta::SERVINGS_MIN, true ), get_post_meta( 41, Meta::SERVINGS_MAX, true ) ];
 		update_post_meta( 41, Meta::SERVINGS_MIN, 2 );
 		update_post_meta( 41, Meta::SERVINGS_MAX, 4 );
 		$this->post_form( [ 'servings_min' => '6', 'servings_max' => '4' ] );
 		( new RecipeEditor() )->save( 41, $this->recipe );
-		$this->assertSame( [ 6, 6 ], [ get_post_meta( 41, Meta::SERVINGS_MIN, true ), get_post_meta( 41, Meta::SERVINGS_MAX, true ) ], 'min raised above max: max follows' );
+		$this->assertSame( [ '6', '6' ], $pair(), 'min above max: max follows' );
+		( new RecipeEditor() )->save( 41, $this->recipe );
+		$this->assertSame( [ '6', '6' ], $pair(), 'the block editor re-posts the same form on every Update: the result must not flip' );
 		$this->post_form( [ 'servings_min' => '6', 'servings_max' => '3' ] );
 		( new RecipeEditor() )->save( 41, $this->recipe );
-		$this->assertSame( [ 3, 3 ], [ get_post_meta( 41, Meta::SERVINGS_MIN, true ), get_post_meta( 41, Meta::SERVINGS_MAX, true ) ], 'max lowered below min: min follows' );
-		$this->post_form( [ 'servings_min' => '10', 'servings_max' => '8' ] );
 		( new RecipeEditor() )->save( 41, $this->recipe );
-		$this->assertSame( [ 10, 10 ], [ get_post_meta( 41, Meta::SERVINGS_MIN, true ), get_post_meta( 41, Meta::SERVINGS_MAX, true ) ], 'both changed and min > max: max is raised to min' );
+		$this->assertSame( [ '6', '6' ], $pair(), 'lowering max below min on the form raises max back: the posted min wins, twice over' );
 		$this->post_form( [ 'servings_min' => '2', 'servings_max' => '0' ] );
 		( new RecipeEditor() )->save( 41, $this->recipe );
-		$this->assertSame( [ 2, 0 ], [ get_post_meta( 41, Meta::SERVINGS_MIN, true ), get_post_meta( 41, Meta::SERVINGS_MAX, true ) ], 'max 0 = not set, left alone' );
+		$this->assertSame( [ '2', '0' ], $pair(), 'max 0 = not set, left alone' );
+		$this->post_form( [ 'servings_min' => '2', 'servings_max' => '8' ] );
+		( new RecipeEditor() )->save( 41, $this->recipe );
+		$this->assertSame( [ '2', '8' ], $pair() );
+	}
+
+	public function test_a_section_sentinel_counts_only_when_it_is_exactly_1(): void {
+		$this->as_curator();
+		update_post_meta( 41, Meta::PREP_MINUTES, 9 );
+		foreach ( [ '0', '', [ '1' ], 'yes' ] as $junk ) {
+			$this->post_form( [ 'prep_minutes' => '5' ], true, [] );
+			$_POST[ RecipeEditor::FIELD ]['_has'] = [ 'details' => $junk ];
+			( new RecipeEditor() )->save( 41, $this->recipe );
+			$this->assertSame( '9', get_post_meta( 41, Meta::PREP_MINUTES, true ), var_export( $junk, true ) );
+		}
+	}
+
+	public function test_a_writer_s_posted_featured_is_stripped_before_the_saved_action(): void {
+		bfrc_test_grant( 'edit_post' );
+		$seen = null;
+		add_action( 'bfrc_recipe_saved', static function ( int $id, array $clean, array $raw ) use ( &$seen ): void {
+			$seen = $raw;
+		}, 10, 3 );
+		$this->post_form( [ 'prep_minutes' => '5', 'featured' => '1' ] );
+		( new RecipeEditor() )->save( 41, $this->recipe );
+		$this->assertArrayNotHasKey( 'featured', $seen, 'an add-on must not honour a writer\'s Featured either' );
+		$this->assertSame( '5', $seen['prep_minutes'] );
+		$this->as_curator();
+		$this->post_form( [ 'featured' => '1' ] );
+		( new RecipeEditor() )->save( 41, $this->recipe );
+		$this->assertSame( '1', $seen['featured'], 'a curator\'s value is passed through' );
 	}
 
 	public function test_save_refuses_without_capability_or_with_a_bad_nonce_and_ignores_other_requests(): void {

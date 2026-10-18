@@ -18,5 +18,6 @@
 /composer.lock
 /phpcs.xml.dist
 /phpstan.neon
+/phpstan-bootstrap.php
 /phpunit.xml.dist
 /.DS_Store

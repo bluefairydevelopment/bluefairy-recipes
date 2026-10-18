@@ -23,7 +23,11 @@ final class MetaTest extends TestCase {
 		$this->assertSame( Meta::keys(), array_keys( $registered ) );
 		foreach ( $registered as $key => $args ) {
 			$this->assertTrue( $args['single'], $key );
-			$this->assertTrue( $args['revisions_enabled'], "{$key}: restoring a revision restores the field" );
+			if ( Meta::FEATURED === $key ) {
+				$this->assertFalse( $args['revisions_enabled'], 'Featured is not revisioned: core\'s restore copies meta without the auth callback, so a writer could re-apply or wipe a curator\'s flag' );
+			} else {
+				$this->assertTrue( $args['revisions_enabled'], "{$key}: restoring a revision restores the field" );
+			}
 			$this->assertIsArray( $args['show_in_rest']['schema'], $key );
 			$this->assertTrue( is_callable( $args['sanitize_callback'] ), $key );
 			$this->assertSame( [ Meta::class, 'can_edit' ], $args['auth_callback'], $key );
@@ -43,23 +47,38 @@ final class MetaTest extends TestCase {
 		$m = new Meta();
 		$m->register_hooks();
 		$this->assertSame( 7, has_action( 'init', [ $m, 'register' ] ) );
-		$this->assertSame( 5, has_action( 'save_post_bfrc_recipe', [ Meta::class, 'ensure_featured_key' ] ) );
+		foreach ( [ 'added_post_meta', 'updated_post_meta', 'deleted_post_meta' ] as $hook ) {
+			$this->assertSame( 10, has_action( $hook, [ Meta::class, 'flush_featured_ids' ] ), $hook );
+		}
 	}
 
-	public function test_ensure_featured_key_writes_a_false_row_once_for_real_recipes_only(): void {
-		$recipe = bfrc_test_add_post( [ 'ID' => 41, 'post_type' => 'bfrc_recipe', 'post_status' => 'draft' ] );
-		Meta::ensure_featured_key( 41, $recipe );
-		$this->assertTrue( metadata_exists( 'post', 41, Meta::FEATURED ) );
-		$this->assertFalse( get_post_meta( 41, Meta::FEATURED, true ) );
-		update_post_meta( 41, Meta::FEATURED, true );
-		Meta::ensure_featured_key( 41, $recipe );
-		$this->assertTrue( get_post_meta( 41, Meta::FEATURED, true ), 'an existing value is never touched' );
-		$auto = bfrc_test_add_post( [ 'ID' => 42, 'post_type' => 'bfrc_recipe', 'post_status' => 'auto-draft' ] );
-		Meta::ensure_featured_key( 42, $auto );
-		$this->assertFalse( metadata_exists( 'post', 42, Meta::FEATURED ), 'auto-drafts are skipped' );
-		$post = bfrc_test_add_post( [ 'ID' => 43, 'post_type' => 'post' ] );
-		Meta::ensure_featured_key( 43, $post );
-		$this->assertFalse( metadata_exists( 'post', 43, Meta::FEATURED ) );
+	public function test_featured_ids_is_one_indexed_lookup_cached_until_a_featured_value_changes(): void {
+		$wpdb = $GLOBALS['wpdb'];
+		$wpdb->queue( 'get_col', [ '41', '7' ] );
+		$this->assertSame( [ 41, 7 ], Meta::featured_ids() );
+		$sql = $wpdb->queries_matching( "meta_value = '1'" );
+		$this->assertCount( 1, $sql );
+		$this->assertStringContainsString( "pm.meta_key = '_bfrc_featured'", $sql[0] );
+		$this->assertStringContainsString( "p.post_type = 'bfrc_recipe'", $sql[0] );
+		$this->assertStringNotContainsString( 'post_status', $sql[0], 'any status: the set is used to exclude and to rank, never to list' );
+		$wpdb->queue( 'get_col', [ '99' ] );
+		$this->assertSame( [ 41, 7 ], Meta::featured_ids(), 'cached: the second call runs no query' );
+		$this->assertCount( 1, $wpdb->queries_matching( "meta_value = '1'" ) );
+		Meta::flush_featured_ids( 1, 41, Meta::PREP_MINUTES );
+		$this->assertSame( [ 41, 7 ], Meta::featured_ids(), 'another key changing keeps the cache' );
+		Meta::flush_featured_ids( [ 1 ], 41, Meta::FEATURED );
+		$this->assertSame( [ 99 ], Meta::featured_ids(), 'a featured change refreshes it' );
+		$wpdb->queue( 'get_col', null );
+		Meta::flush_featured_ids( 1, 41, Meta::FEATURED );
+		$this->assertSame( [], Meta::featured_ids(), 'a failed query is an empty set' );
+	}
+
+	public function test_can_curate_is_edit_others_bfrc_recipes(): void {
+		$this->assertFalse( Meta::can_curate() );
+		bfrc_test_grant( 'edit_post' );
+		$this->assertFalse( Meta::can_curate(), 'editing the recipe is not curating' );
+		bfrc_test_grant( Meta::CURATE_CAP );
+		$this->assertTrue( Meta::can_curate() );
 	}
 
 	public function test_can_edit_asks_for_edit_post_on_that_recipe_for_the_user_core_names(): void {
@@ -85,18 +104,18 @@ final class MetaTest extends TestCase {
 		update_post_meta( 41, Meta::SERVINGS_MIN, 2 );
 		update_post_meta( 41, Meta::SERVINGS_MAX, 4 );
 		update_post_meta( 41, Meta::SERVINGS_MIN, 6 );
-		$this->assertSame( 6, get_post_meta( 41, Meta::SERVINGS_MAX, true ), 'max follows min up' );
+		$this->assertSame( '6', get_post_meta( 41, Meta::SERVINGS_MAX, true ), 'max follows min up' );
 		update_post_meta( 41, Meta::SERVINGS_MAX, 3 );
-		$this->assertSame( 3, get_post_meta( 41, Meta::SERVINGS_MIN, true ), 'min follows max down' );
+		$this->assertSame( '3', get_post_meta( 41, Meta::SERVINGS_MIN, true ), 'min follows max down' );
 		update_post_meta( 41, Meta::SERVINGS_MAX, 0 );
-		$this->assertSame( 3, get_post_meta( 41, Meta::SERVINGS_MIN, true ), 'max 0 means unset and changes nothing' );
+		$this->assertSame( '3', get_post_meta( 41, Meta::SERVINGS_MIN, true ), 'max 0 means unset and changes nothing' );
 		add_post_meta( 42, Meta::SERVINGS_MIN, 9 );
 		update_post_meta( 42, Meta::SERVINGS_MAX, 1 );
-		$this->assertSame( 9, get_post_meta( 42, Meta::SERVINGS_MIN, true ), 'other post types are not touched' );
+		$this->assertSame( '9', get_post_meta( 42, Meta::SERVINGS_MIN, true ), 'other post types are not touched' );
 		Meta::reconcile_servings( 1, 42, Meta::SERVINGS_MAX, 1 );
-		$this->assertSame( 9, get_post_meta( 42, Meta::SERVINGS_MIN, true ), 'called directly for a non-recipe: still nothing' );
+		$this->assertSame( '9', get_post_meta( 42, Meta::SERVINGS_MIN, true ), 'called directly for a non-recipe: still nothing' );
 		Meta::reconcile_servings( 1, 41, Meta::FEATURED, true );
-		$this->assertSame( 3, get_post_meta( 41, Meta::SERVINGS_MIN, true ), 'another key: nothing' );
+		$this->assertSame( '3', get_post_meta( 41, Meta::SERVINGS_MIN, true ), 'another key: nothing' );
 	}
 
 	public function test_media_type_is_image_unless_exactly_video(): void {

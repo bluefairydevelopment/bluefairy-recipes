@@ -42,10 +42,12 @@ final class Meta {
 	public const SERVINGS_MAX = '_bfrc_servings_max';
 	public const FEATURED     = '_bfrc_featured';
 	/** The capability that may set Featured. */
-	public const CURATE_CAP  = 'edit_others_bfrc_recipes';
-	public const INGREDIENTS = '_bfrc_ingredients';
-	public const STEPS       = '_bfrc_steps';
-	public const NUTRITION   = '_bfrc_nutrition';
+	public const CURATE_CAP = 'edit_others_bfrc_recipes';
+	/** Object-cache key of the featured id set. */
+	public const FEATURED_IDS_CACHE = 'featured_ids';
+	public const INGREDIENTS        = '_bfrc_ingredients';
+	public const STEPS              = '_bfrc_steps';
+	public const NUTRITION          = '_bfrc_nutrition';
 
 	public const MAX_MINUTES   = 6000;
 	public const MAX_SERVINGS  = 999;
@@ -93,24 +95,59 @@ final class Meta {
 		add_action( 'init', [ $this, 'register' ], 7 );
 		add_action( 'added_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
 		add_action( 'updated_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
-		add_action( 'save_post_' . PostType::NAME, [ self::class, 'ensure_featured_key' ], 5, 2 );
+		add_action( 'added_post_meta', [ self::class, 'flush_featured_ids' ], 10, 3 );
+		add_action( 'updated_post_meta', [ self::class, 'flush_featured_ids' ], 10, 3 );
+		add_action( 'deleted_post_meta', [ self::class, 'flush_featured_ids' ], 10, 3 );
 	}
 
 	/**
-	 * Every recipe carries a `_bfrc_featured` row from its first save on any
-	 * path (editor, REST, WP-CLI, an importer calling `wp_insert_post`), so the
-	 * list's featured sort and filter have a value to look at. Auto-drafts are
-	 * skipped (every "Add New" visit creates one).
-	 *
-	 * @param int      $post_id The recipe.
-	 * @param \WP_Post $post    The recipe.
+	 * May the current user curate (set Featured)? Recipe Managers,
+	 * Administrators, and Editors while the core-role grant is on, hold
+	 * `edit_others_bfrc_recipes`; a Writer does not.
 	 */
-	public static function ensure_featured_key( int $post_id, \WP_Post $post ): void {
-		if ( PostType::NAME !== $post->post_type || 'auto-draft' === $post->post_status || wp_is_post_revision( $post_id ) ) {
-			return;
+	public static function can_curate(): bool {
+		return current_user_can( self::CURATE_CAP );
+	}
+
+	/**
+	 * Ids of every recipe marked featured, any status: one indexed postmeta
+	 * lookup, cached for the request (and in a persistent object cache until
+	 * a featured value changes). The list's featured filter and sort, and the
+	 * front end's featured block, work from this set, so no query ever joins
+	 * postmeta for the key.
+	 *
+	 * @return array<int, int>
+	 */
+	public static function featured_ids(): array {
+		$cached = wp_cache_get( self::FEATURED_IDS_CACHE, 'bfrc' );
+		if ( is_array( $cached ) ) {
+			return array_values( array_map( 'intval', $cached ) );
 		}
-		if ( ! metadata_exists( 'post', $post_id, self::FEATURED ) ) {
-			add_post_meta( $post_id, self::FEATURED, false, true );
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- the one indexed lookup every featured list query works from; cached just below and flushed on any featured write.
+		$ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT pm.post_id FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE pm.meta_key = %s AND pm.meta_value = '1' AND p.post_type = %s",
+				self::FEATURED,
+				PostType::NAME
+			)
+		);
+		$ids = array_values( array_map( 'intval', is_array( $ids ) ? $ids : [] ) );
+		wp_cache_set( self::FEATURED_IDS_CACHE, $ids, 'bfrc' );
+		return $ids;
+	}
+
+	/**
+	 * A featured value changed: forget the cached id set.
+	 *
+	 * @param int|array<int> $meta_ids  Ignored.
+	 * @param int            $object_id Ignored.
+	 * @param string         $meta_key  The key written.
+	 */
+	public static function flush_featured_ids( int|array $meta_ids, int $object_id, string $meta_key ): void {
+		unset( $meta_ids, $object_id );
+		if ( self::FEATURED === $meta_key ) {
+			wp_cache_delete( self::FEATURED_IDS_CACHE, 'bfrc' );
 		}
 	}
 
@@ -232,7 +269,8 @@ final class Meta {
 			0,
 			$auth
 		);
-		$this->register_key( self::FEATURED, 'boolean', [ 'type' => 'boolean' ], [ self::class, 'sanitize_bool' ], false, $auth );
+		// Not revisioned: core's revision restore copies meta without the auth callback, so a writer could re-apply or wipe a curator's flag.
+		$this->register_key( self::FEATURED, 'boolean', [ 'type' => 'boolean' ], [ self::class, 'sanitize_bool' ], false, $auth, false );
 		$this->register_key(
 			self::INGREDIENTS,
 			'array',
@@ -297,8 +335,9 @@ final class Meta {
 	 * @param callable             $sanitize Sanitiser.
 	 * @param mixed                $fallback Default value.
 	 * @param callable             $auth     Auth callback.
+	 * @param bool                 $revisions Whether revisions keep and restore the key.
 	 */
-	private function register_key( string $key, string $type, array $schema, callable $sanitize, mixed $fallback, callable $auth ): void {
+	private function register_key( string $key, string $type, array $schema, callable $sanitize, mixed $fallback, callable $auth, bool $revisions = true ): void {
 		register_post_meta(
 			PostType::NAME,
 			$key,
@@ -307,7 +346,7 @@ final class Meta {
 				'single'            => true,
 				'default'           => $fallback,
 				'show_in_rest'      => [ 'schema' => $schema ],
-				'revisions_enabled' => true,
+				'revisions_enabled' => $revisions,
 				'sanitize_callback' => $sanitize,
 				'auth_callback'     => $auth,
 			]
@@ -327,7 +366,7 @@ final class Meta {
 		unset( $allowed );
 		$can = $user_id > 0 ? user_can( $user_id, 'edit_post', $object_id ) : current_user_can( 'edit_post', $object_id );
 		if ( $can && self::FEATURED === $meta_key ) {
-			// Featured is curation: Recipe Managers, Editors and Administrators, not the recipe's own writer.
+			// Featured is curation (see can_curate()), not the recipe's own writer's call.
 			$can = $user_id > 0 ? user_can( $user_id, self::CURATE_CAP ) : current_user_can( self::CURATE_CAP );
 		}
 		return $can;

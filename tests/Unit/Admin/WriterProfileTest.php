@@ -176,7 +176,7 @@ final class WriterProfileTest extends TestCase {
 		$this->own_image( 78, 5, 'application/pdf' );
 		update_user_meta( 5, 'bfrc_avatar_id', 70 );
 		$p = new WriterProfile();
-		foreach ( [ '999' => 'no such attachment', '78' => 'not an image', '41' => 'not an attachment', '77' => 'another user\'s image the saver may not edit', '-70' => 'a negative id', 'abc' => 'junk', '70.5' => 'not an integer' ] as $id => $why ) {
+		foreach ( [ '999' => 'no such attachment', '78' => 'not an image', '41' => 'not an attachment', '77' => 'another user\'s image the saver may not edit', '-70' => 'a negative id', 'abc' => 'junk', '70.5' => 'not an integer', '70abc' => 'digits then junk (a cast would read 70)', '99999999999999999999' => 'more digits than any id' ] as $id => $why ) {
 			bfrc_test_add_post( [ 'ID' => 41, 'post_type' => 'bfrc_recipe' ] );
 			$this->post_form( [ 'bfrc_avatar_id' => (string) $id ] );
 			$p->save( 5 );
@@ -193,9 +193,9 @@ final class WriterProfileTest extends TestCase {
 		$p->save( 5 );
 		$this->assertSame( 77, get_user_meta( 5, 'bfrc_avatar_id', true ), 'control: someone else\'s image is accepted by a saver who may edit it (edit_others_posts)' );
 		$this->own_image( 80 );
-		$this->post_form( [ 'bfrc_avatar_id' => '80' ] );
+		$this->post_form( [ 'bfrc_avatar_id' => ' 80 ' ] );
 		$p->save( 5 );
-		$this->assertSame( 80, get_user_meta( 5, 'bfrc_avatar_id', true ), 'control: own image' );
+		$this->assertSame( 80, get_user_meta( 5, 'bfrc_avatar_id', true ), 'control: own image, surrounding spaces trimmed' );
 	}
 
 	public function test_save_refuses_without_edit_user_or_a_profile_or_with_a_bad_nonce_and_ignores_forms_without_the_section(): void {

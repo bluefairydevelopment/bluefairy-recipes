@@ -77,11 +77,10 @@ final class RecipeEditor {
 	}
 
 	/**
-	 * May the current user curate (set Featured)? Recipe Managers, Editors and
-	 * Administrators hold `edit_others_bfrc_recipes`; a Writer does not.
+	 * May the current user curate (set Featured)? See Meta::can_curate().
 	 */
 	public static function can_curate(): bool {
-		return current_user_can( self::CURATE_CAP );
+		return Meta::can_curate();
 	}
 
 	/**
@@ -90,7 +89,6 @@ final class RecipeEditor {
 	 * @param \WP_Post $post The recipe.
 	 */
 	public function render_details( \WP_Post $post ): void {
-		wp_nonce_field( self::NONCE_ACTION, self::NONCE_FIELD, false );
 		$prep = Meta::sanitize_minutes( get_post_meta( $post->ID, Meta::PREP_MINUTES, true ) );
 		$cook = Meta::sanitize_minutes( get_post_meta( $post->ID, Meta::COOK_MINUTES, true ) );
 		$min  = Meta::sanitize_servings( get_post_meta( $post->ID, Meta::SERVINGS_MIN, true ) );
@@ -104,9 +102,9 @@ final class RecipeEditor {
 		if ( self::can_curate() ) {
 			echo '<p><label><input type="checkbox" name="' . esc_attr( self::FIELD . '[featured]' ) . '" value="1"' . checked( $feat, true, false ) . '> ' . esc_html__( 'Featured recipe', 'bluefairy-recipes' ) . '</label></p>';
 		} else {
-			echo '<p class="bfrc-editor__readonly">' . esc_html( $feat ? __( 'Featured recipe: yes', 'bluefairy-recipes' ) : __( 'Featured recipe: no', 'bluefairy-recipes' ) ) . ' <span class="description">' . esc_html__( '(set by a recipe manager)', 'bluefairy-recipes' ) . '</span></p>';
+			echo '<p class="bfrc-editor__readonly">' . esc_html( $feat ? __( 'Featured recipe: yes', 'bluefairy-recipes' ) : __( 'Featured recipe: no', 'bluefairy-recipes' ) ) . ' <span class="description">' . esc_html__( '(set by recipe managers and editors)', 'bluefairy-recipes' ) . '</span></p>';
 		}
-		echo '<p class="description">' . esc_html__( '0 means not shown. Servings max never drops below min; raising min above max raises max.', 'bluefairy-recipes' ) . '</p>';
+		echo '<p class="description">' . esc_html__( '0 means not shown. A minimum above the maximum raises the maximum. Decimals are rounded down.', 'bluefairy-recipes' ) . '</p>';
 		$this->sentinel( 'details' );
 		echo '</div>';
 	}
@@ -189,6 +187,7 @@ final class RecipeEditor {
 		$steps = Meta::sanitize_steps( get_post_meta( $post->ID, Meta::STEPS, true ) );
 		echo '<div class="bfrc-editor bfrc-rows" data-bfrc-rows="steps" data-bfrc-max="' . esc_attr( (string) Meta::MAX_ROWS ) . '">';
 		if ( [] === $steps ) {
+			echo '<noscript><p class="description">' . esc_html__( 'Enable JavaScript to add more than one row at a time.', 'bluefairy-recipes' ) . '</p></noscript>';
 			$steps[] = [ 'text' => '' ];
 		}
 		echo '<ol class="bfrc-rows__list">';
@@ -442,8 +441,14 @@ final class RecipeEditor {
 		 *
 		 * @param int                  $post_id The recipe.
 		 * @param array<string, mixed> $clean   Meta key => value written.
-		 * @param array<string, mixed> $raw     The unslashed form fields, unsanitised.
+		 * @param array<string, mixed> $raw     The unslashed form fields, unsanitised: `$clean` is the
+		 *                                      trusted source; `$raw` is for fields the base does not know
+		 *                                      (an add-on box should end with its own `bfrc[_has][name]`
+		 *                                      sentinel and read it from `$raw['_has']`).
 		 */
+		if ( ! self::can_curate() ) {
+			unset( $raw['featured'] ); // Add-ons must not honour a writer's Featured either.
+		}
 		do_action( 'bfrc_recipe_saved', $post_id, $clean, $raw );
 	}
 
@@ -496,9 +501,10 @@ final class RecipeEditor {
 	}
 
 	/**
-	 * Servings: the form is judged as a whole. The key the writer changed is
-	 * written last so it wins the reconciliation in Content\Meta; when both
-	 * changed and min exceeds max, max is raised to min.
+	 * Servings: the form is judged as a whole and only from what it posted,
+	 * so saving the same form twice gives the same result (the block editor
+	 * re-posts the unchanged form on every Update). A minimum above the
+	 * maximum raises the maximum; a maximum of 0 means "not set".
 	 *
 	 * @param int                  $post_id The recipe.
 	 * @param int                  $min     Posted min.
@@ -506,40 +512,32 @@ final class RecipeEditor {
 	 * @param array<string, mixed> $clean   Receives the values written.
 	 */
 	private function write_servings( int $post_id, int $min, int $max, array &$clean ): void {
-		$stored_min  = Meta::sanitize_servings( get_post_meta( $post_id, Meta::SERVINGS_MIN, true ) );
-		$stored_max  = Meta::sanitize_servings( get_post_meta( $post_id, Meta::SERVINGS_MAX, true ) );
-		$min_changed = $min !== $stored_min;
-		$max_changed = $max !== $stored_max;
-		if ( $min_changed && $max_changed && $max > 0 && $min > $max ) {
+		if ( $max > 0 && $min > $max ) {
 			$max = $min;
 		}
-		$order = [
-			Meta::SERVINGS_MIN => $min,
-			Meta::SERVINGS_MAX => $max,
-		];
-		if ( $min_changed && ! $max_changed ) {
-			$order = array_reverse( $order, true ); // Write max first so the changed min is written last and wins.
-		}
-		foreach ( $order as $key => $value ) {
-			$this->write( $post_id, $key, $value );
-		}
-		$clean[ Meta::SERVINGS_MIN ] = Meta::sanitize_servings( get_post_meta( $post_id, Meta::SERVINGS_MIN, true ) );
-		$clean[ Meta::SERVINGS_MAX ] = Meta::sanitize_servings( get_post_meta( $post_id, Meta::SERVINGS_MAX, true ) );
+		$this->write( $post_id, Meta::SERVINGS_MIN, $min );
+		$this->write( $post_id, Meta::SERVINGS_MAX, $max );
+		$clean[ Meta::SERVINGS_MIN ] = $min;
+		$clean[ Meta::SERVINGS_MAX ] = $max;
 	}
 
 	/**
-	 * The hidden field that proves a box's fields arrived in full.
+	 * The hidden fields that end every box: the nonce and the sentinel that
+	 * proves the box's fields arrived in full.
 	 *
 	 * @param string $section One of SECTIONS.
 	 */
 	private function sentinel( string $section ): void {
+		// The nonce travels with every box (same name, same value; PHP keeps the last), so removing
+		// or hiding any one box, Details included, never silently discards the others' edits.
+		echo '<input type="hidden" name="' . esc_attr( self::NONCE_FIELD ) . '" value="' . esc_attr( wp_create_nonce( self::NONCE_ACTION ) ) . '">';
 		echo '<input type="hidden" name="' . esc_attr( self::FIELD . '[_has][' . $section . ']' ) . '" value="1">';
 	}
 
 	/**
-	 * One labelled number input. No min/max: the sanitiser clamps, and an
-	 * HTML constraint inside a collapsed classic-editor box would block
-	 * Publish without any message.
+	 * One labelled number input. No min/max/step constraint: the sanitiser
+	 * clamps and floors, and an HTML constraint inside a collapsed
+	 * classic-editor box would block Publish without any message.
 	 *
 	 * @param string $name  Field name under FIELD.
 	 * @param string $label Label text.
@@ -547,7 +545,7 @@ final class RecipeEditor {
 	 */
 	private function number_field( string $name, string $label, int $value ): void {
 		echo '<p><label for="bfrc-' . esc_attr( $name ) . '">' . esc_html( $label ) . '</label><br>';
-		echo '<input type="number" step="1" inputmode="numeric" id="bfrc-' . esc_attr( $name ) . '" name="' . esc_attr( self::FIELD . '[' . $name . ']' ) . '" value="' . esc_attr( (string) $value ) . '"></p>';
+		echo '<input type="number" step="any" inputmode="numeric" id="bfrc-' . esc_attr( $name ) . '" name="' . esc_attr( self::FIELD . '[' . $name . ']' ) . '" value="' . esc_attr( (string) $value ) . '"></p>';
 	}
 
 	/**
@@ -585,10 +583,8 @@ final class RecipeEditor {
 				}
 			}
 			echo '</td>';
-		} else {
-			echo '<input type="hidden" name="' . esc_attr( $base . '[type]' ) . '" value="plain">';
 		}
-		echo '<td class="bfrc-rows__actions">' . $this->row_actions() . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built from escaped literals in row_actions().
+		echo '<td class="bfrc-rows__actions">' . ( count( $types ) > 1 ? '' : '<input type="hidden" name="' . esc_attr( $base . '[type]' ) . '" value="plain">' ) . $this->row_actions() . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built from escaped literals in row_actions().
 		echo '</tr>';
 	}
 

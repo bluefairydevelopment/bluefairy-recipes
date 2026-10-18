@@ -32,7 +32,7 @@ final class ListTable {
 	public const FILTER_FEATURED  = 'bfrc_featured';
 	public const NOTICE_ARG       = 'bfrc_featured_changed';
 	public const SCREEN           = 'edit-' . PostType::NAME;
-	public const SORT_CLAUSE      = 'bfrc_featured_sort';
+	public const SORT_FLAG        = 'bfrc_featured_sort';
 	public const DROPDOWN_TERMS   = 500;
 
 	/**
@@ -44,6 +44,7 @@ final class ListTable {
 		add_filter( 'manage_' . self::SCREEN . '_sortable_columns', [ $this, 'sortable_columns' ] );
 		add_action( 'restrict_manage_posts', [ $this, 'filters' ], 10, 2 );
 		add_action( 'pre_get_posts', [ $this, 'filter_query' ] );
+		add_filter( 'posts_clauses', [ $this, 'order_clauses' ], 10, 2 );
 		add_filter( 'bulk_actions-' . self::SCREEN, [ $this, 'bulk_actions' ] );
 		add_filter( 'handle_bulk_actions-' . self::SCREEN, [ $this, 'handle_bulk' ], 10, 3 );
 		add_filter( 'removable_query_args', [ $this, 'removable_query_args' ] );
@@ -94,7 +95,12 @@ final class ListTable {
 				}
 				break;
 			case 'bfrc_times':
-				echo esc_html( self::times_text( Meta::sanitize_minutes( get_post_meta( $post_id, Meta::PREP_MINUTES, true ) ), Meta::sanitize_minutes( get_post_meta( $post_id, Meta::COOK_MINUTES, true ) ) ) );
+				$text = self::times_text( Meta::sanitize_minutes( get_post_meta( $post_id, Meta::PREP_MINUTES, true ) ), Meta::sanitize_minutes( get_post_meta( $post_id, Meta::COOK_MINUTES, true ) ) );
+				if ( '' === $text ) {
+					echo '<span aria-hidden="true">&mdash;</span>';
+				} else {
+					echo esc_html( $text );
+				}
 				break;
 			case 'bfrc_servings':
 				$min = Meta::sanitize_servings( get_post_meta( $post_id, Meta::SERVINGS_MIN, true ) );
@@ -118,14 +124,14 @@ final class ListTable {
 	}
 
 	/**
-	 * The Time cell: prep only, cook only, both, or a dash.
+	 * The Time cell: prep only, cook only, both, or '' when neither is set.
 	 *
 	 * @param int $prep Prep minutes.
 	 * @param int $cook Cook minutes.
 	 */
 	public static function times_text( int $prep, int $cook ): string {
 		if ( 0 === $prep && 0 === $cook ) {
-			return '—';
+			return '';
 		}
 		if ( 0 === $cook ) {
 			/* translators: %d: prep minutes */
@@ -166,22 +172,27 @@ final class ListTable {
 			update_post_thumbnail_cache( $GLOBALS['wp_query'] );
 		}
 		foreach ( $this->enabled_taxonomies() as $code => $definition ) {
-			$name = Taxonomies::taxonomy_name( $code );
-			echo '<label class="screen-reader-text" for="' . esc_attr( $name ) . '">' . esc_html( sprintf( /* translators: %s: filter type name */ __( 'Filter by %s', 'bluefairy-recipes' ), $definition['label'] ) ) . '</label>';
-			wp_dropdown_categories(
+			$name     = Taxonomies::taxonomy_name( $code );
+			$dropdown = wp_dropdown_categories(
 				[
 					'taxonomy'        => $name,
 					'name'            => $name,
 					'id'              => $name,
 					'value_field'     => 'slug',
 					'selected'        => self::requested_slug( $name ),
-					'hide_empty'      => true,
+					'hide_empty'      => false,
 					'hide_if_empty'   => true,
 					'hierarchical'    => true,
 					'number'          => self::DROPDOWN_TERMS,
+					'echo'            => false,
 					'show_option_all' => esc_html( sprintf( /* translators: %s: taxonomy name */ __( 'All %s', 'bluefairy-recipes' ), $definition['label'] ) ),
 				]
 			);
+			if ( ! is_string( $dropdown ) || '' === $dropdown ) {
+				continue; // No terms yet: no control, so no orphan label either.
+			}
+			echo '<label class="screen-reader-text" for="' . esc_attr( $name ) . '">' . esc_html( sprintf( /* translators: %s: filter type name */ __( 'Filter by %s', 'bluefairy-recipes' ), $definition['label'] ) ) . '</label>';
+			echo $dropdown; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- core builds the select.
 		}
 		$featured = $this->featured_filter_value();
 		echo '<label class="screen-reader-text" for="bfrc-featured-filter">' . esc_html__( 'Filter by featured', 'bluefairy-recipes' ) . '</label>';
@@ -203,48 +214,27 @@ final class ListTable {
 		if ( ! is_admin() || ! $query->is_main_query() || PostType::NAME !== $query->get( 'post_type' ) ) {
 			return;
 		}
-		$meta_query = $query->get( 'meta_query' );
-		$meta_query = is_array( $meta_query ) ? $meta_query : [];
-		$featured   = $this->featured_filter_value();
+		$featured = $this->featured_filter_value();
 		if ( '1' === $featured ) {
-			$meta_query[] = [
-				'key'   => Meta::FEATURED,
-				'value' => '1',
-			];
+			// Featured only: the curated set, never a postmeta join. An empty set must match nothing.
+			$ids     = Meta::featured_ids();
+			$current = $query->get( 'post__in' );
+			$current = is_array( $current ) && [] !== $current ? array_map( 'intval', $current ) : null;
+			$ids     = null === $current ? $ids : array_values( array_intersect( $current, $ids ) );
+			$query->set( 'post__in', [] === $ids ? [ 0 ] : $ids );
 		} elseif ( '0' === $featured ) {
-			// "Not featured" = no row, or a row that is not '1'. A NOT EXISTS / != pair costs
-			// recipes × meta rows; excluding the (curated, small) featured set is one indexed query.
-			$exclude = self::featured_ids();
+			$exclude = Meta::featured_ids();
 			if ( [] !== $exclude ) {
 				$current = $query->get( 'post__not_in' );
 				$query->set( 'post__not_in', array_values( array_unique( array_merge( is_array( $current ) ? array_map( 'intval', $current ) : [], $exclude ) ) ) );
 			}
 		}
 		if ( 'bfrc_featured' === $query->get( 'orderby' ) ) {
-			// A named clause in an OR with NOT EXISTS: core turns the joins into LEFT JOINs, so
-			// recipes that never had the key stay in the list (a plain `meta_key` INNER JOINs them away).
-			$meta_query[] = [
-				'relation'        => 'OR',
-				self::SORT_CLAUSE => [
-					'key'     => Meta::FEATURED,
-					'compare' => 'EXISTS',
-				],
-				[
-					'key'     => Meta::FEATURED,
-					'compare' => 'NOT EXISTS',
-				],
-			];
-			$order        = strtoupper( (string) $query->get( 'order' ) ) === 'ASC' ? 'ASC' : 'DESC';
-			$query->set(
-				'orderby',
-				[
-					self::SORT_CLAUSE => $order,
-					'date'            => 'DESC',
-				]
-			);
-		}
-		if ( [] !== $meta_query ) {
-			$query->set( 'meta_query', $meta_query );
+			// Sorted in order_clauses() by membership in the featured set: no postmeta join, and a
+			// recipe that never had the key sorts as not featured.
+			$query->set( self::SORT_FLAG, strtoupper( (string) $query->get( 'order' ) ) === 'ASC' ? 'ASC' : 'DESC' );
+			$query->set( 'orderby', 'date' );
+			$query->set( 'order', 'DESC' );
 		}
 		$tax_query = $query->get( 'tax_query' );
 		$tax_query = is_array( $tax_query ) ? $tax_query : [];
@@ -267,13 +257,36 @@ final class ListTable {
 	}
 
 	/**
+	 * The featured sort: `ORDER BY (ID IN (featured ids)) dir, post_date DESC`,
+	 * only on a query filter_query() flagged.
+	 *
+	 * @param array<string, string> $clauses The SQL clauses.
+	 * @param \WP_Query             $query   The query.
+	 * @return array<string, string>
+	 */
+	public function order_clauses( array $clauses, \WP_Query $query ): array {
+		$dir = $query->get( self::SORT_FLAG );
+		if ( ! in_array( $dir, [ 'ASC', 'DESC' ], true ) ) {
+			return $clauses;
+		}
+		$ids = Meta::featured_ids();
+		if ( [] === $ids ) {
+			return $clauses; // Nothing featured: every recipe ranks alike; the date order stands.
+		}
+		global $wpdb;
+		$in                 = implode( ',', array_map( 'intval', $ids ) );
+		$clauses['orderby'] = "({$wpdb->posts}.ID IN ({$in})) {$dir}, {$wpdb->posts}.post_date DESC";
+		return $clauses;
+	}
+
+	/**
 	 * Two bulk actions, for curators only.
 	 *
 	 * @param array<string, string> $actions Core's actions.
 	 * @return array<string, string>
 	 */
 	public function bulk_actions( array $actions ): array {
-		if ( RecipeEditor::can_curate() ) {
+		if ( Meta::can_curate() ) {
 			$actions[ self::ACTION_FEATURE ]   = __( 'Mark featured', 'bluefairy-recipes' );
 			$actions[ self::ACTION_UNFEATURE ] = __( 'Unmark featured', 'bluefairy-recipes' );
 		}
@@ -292,7 +305,7 @@ final class ListTable {
 		if ( ! in_array( $action, [ self::ACTION_FEATURE, self::ACTION_UNFEATURE ], true ) ) {
 			return $redirect;
 		}
-		if ( ! RecipeEditor::can_curate() ) {
+		if ( ! Meta::can_curate() ) {
 			return add_query_arg( self::NOTICE_ARG, 0, remove_query_arg( self::NOTICE_ARG, $redirect ) );
 		}
 		$ids = array_values( array_filter( array_map( 'intval', $ids ), static fn( int $id ): bool => $id > 0 ) );
@@ -305,8 +318,8 @@ final class ListTable {
 			if ( get_post_type( $id ) !== PostType::NAME || ! current_user_can( 'edit_post', $id ) ) {
 				continue;
 			}
-			if ( Meta::sanitize_bool( get_post_meta( $id, Meta::FEATURED, true ) ) === $value && metadata_exists( 'post', $id, Meta::FEATURED ) ) {
-				continue; // Already so.
+			if ( Meta::sanitize_bool( get_post_meta( $id, Meta::FEATURED, true ) ) === $value ) {
+				continue; // Already so (a recipe without the key is not featured).
 			}
 			update_post_meta( $id, Meta::FEATURED, $value );
 			++$changed;
@@ -340,28 +353,6 @@ final class ListTable {
 		echo '</p></div>';
 	}
 
-	/**
-	 * Ids of every recipe marked featured (any status), for the "not
-	 * featured" filter.
-	 *
-	 * @return array<int, int>
-	 */
-	public static function featured_ids(): array {
-		$ids = get_posts(
-			[
-				'post_type'              => PostType::NAME,
-				'post_status'            => 'any',
-				'posts_per_page'         => -1,
-				'fields'                 => 'ids',
-				'no_found_rows'          => true,
-				'update_post_meta_cache' => false,
-				'update_post_term_cache' => false,
-				'meta_key'               => Meta::FEATURED, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- one indexed key lookup; the alternative is a NOT EXISTS / != pair over every meta row.
-				'meta_value'             => '1', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- as above.
-			]
-		);
-		return array_values( array_map( 'intval', is_array( $ids ) ? $ids : [] ) );
-	}
 
 	/**
 	 * The enabled taxonomy definitions, keyed by code.
@@ -375,13 +366,17 @@ final class ListTable {
 
 	/**
 	 * A requested term slug for a filter, or '' (an array or anything that is
-	 * not a string is ignored: core's `sanitize_title()` fatals on arrays).
+	 * not a string is ignored, since core's `sanitize_title()` fatals on
+	 * arrays; so is the `0` that core's "All" option posts).
 	 *
 	 * @param string $name The query parameter.
 	 */
 	private static function requested_slug( string $name ): string {
 		$raw = $_GET[ $name ] ?? ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.ValidatedSanitizedInput -- read-only filter; type-checked and sanitised on the next line.
-		return is_string( $raw ) ? sanitize_title( wp_unslash( $raw ) ) : '';
+		if ( ! is_string( $raw ) || '0' === $raw ) {
+			return ''; // Core's "All" option posts 0: no filter.
+		}
+		return sanitize_title( wp_unslash( $raw ) );
 	}
 
 	/**
