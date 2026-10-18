@@ -61,6 +61,15 @@ final class PluginTest extends TestCase {
 		$this->assertArrayHasKey( 'bfrc_recipe', $GLOBALS['bfrc_test_post_types'] );
 		$this->assertSame( [ 'bfrc_meal_type', 'bfrc_diet', 'bfrc_season', 'bfrc_cuisine' ], array_keys( $GLOBALS['bfrc_test_taxonomies'] ) );
 		$this->assertCount( 10, $GLOBALS['bfrc_test_registered_meta']['bfrc_recipe'] );
+		$this->assertNull( Plugin::service( 'admin.editor' ), 'front end: no admin wiring' );
+	}
+
+	public function test_boot_wires_the_recipe_editor_in_the_admin_only(): void {
+		$GLOBALS['bfrc_test_is_admin'] = true;
+		Plugin::boot();
+		$editor = Plugin::service( 'admin.editor' );
+		$this->assertInstanceOf( \BlueFairy\Recipes\Admin\RecipeEditor::class, $editor );
+		$this->assertSame( 10, has_action( 'save_post_bfrc_recipe', [ $editor, 'save' ] ) );
 	}
 
 	public function test_boot_provisions_a_fresh_site_through_maybe_upgrade(): void {

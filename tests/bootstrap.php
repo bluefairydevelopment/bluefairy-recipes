@@ -125,6 +125,12 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_terms']            = []; // taxonomy => term_id => WP_Term.
 	$GLOBALS['bfrc_test_next_term_id']     = 100;
 	$GLOBALS['bfrc_test_post_meta']        = []; // post id => key => value.
+	$GLOBALS['bfrc_test_autosaves']        = []; // post ids wp_is_post_autosave() reports.
+	$GLOBALS['bfrc_test_revisions']        = []; // post ids wp_is_post_revision() reports.
+	$GLOBALS['bfrc_test_meta_boxes']       = []; // add_meta_box() calls.
+	$GLOBALS['bfrc_test_attachments']      = []; // id => url.
+	$GLOBALS['bfrc_test_object_terms']     = []; // post id => taxonomy => list<WP_Term>.
+	$GLOBALS['bfrc_test_media_enqueued']   = false;
 	$GLOBALS['bfrc_test_group_flushes']    = [];
 	$GLOBALS['bfrc_test_runtime_flushes']  = 0;
 	$GLOBALS['bfrc_test_sanitize_title_raw'] = false; // true: a plugin's filter keeps raw UTF-8 instead of percent-encoding.
@@ -1308,10 +1314,12 @@ function get_permalink( mixed $post = 0 ): string|false {
 	return $p ? home_url( '/?p=' . $p->ID ) : false;
 }
 function wp_is_post_revision( mixed $post ): int|false {
-	return false;
+	$id = $post instanceof WP_Post ? $post->ID : (int) $post;
+	return in_array( $id, $GLOBALS['bfrc_test_revisions'] ?? [], true ) ? 1 : false;
 }
 function wp_is_post_autosave( mixed $post ): int|false {
-	return false;
+	$id = $post instanceof WP_Post ? $post->ID : (int) $post;
+	return in_array( $id, $GLOBALS['bfrc_test_autosaves'] ?? [], true ) ? 1 : false;
 }
 function get_post_types( array $args = [], string $output = 'names' ): array {
 	return [ 'post' => 'post', 'page' => 'page' ];
