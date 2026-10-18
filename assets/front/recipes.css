@@ -7,10 +7,10 @@
 .bfrc-filters__field select, .bfrc-filters__field input { min-width: 10rem; padding: .4rem .6rem; }
 .bfrc-filters__actions { display: flex; gap: .75rem; align-items: center; }
 .bfrc-button { cursor: pointer; padding: .5rem 1rem; border: 1px solid currentColor; border-radius: .35rem; background: transparent; font: inherit; }
-.bfrc-grid, .bfrc-writers__grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 1.5rem; }
+.bfrc-grid, .bfrc-writers__grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 1.5rem; }
 .bfrc-card { display: flex; flex-direction: column; height: 100%; border: 1px solid rgba(0,0,0,.1); border-radius: .5rem; overflow: hidden; }
 .bfrc-card--featured { box-shadow: 0 0 0 2px rgba(214, 54, 56, .35); }
-.bfrc-card__media { display: block; aspect-ratio: 4 / 3; background: rgba(0,0,0,.05); }
+.bfrc-card__media { display: block; aspect-ratio: 3 / 2; background: rgba(0,0,0,.05); }
 .bfrc-card__media img, .bfrc-card__placeholder { display: block; width: 100%; height: 100%; object-fit: cover; }
 .bfrc-card__body { padding: 1rem; display: flex; flex-direction: column; gap: .5rem; }
 .bfrc-card__title { margin: 0; font-size: 1.15em; }

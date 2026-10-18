@@ -43,7 +43,7 @@ final class TemplatesTest extends TestCase {
 		$t = $this->templates;
 		$t->register_hooks();
 		$this->assertSame( 20, has_action( 'init', [ $t, 'register' ] ) );
-		foreach ( [ 'query_vars' => 'query_vars', 'template_include' => 'template_include', 'taxonomy_template_hierarchy' => 'archive_hierarchy', 'author_template_hierarchy' => 'archive_hierarchy', 'archive_template_hierarchy' => 'archive_hierarchy', 'comments_open' => 'comments_closed', 'body_class' => 'body_class' ] as $hook => $method ) {
+		foreach ( [ 'query_vars' => 'query_vars', 'document_title_parts' => 'document_title', 'template_include' => 'template_include', 'taxonomy_template_hierarchy' => 'archive_hierarchy', 'author_template_hierarchy' => 'archive_hierarchy', 'archive_template_hierarchy' => 'archive_hierarchy', 'comments_open' => 'comments_closed', 'body_class' => 'body_class' ] as $hook => $method ) {
 			$this->assertSame( 10, has_filter( $hook, [ $t, $method ] ), $hook );
 		}
 		foreach ( [ 'pre_get_posts' => 'shape_query', 'template_redirect' => 'guard', 'wp_enqueue_scripts' => 'enqueue' ] as $hook => $method ) {
@@ -209,6 +209,19 @@ final class TemplatesTest extends TestCase {
 		$this->assertFalse( $t->comments_closed( true, 41 ), 'recipes take no comments' );
 		bfrc_test_add_post( [ 'ID' => 50, 'post_type' => 'post' ] );
 		$this->assertTrue( $t->comments_closed( true, 50 ) );
+	}
+
+	public function test_document_title_names_the_writer_pages(): void {
+		$t = $this->templates;
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
+		$this->assertSame( [ 'title' => 'Recipes' ], $t->document_title( [ 'title' => 'Recipes' ] ), 'the archive keeps core\'s title' );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writers' => '1' ] );
+		$this->assertSame( [ 'title' => 'Recipe writers' ], $t->document_title( [ 'title' => 'Recipes' ] ) );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		$this->assertSame( [ 'title' => 'Ann' ], $t->document_title( [ 'title' => 'Recipes' ] ) );
+		$q = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'bob' ], 'author' );
+		$q->set_404();
+		$this->assertSame( [ 'title' => 'Not found' ], $t->document_title( [ 'title' => 'Not found' ] ), 'a 404 keeps its title' );
 	}
 
 	public function test_view_blocks_render_from_the_main_query_and_enqueue_the_assets(): void {

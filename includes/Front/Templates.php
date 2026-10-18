@@ -66,6 +66,7 @@ final class Templates {
 		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue' ] );
 		add_filter( 'comments_open', [ $this, 'comments_closed' ], 10, 2 );
 		add_filter( 'body_class', [ $this, 'body_class' ] );
+		add_filter( 'document_title_parts', [ $this, 'document_title' ] );
 	}
 
 	/**
@@ -296,6 +297,29 @@ final class Templates {
 			$classes[] = 'bfrc-recipes';
 		}
 		return $classes;
+	}
+
+	/**
+	 * Writer pages get their own document title: the writer's name, or
+	 * "Recipe writers" for the listing (core would say "Recipes" for both).
+	 *
+	 * @param array<string, string> $parts Core's title parts.
+	 * @return array<string, string>
+	 */
+	public function document_title( array $parts ): array {
+		global $wp_query;
+		if ( ! $wp_query instanceof \WP_Query || $wp_query->is_404() ) {
+			return $parts;
+		}
+		if ( (bool) $wp_query->get( Writers::LIST_VAR ) ) {
+			$parts['title'] = __( 'Recipe writers', 'bluefairy-recipes' );
+		} elseif ( (bool) $wp_query->get( Writers::QUERY_VAR ) ) {
+			$writer = $this->writers->public_writer( (string) $wp_query->get( 'author_name' ) );
+			if ( $writer instanceof \WP_User ) {
+				$parts['title'] = $writer->display_name;
+			}
+		}
+		return $parts;
 	}
 
 	/**
