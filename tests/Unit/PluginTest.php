@@ -70,6 +70,8 @@ final class PluginTest extends TestCase {
 		$editor = Plugin::service( 'admin.editor' );
 		$this->assertInstanceOf( \BlueFairy\Recipes\Admin\RecipeEditor::class, $editor );
 		$this->assertSame( 10, has_action( 'save_post_bfrc_recipe', [ $editor, 'save' ] ) );
+		$this->assertSame( 10, has_filter( 'handle_bulk_actions-edit-bfrc_recipe', [ Plugin::service( 'admin.list_table' ), 'handle_bulk' ] ) );
+		$this->assertSame( 10, has_action( 'edit_user_profile_update', [ Plugin::service( 'admin.writer_profile' ), 'save' ] ) );
 	}
 
 	public function test_boot_provisions_a_fresh_site_through_maybe_upgrade(): void {

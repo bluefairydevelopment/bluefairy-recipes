@@ -85,6 +85,12 @@ final class Plugin {
 			$editor = new Admin\RecipeEditor();
 			$editor->register_hooks();
 			self::set( 'admin.editor', $editor );
+			$list = new Admin\ListTable();
+			$list->register_hooks();
+			self::set( 'admin.list_table', $list );
+			$profile = new Admin\WriterProfile();
+			$profile->register_hooks();
+			self::set( 'admin.writer_profile', $profile );
 		}
 
 		/**

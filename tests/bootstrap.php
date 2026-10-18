@@ -128,7 +128,9 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_autosaves']        = []; // post ids wp_is_post_autosave() reports.
 	$GLOBALS['bfrc_test_revisions']        = []; // post ids wp_is_post_revision() reports.
 	$GLOBALS['bfrc_test_meta_boxes']       = []; // add_meta_box() calls.
-	$GLOBALS['bfrc_test_attachments']      = []; // id => url.
+	$GLOBALS['bfrc_test_attachments']      = []; // id => url, or id => [ 'mime', 'url' ].
+	$GLOBALS['bfrc_test_count_calls']      = [];
+	$GLOBALS['bfrc_test_dropdowns']        = [];
 	$GLOBALS['bfrc_test_object_terms']     = []; // post id => taxonomy => list<WP_Term>.
 	$GLOBALS['bfrc_test_media_enqueued']   = false;
 	$GLOBALS['bfrc_test_group_flushes']    = [];
@@ -574,7 +576,18 @@ function add_query_arg( mixed ...$args ): string {
 	return $url . ( [] === $add ? '' : $sep . http_build_query( $add ) );
 }
 function remove_query_arg( mixed $key, string $url = '' ): string {
-	return $url;
+	// As core: drop the named keys from the query string.
+	$keys  = array_map( 'strval', (array) $key );
+	$parts = explode( '?', $url, 2 );
+	if ( ! isset( $parts[1] ) ) {
+		return $url;
+	}
+	parse_str( $parts[1], $query );
+	foreach ( $keys as $k ) {
+		unset( $query[ $k ] );
+	}
+	$rebuilt = http_build_query( $query, '', '&', PHP_QUERY_RFC3986 );
+	return $parts[0] . ( '' === $rebuilt ? '' : '?' . $rebuilt );
 }
 function wp_generate_password( int $length = 12, bool $special_chars = true, bool $extra_special_chars = false ): string {
 	return substr( bin2hex( random_bytes( (int) ceil( $length / 2 ) ) ), 0, $length );
@@ -785,7 +798,11 @@ function bfrc_test_core_roles(): array {
  * test can say "the current user can" without building a role.
  */
 function current_user_can( string $capability, mixed ...$args ): bool {
-	if ( ! empty( $GLOBALS['bfrc_test_caps'][ $capability ] ) ) {
+	$granted = $GLOBALS['bfrc_test_caps'][ $capability ] ?? false;
+	if ( is_callable( $granted ) ) {
+		return (bool) $granted( $args ); // Per-object grants, e.g. edit_post on one id only.
+	}
+	if ( ! empty( $granted ) ) {
 		return true;
 	}
 	return user_can( get_current_user_id(), $capability );

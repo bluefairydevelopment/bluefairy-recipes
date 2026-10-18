@@ -31,7 +31,8 @@ if ( ! function_exists( 'get_post_thumbnail_id' ) ) {
 		return $t > 0 ? $t : false;
 	}
 	function wp_get_attachment_url( int $attachment_id ): string|false {
-		return $GLOBALS['bfrc_test_attachments'][ $attachment_id ] ?? false;
+		$row = $GLOBALS['bfrc_test_attachments'][ $attachment_id ] ?? false;
+		return is_array( $row ) ? $row['url'] : $row;
 	}
 	function wp_get_attachment_image_src( int $attachment_id, mixed $size = 'thumbnail' ): array|false {
 		$url = wp_get_attachment_url( $attachment_id );
@@ -80,16 +81,19 @@ if ( ! function_exists( 'wp_set_object_terms' ) ) {
 		return $id > 0 ? admin_url( 'post.php?post=' . $id . '&action=edit' ) : null;
 	}
 	function wp_dropdown_categories( array $args = [] ): string {
+		$GLOBALS['bfrc_test_dropdowns'][ (string) ( $args['name'] ?? 'cat' ) ] = $args;
 		$out = '<select name="' . esc_attr( (string) ( $args['name'] ?? 'cat' ) ) . '">';
 		if ( ! empty( $args['show_option_all'] ) ) {
 			$out .= '<option value="">' . esc_html( (string) $args['show_option_all'] ) . '</option>';
 		}
-		foreach ( (array) get_terms( [ 'taxonomy' => (string) ( $args['taxonomy'] ?? 'category' ), 'hide_empty' => false ] ) as $term ) {
+		$terms = get_terms( [ 'taxonomy' => (string) ( $args['taxonomy'] ?? 'category' ), 'hide_empty' => false ] );
+		foreach ( is_wp_error( $terms ) ? [] : $terms as $term ) { // core: an unregistered taxonomy lists no terms.
+			$term = (object) $term;
 			$sel  = ( (string) ( $args['selected'] ?? '' ) === $term->slug ) ? ' selected' : '';
 			$out .= '<option value="' . esc_attr( $term->slug ) . '"' . $sel . '>' . esc_html( $term->name ) . '</option>';
 		}
 		$out .= '</select>';
-		if ( ! empty( $args['echo'] ) ) {
+		if ( ! array_key_exists( 'echo', $args ) || ! empty( $args['echo'] ) ) { // core echoes by default.
 			echo $out; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 		}
 		return $out;
@@ -116,4 +120,68 @@ function bfrc_test_screen_for( string $post_type, string $base = 'post' ): WP_Sc
 	$screen->base      = $base;
 	$screen->post_type = $post_type;
 	return $screen;
+}
+
+if ( ! class_exists( 'WP_Query' ) ) {
+	/**
+	 * Just the query-var bag and the main-query flag.
+	 */
+	final class WP_Query {
+		/** @var array<string, mixed> */
+		public array $query_vars = [];
+		public bool $main        = true;
+		/**
+		 * @param array<string, mixed> $vars Query vars.
+		 */
+		public function __construct( array $vars = [], bool $main = true ) {
+			$this->query_vars = $vars;
+			$this->main       = $main;
+		}
+		public function get( string $var, mixed $default_value = '' ): mixed {
+			return $this->query_vars[ $var ] ?? $default_value;
+		}
+		public function set( string $var, mixed $value ): void {
+			$this->query_vars[ $var ] = $value;
+		}
+		public function is_main_query(): bool {
+			return $this->main;
+		}
+	}
+}
+if ( ! function_exists( 'wp_attachment_is_image' ) ) {
+	/** Image when the fixture's mime starts with image/. */
+	function wp_attachment_is_image( mixed $post = null ): bool {
+		$p = get_post( $post );
+		return $p instanceof WP_Post && 'attachment' === $p->post_type && str_starts_with( (string) ( $GLOBALS['bfrc_test_attachments'][ $p->ID ]['mime'] ?? '' ), 'image/' );
+	}
+}
+if ( ! function_exists( 'count_many_users_posts' ) ) {
+	/**
+	 * @param array<int> $users User ids.
+	 * @return array<int, int>
+	 */
+	function count_many_users_posts( array $users, string $post_type = 'post', bool $public_only = false ): array {
+		$GLOBALS['bfrc_test_count_calls'][] = [ $users, $post_type, $public_only ];
+		$out                                 = [];
+		foreach ( $users as $id ) {
+			$out[ (int) $id ] = 0;
+			foreach ( $GLOBALS['bfrc_test_posts'] as $post ) {
+				if ( $post->post_type === $post_type && (int) $post->post_author === (int) $id && ( ! $public_only || 'publish' === $post->post_status ) ) {
+					++$out[ (int) $id ];
+				}
+			}
+		}
+		return $out;
+	}
+}
+
+/**
+ * An image (or other) attachment fixture.
+ */
+function bfrc_test_add_attachment( int $id, string $mime = 'image/jpeg', string $url = '' ): WP_Post {
+	$GLOBALS['bfrc_test_attachments'][ $id ] = [
+		'mime' => $mime,
+		'url'  => '' !== $url ? $url : 'https://example.test/uploads/' . $id . '.jpg',
+	];
+	return bfrc_test_add_post( [ 'ID' => $id, 'post_type' => 'attachment', 'post_status' => 'inherit' ] );
 }
