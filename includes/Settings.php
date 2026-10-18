@@ -251,8 +251,12 @@ final class Settings {
 		if ( ! $this->last_update_ok ) {
 			return $clean;
 		}
-		if ( $clean['archive_slug'] !== $previous['archive_slug'] ) {
-			Installer::request_rewrite_flush();
+		if ( $clean['archive_slug'] !== $previous['archive_slug'] || $clean['enabled'] !== $previous['enabled'] || $clean['taxonomies'] !== $previous['taxonomies'] ) {
+			Installer::request_rewrite_flush(); // rules change with the slug and the taxonomy switches, and go entirely when the plugin is disabled.
+		}
+		$taxonomies = Plugin::service( 'content.taxonomies' );
+		if ( $taxonomies instanceof Content\Taxonomies ) {
+			$taxonomies->flush(); // definitions read these settings.
 		}
 		if ( $clean['grant_core_roles'] !== $previous['grant_core_roles'] ) {
 			if ( $clean['grant_core_roles'] ) {
@@ -392,10 +396,11 @@ final class Settings {
 		foreach ( self::DEFAULTS['taxonomies'] as $code => $default ) {
 			$clean[ $code ] = self::sanitize_taxonomy_entry( $raw[ $code ] ?? [], $default );
 		}
-		$custom = 0;
+		$custom   = 0;
+		$reserved = Content\Taxonomies::reserved_codes();
 		foreach ( $raw as $code => $entry ) {
-			if ( ! is_string( $code ) || isset( $clean[ $code ] ) || 1 !== preg_match( self::TAXONOMY_CODE_PATTERN, $code ) ) {
-				continue;
+			if ( ! is_string( $code ) || isset( $clean[ $code ] ) || in_array( $code, $reserved, true ) || 1 !== preg_match( self::TAXONOMY_CODE_PATTERN, $code ) ) {
+				continue; // The same rule Content\Taxonomies applies: a route name never becomes a switch.
 			}
 			if ( ++$custom > self::MAX_CUSTOM_TAXONOMIES ) {
 				break;

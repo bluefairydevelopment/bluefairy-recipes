@@ -84,6 +84,14 @@ final class Installer {
 		if ( ( new Settings() )->get( 'grant_core_roles' ) ) {
 			Capabilities::grant_core_roles();
 		}
+		// The taxonomies are registered here on the fly before their default terms
+		// are seeded: activation runs after `init`, but a never-provisioned site
+		// (a network sub-site) reaches this from plugins_loaded, before core has
+		// built $wp_rewrite, so register() adds no rewrite rules then (the real
+		// registration at init 5 does, and the flush flag covers the rules).
+		$taxonomies = new Content\Taxonomies( new Settings() );
+		$taxonomies->register();
+		$taxonomies->ensure_default_terms();
 		update_option( 'bfrc_version', BFRC_VERSION, true );
 		add_option( Settings::FLUSH_OPTION, 0, '', true );
 		update_option( 'bfrc_db_version', BFRC_DB_VERSION, true );

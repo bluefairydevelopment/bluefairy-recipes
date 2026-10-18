@@ -67,6 +67,20 @@ final class Plugin {
 		 */
 		do_action( 'bfrc_loaded' );
 
+		// Content model: taxonomies first (the post type and the slug rules read their definitions).
+		$taxonomies = new Content\Taxonomies( $settings );
+		$post_type  = new Content\PostType( $settings );
+		$meta       = new Content\Meta();
+		$slugs      = new Content\Slugs( $taxonomies );
+		$taxonomies->register_hooks();
+		$post_type->register_hooks();
+		$meta->register_hooks();
+		$slugs->register_hooks();
+		self::set( 'content.taxonomies', $taxonomies );
+		self::set( 'content.post_type', $post_type );
+		self::set( 'content.meta', $meta );
+		self::set( 'content.slugs', $slugs );
+
 		/**
 		 * Every subsystem is wired. Add-ons that need an instance (the
 		 * settings, a repository) fetch it with Plugin::service().

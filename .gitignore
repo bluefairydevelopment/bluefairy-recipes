@@ -5,3 +5,4 @@
 /docs/screenshots/
 /coverage/
 .DS_Store
+/.cache/

@@ -6,13 +6,15 @@ release tag.
 
 ## Requirements
 
-- WordPress 6.7 or newer
+- WordPress 6.7 or newer, with pretty permalinks
 - PHP 8.1 or newer
 
-## What is in the tree today (milestone A1)
+## What is in the tree today (milestones A1–A2)
 
 - Plugin bootstrap, settings model, roles and capabilities, activation, deactivation and
-  uninstall. No recipe content model yet.
+  uninstall.
+- The content model: the `bfrc_recipe` post type, the four filter taxonomies with starter
+  terms, the registered recipe fields, reserved recipe slugs. No admin screens or front end yet.
 
 ## Notes for site owners
 

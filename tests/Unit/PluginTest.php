@@ -43,6 +43,26 @@ final class PluginTest extends TestCase {
 		$this->assertSame( 1, did_action( 'bfrc_booted' ) );
 	}
 
+	public function test_boot_wires_the_content_model_after_bfrc_loaded_so_the_add_on_filters_come_first(): void {
+		$seen = null;
+		add_action( 'bfrc_loaded', static function () use ( &$seen ): void {
+			$seen = [ null === Plugin::service( 'content.taxonomies' ), has_action( 'init', [ Installer::class, 'maybe_flush_rewrite' ] ) ];
+		} );
+		Plugin::boot();
+		$this->assertSame( [ true, 99 ], $seen, 'when bfrc_loaded fires nothing of the content model exists yet; only the flush hook is on init' );
+		foreach ( [ 'content.taxonomies' => \BlueFairy\Recipes\Content\Taxonomies::class, 'content.post_type' => \BlueFairy\Recipes\Content\PostType::class, 'content.meta' => \BlueFairy\Recipes\Content\Meta::class, 'content.slugs' => \BlueFairy\Recipes\Content\Slugs::class ] as $id => $class ) {
+			$this->assertInstanceOf( $class, Plugin::service( $id ), $id );
+		}
+		$this->assertSame( 5, has_action( 'init', [ Plugin::service( 'content.taxonomies' ), 'register' ] ) );
+		$this->assertSame( 6, has_action( 'init', [ Plugin::service( 'content.post_type' ), 'register' ] ) );
+		$this->assertSame( 7, has_action( 'init', [ Plugin::service( 'content.meta' ), 'register' ] ) );
+		$this->assertSame( 10, has_filter( 'wp_unique_post_slug', [ Plugin::service( 'content.slugs' ), 'filter_unique_slug' ] ) );
+		do_action( 'init' );
+		$this->assertArrayHasKey( 'bfrc_recipe', $GLOBALS['bfrc_test_post_types'] );
+		$this->assertSame( [ 'bfrc_meal_type', 'bfrc_diet', 'bfrc_season', 'bfrc_cuisine' ], array_keys( $GLOBALS['bfrc_test_taxonomies'] ) );
+		$this->assertCount( 10, $GLOBALS['bfrc_test_registered_meta']['bfrc_recipe'] );
+	}
+
 	public function test_boot_provisions_a_fresh_site_through_maybe_upgrade(): void {
 		Plugin::boot();
 		$this->assertSame( BFRC_DB_VERSION, get_option( 'bfrc_db_version' ) );

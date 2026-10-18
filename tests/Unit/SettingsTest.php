@@ -104,6 +104,15 @@ final class SettingsTest extends TestCase {
 		$this->assertFalse( get_option( Settings::FLUSH_OPTION ), 'same slug: no flush' );
 		$settings->patch( [ 'archive_slug' => 'cookbook' ] );
 		$this->assertSame( '1', get_option( Settings::FLUSH_OPTION ), 'changed slug: flush flagged' );
+		update_option( Settings::FLUSH_OPTION, 0 );
+		$settings->patch( [ 'enabled' => false ] );
+		$this->assertSame( '1', get_option( Settings::FLUSH_OPTION ), 'the Enabled switch adds or removes every rule' );
+		update_option( Settings::FLUSH_OPTION, 0 );
+		$settings->patch( [ 'taxonomies' => [ 'diet' => [ 'enabled' => false ] ] ] );
+		$this->assertSame( '1', get_option( Settings::FLUSH_OPTION ), 'a taxonomy switch adds or removes its archive rule' );
+		update_option( Settings::FLUSH_OPTION, 0 );
+		$settings->patch( [ 'per_page' => 7 ] );
+		$this->assertSame( '0', get_option( Settings::FLUSH_OPTION ), 'other settings do not touch the rules' );
 	}
 
 	public function test_flipping_grant_core_roles_grants_and_revokes_the_core_roles_capabilities(): void {
@@ -271,9 +280,11 @@ final class SettingsTest extends TestCase {
 				"newline\n"           => [ 'enabled' => true ],
 				7                     => [ 'enabled' => true ],
 				'texture'             => [ 'sort_order' => 'abc' ],
+				'chef'                => [ 'enabled' => true ],
+				'page'                => [ 'enabled' => true ],
 			]
 		);
-		$this->assertSame( [ 'meal_type', 'diet', 'season', 'cuisine', 'occasion', 'holiday', 'texture' ], array_keys( $clean ), 'system codes first, then the valid custom ones in input order' );
+		$this->assertSame( [ 'meal_type', 'diet', 'season', 'cuisine', 'occasion', 'holiday', 'texture' ], array_keys( $clean ), 'system codes first, then the valid custom ones in input order; route names (chef, page) refused as Taxonomies refuses them' );
 		$this->assertSame( [ 'enabled' => false, 'sort_order' => 999 ], $clean['diet'] );
 		$this->assertSame( [ 'enabled' => true, 'sort_order' => 10 ], $clean['meal_type'], 'a missing system code takes its default' );
 		$this->assertSame( [ 'enabled' => true, 'sort_order' => 0 ], $clean['occasion'] );
