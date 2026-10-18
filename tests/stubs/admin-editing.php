@@ -127,32 +127,6 @@ function bfrc_test_screen_for( string $post_type, string $base = 'post' ): WP_Sc
 	return $screen;
 }
 
-if ( ! class_exists( 'WP_Query' ) ) {
-	/**
-	 * Just the query-var bag and the main-query flag.
-	 */
-	final class WP_Query {
-		/** @var array<string, mixed> */
-		public array $query_vars = [];
-		public bool $main        = true;
-		/**
-		 * @param array<string, mixed> $vars Query vars.
-		 */
-		public function __construct( array $vars = [], bool $main = true ) {
-			$this->query_vars = $vars;
-			$this->main       = $main;
-		}
-		public function get( string $var, mixed $default_value = '' ): mixed {
-			return $this->query_vars[ $var ] ?? $default_value;
-		}
-		public function set( string $var, mixed $value ): void {
-			$this->query_vars[ $var ] = $value;
-		}
-		public function is_main_query(): bool {
-			return $this->main;
-		}
-	}
-}
 if ( ! function_exists( 'wp_attachment_is_image' ) ) {
 	/** Image when the fixture's mime starts with image/. */
 	function wp_attachment_is_image( mixed $post = null ): bool {

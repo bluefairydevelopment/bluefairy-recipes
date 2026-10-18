@@ -19,6 +19,7 @@ if ( ! class_exists( 'WP_Term' ) ) {
 		public int $term_taxonomy_id = 0;
 		public int $count            = 0;
 		public int $parent           = 0;
+		public string $description   = '';
 		public function __construct( array $data = [] ) {
 			foreach ( $data as $k => $v ) {
 				$this->$k = $v;

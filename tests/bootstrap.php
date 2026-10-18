@@ -131,6 +131,18 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_attachments']      = []; // id => url, or id => [ 'mime', 'url' ].
 	$GLOBALS['bfrc_test_count_calls']      = [];
 	$GLOBALS['bfrc_test_dropdowns']        = [];
+	$GLOBALS['bfrc_test_user_queries']     = [];
+	$GLOBALS['bfrc_test_rewrite_rules']    = [];
+	$GLOBALS['bfrc_test_blocks']           = [];
+	$GLOBALS['bfrc_test_block_templates']  = [];
+	$GLOBALS['bfrc_test_block_theme']      = false;
+	$GLOBALS['bfrc_test_theme_files']      = [];
+	$GLOBALS['bfrc_test_status_headers']   = [];
+	$GLOBALS['bfrc_test_nocache']          = false;
+	$GLOBALS['bfrc_test_cached_users']     = [];
+	$GLOBALS['bfrc_test_paginate_calls']   = [];
+	$GLOBALS['bfrc_test_archive_slugs']    = [];
+	unset( $GLOBALS['wp_query'] );
 	$GLOBALS['bfrc_test_primed']           = [];
 	$GLOBALS['bfrc_test_thumbnail_cache_calls'] = [];
 	$GLOBALS['bfrc_test_get_posts_calls']  = [];
@@ -750,6 +762,7 @@ class WP_User {
 	public string $user_login = '';
 	public string $user_email = '';
 	public string $display_name = '';
+	public string $user_nicename = '';
 	/** @var list<string> */
 	public array $roles = [];
 	public function __construct( int $id = 0 ) {
@@ -760,6 +773,7 @@ class WP_User {
 			$this->user_login   = $known->user_login;
 			$this->user_email   = $known->user_email;
 			$this->display_name = $known->display_name;
+			$this->user_nicename = $known->user_nicename;
 		}
 	}
 	public function exists(): bool {
@@ -878,7 +892,17 @@ function get_userdata( int $user_id ): WP_User|false {
 	return $registry[ $user_id ] ?? false;
 }
 function get_user_by( string $field, mixed $value ): WP_User|false {
-	return 'id' === $field ? get_userdata( (int) $value ) : false;
+	if ( 'id' === $field ) {
+		return get_userdata( (int) $value );
+	}
+	if ( 'slug' === $field ) {
+		foreach ( $GLOBALS['bfrc_test_users'] ?? [] as $user ) {
+			if ( $user instanceof WP_User && $user->user_nicename === (string) $value ) {
+				return new WP_User( $user->ID );
+			}
+		}
+	}
+	return false;
 }
 function is_admin(): bool {
 	return (bool) $GLOBALS['bfrc_test_is_admin'];
@@ -1315,6 +1339,7 @@ class WP_Post {
 	public string $post_date_gmt = '';
 	public string $post_modified_gmt = '';
 	public string $post_content = '';
+	public string $post_excerpt = '';
 	public function __construct( array $data = [] ) {
 		foreach ( $data as $key => $value ) {
 			$this->$key = $value;

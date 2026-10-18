@@ -81,6 +81,14 @@ final class Plugin {
 		self::set( 'content.meta', $meta );
 		self::set( 'content.slugs', $slugs );
 
+		$writers   = new Front\Writers( $settings );
+		$renderer  = new Front\Renderer( $settings, $writers, $taxonomies );
+		$templates = new Front\Templates( $settings, $writers, $renderer, $taxonomies );
+		$templates->register_hooks();
+		self::set( 'front.writers', $writers );
+		self::set( 'front.renderer', $renderer );
+		self::set( 'front.templates', $templates );
+
 		if ( is_admin() ) {
 			$editor = new Admin\RecipeEditor();
 			$editor->register_hooks();
