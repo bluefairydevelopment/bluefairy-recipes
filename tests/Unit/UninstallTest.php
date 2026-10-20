@@ -41,6 +41,33 @@ final class UninstallTest extends TestCase {
 		update_user_meta( 5, 'other_plugin_meta', 'keep' );
 		bfrc_test_add_post( [ 'ID' => 41, 'post_type' => 'bfrc_recipe' ] );
 		bfrc_test_add_post( [ 'ID' => 42, 'post_type' => 'post' ] );
+		bfrc_test_add_user( 6, [ 'roles' => [ Capabilities::ROLE_WRITER ], 'user_login' => 'bfrc_sample_writer', 'user_email' => 'bfrc_sample_writer@example.invalid' ] );
+		update_option( 'bfrc_samples', [ 'writer' => 6, 'writer_login' => 'bfrc_sample_writer', 'recipes' => [ 41 ], 'attachments' => [ 43, 44 ] ] );
+	}
+
+	public function test_opt_in_deletes_the_sample_photos_and_the_sample_writer_only_while_it_is_still_the_plugins_own(): void {
+		$this->seed( true );
+		$this->wpdb->queue( 'get_col', [ '41' ] );
+		$this->wpdb->queue( 'get_col', [] );
+		$this->run_uninstall();
+		$this->assertSame( [ 43, 44 ], $GLOBALS['bfrc_test_deleted_attachments'], 'the photos are attachments, not recipes: the recipe loop would leave them' );
+		$this->assertSame( [ 6 ], $GLOBALS['bfrc_test_deleted_users'], 'the sample writer account goes with the content' );
+		$this->assertSame( [], $GLOBALS['bfrc_test_network_deleted_users'], 'single site' );
+		$this->assertFalse( get_option( 'bfrc_samples' ) );
+		$this->seed( true );
+		get_userdata( 6 )->add_role( 'editor' ); // The owner promoted Sam: the account is theirs.
+		$this->wpdb->queue( 'get_col', [] );
+		$this->run_uninstall();
+		$this->assertSame( [ 6 ], $GLOBALS['bfrc_test_deleted_users'], 'not deleted a second time: a promoted account stays' );
+		$this->assertSame( [ 43, 44, 43, 44 ], $GLOBALS['bfrc_test_deleted_attachments'], 'its photos still go' );
+	}
+
+	public function test_default_keeps_the_sample_writer_and_photos(): void {
+		$this->seed( false );
+		$this->run_uninstall();
+		$this->assertSame( [], $GLOBALS['bfrc_test_deleted_attachments'] );
+		$this->assertSame( [], $GLOBALS['bfrc_test_deleted_users'] );
+		$this->assertFalse( get_option( 'bfrc_samples' ), 'the record goes with the options; the next Install adopts the account' );
 	}
 
 	/**

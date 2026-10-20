@@ -23,8 +23,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * (`is_singular( bfrc_recipe )`, the plugin enabled, Rich snippets on, the
  * recipe not password-protected, and with a photo: Google requires `image`
  * for a Recipe rich result, so a recipe without one gets no markup rather
- * than markup that fails validation). The data is built once per request,
- * passed through `bfrc_schema_data` (the Pro add-on adds `aggregateRating`)
+ * than markup that fails validation). The data is built when `wp_head`
+ * runs, passed through `bfrc_schema_data` (the Pro add-on adds `aggregateRating`)
  * and encoded with `JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP |
  * JSON_UNESCAPED_UNICODE`, so a `</script>` in a title cannot close the
  * element. A filter returning `[]` prints nothing: the switch for a site
@@ -32,7 +32,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * Properties, after Google's Recipe documentation: required `name` and
  * `image`; recommended `author`, `datePublished`, `description`,
- * `keywords`, `prepTime`/`cookTime`/`totalTime` (ISO 8601 durations),
+ * `prepTime`/`cookTime`/`totalTime` (ISO 8601 durations),
  * `recipeCategory` (meal types), `recipeCuisine` (cuisines), `keywords`
  * (the other filter types' terms: Google says not to repeat the category
  * and cuisine there), `recipeIngredient`, `recipeInstructions` (`HowToStep`
@@ -214,10 +214,10 @@ final class Schema {
 			$out['recipeIngredient'] = $ingredients;
 		}
 		$steps = [];
-		foreach ( $data->steps() as $step ) {
+		foreach ( array_values( $data->steps() ) as $i => $step ) {
 			$text = self::text( (string) ( $step['text'] ?? '' ) );
 			if ( '' !== $text ) {
-				$n       = count( $steps ) + 1; // The number Renderer::steps() gives the same step's `id`.
+				$n       = $i + 1; // The row's number: the one Renderer::steps() gives the same row's `id`, even when a row before it has markup but no text and is skipped here.
 				$steps[] = [
 					'@type'    => 'HowToStep',
 					'position' => $n,

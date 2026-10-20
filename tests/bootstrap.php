@@ -158,6 +158,9 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_deleted_users_reassign'] = [];
 	$GLOBALS['bfrc_test_network_deleted_users']  = [];
 	$GLOBALS['bfrc_test_user_blogs']             = [];
+	$GLOBALS['bfrc_test_removed_from_blog']      = [];
+	$GLOBALS['bfrc_test_passwords_set']          = [];
+	$GLOBALS['bfrc_test_sessions_destroyed']     = [];
 	$GLOBALS['bfrc_test_deleted_attachments'] = [];
 	$GLOBALS['bfrc_test_uploads']          = [];
 	$GLOBALS['bfrc_test_attachment_meta']  = [];
@@ -948,6 +951,10 @@ function bfrc_test_add_user( int $id, array $props = [] ): WP_User {
 	}
 	$GLOBALS['bfrc_test_users'][ $id ] = $user;
 	return $user;
+}
+/** Core's regex, verbatim. */
+function wp_make_link_relative( string $link ): string {
+	return (string) preg_replace( '|^(https?:)?//[^/]+(/?.*)|i', '$2', $link );
 }
 function get_userdata( int $user_id ): WP_User|false {
 	if ( $user_id <= 0 ) {

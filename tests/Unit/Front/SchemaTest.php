@@ -10,6 +10,7 @@ namespace BlueFairy\Recipes\Tests\Unit\Front;
 use BlueFairy\Recipes\Capabilities;
 use BlueFairy\Recipes\Content\Meta;
 use BlueFairy\Recipes\Content\Taxonomies;
+use BlueFairy\Recipes\Front\Renderer;
 use BlueFairy\Recipes\Front\Schema;
 use BlueFairy\Recipes\Front\Writers;
 use BlueFairy\Recipes\Settings;
@@ -81,6 +82,11 @@ final class SchemaTest extends TestCase {
 		$this->assertSame( [ 'https://schema.org/VeganDiet', 'https://schema.org/GlutenFreeDiet' ], $data['suitableForDiet'] );
 		$this->assertSame( [ '2 cups flour & co', 'salt' ], $data['recipeIngredient'] );
 		$this->assertSame( [ [ '@type' => 'HowToStep', 'position' => 1, 'text' => 'Mix well', 'url' => 'https://example.com/?p=41#bfrc-step-1' ], [ '@type' => 'HowToStep', 'position' => 2, 'text' => 'Bake', 'url' => 'https://example.com/?p=41#bfrc-step-2' ] ], $data['recipeInstructions'] );
+		update_post_meta( 41, Meta::STEPS, [ [ 'text' => 'Mix <em>well</em>' ], [ 'text' => '<img src="https://example.test/s.jpg" alt="">' ], [ 'text' => 'Bake' ] ] );
+		$steps = $this->schema->build( get_post( 41 ) )['recipeInstructions'];
+		$this->assertSame( [ [ 1, 'https://example.com/?p=41#bfrc-step-1' ], [ 3, 'https://example.com/?p=41#bfrc-step-3' ] ], array_map( static fn( array $s ): array => [ $s['position'], $s['url'] ], $steps ), 'a row with markup but no text is skipped by the schema yet rendered (and numbered) on the page: the url names the row, not the count' );
+		$this->assertStringContainsString( '<li class="bfrc-step" id="bfrc-step-3">Bake</li>', ( new Renderer( $this->settings, new Writers( $this->settings ), new Taxonomies( $this->settings ) ) )->steps( \BlueFairy\Recipes\Front\RecipeData::for_post( 41 ) ), 'the page agrees' );
+		update_post_meta( 41, Meta::STEPS, [ [ 'text' => 'Mix <em>well</em>' ], [ 'text' => '  Bake  ' ] ] );
 		$this->assertSame( [ '@type' => 'NutritionInformation', 'calories' => '250 calories', 'proteinContent' => '12.5 g', 'sodiumContent' => '0.25 mg' ], $data['nutrition'], 'present fields only, Google\'s units' );
 		$this->assertArrayNotHasKey( 'video', $data );
 		// The instrument can fail: Google's required `name` removed → invalid; a bad duration → invalid.

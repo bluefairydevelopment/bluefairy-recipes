@@ -70,14 +70,47 @@ final class SamplesTest extends TestCase {
 		$this->assertInstanceOf( \WP_Error::class, $again );
 		$this->assertSame( 'exists', $again->get_error_code() );
 		$this->assertCount( 3, $GLOBALS['bfrc_test_inserted_posts'], 'nothing created twice' );
-		$this->samples->remove();
-		bfrc_test_add_user( 7, [ 'roles' => [ 'subscriber' ], 'user_login' => 'bfrc_sample_writer' ] ); // An uninstall that kept content removed the record and the Writer role, not the account.
+		$this->samples->remove( 5 );
+		bfrc_test_add_user( 7, [ 'roles' => [ 'subscriber' ], 'user_login' => 'bfrc_sample_writer', 'user_email' => 'bfrc_sample_writer@example.invalid' ] ); // An uninstall that kept content removed the record and the Writer role, not the account.
 		$record = $this->samples->install();
 		$this->assertIsArray( $record, 'a leftover account is adopted, not a dead end' );
 		$this->assertSame( 7, $record['writer'] );
 		$this->assertSame( [ 'bfrc_writer' ], get_userdata( 7 )->roles, 'given the Writer role back' );
+		$this->assertSame( [ 7 ], $GLOBALS['bfrc_test_passwords_set'], 'a new password: whoever knew the old one is out' );
+		$this->assertSame( [ 7 ], $GLOBALS['bfrc_test_sessions_destroyed'], 'and so is every session' );
 		$this->assertCount( 1, $GLOBALS['bfrc_test_inserted_users'], 'no second account' );
 		$this->assertSame( 7, $GLOBALS['bfrc_test_inserted_posts'][ $record['recipes'][0] ]['post_author'] );
+	}
+
+	public function test_install_never_adopts_an_account_that_is_not_the_plugins_own(): void {
+		foreach ( [
+			[ [ 'administrator', 'editor' ], 'bfrc_sample_writer@example.invalid', 'a promoted account would be demoted' ],
+			[ [ 'subscriber' ], 'someone@example.com', 'a self-registered account with the login would be handed the samples and the Writer role' ],
+			[ [ 'bfrc_writer', 'author' ], 'bfrc_sample_writer@example.invalid', 'an extra role is the owner\'s doing' ],
+		] as [ $roles, $email, $why ] ) {
+			bfrc_test_add_user( 7, [ 'roles' => $roles, 'user_login' => 'bfrc_sample_writer', 'user_email' => $email ] );
+			$result = $this->samples->install();
+			$this->assertInstanceOf( \WP_Error::class, $result, $why );
+			$this->assertSame( 'writer_taken', $result->get_error_code(), $why );
+			$this->assertSame( $roles, get_userdata( 7 )->roles, 'untouched: ' . $why );
+			$this->assertSame( [], $GLOBALS['bfrc_test_passwords_set'] );
+			$this->assertSame( [], $GLOBALS['bfrc_test_inserted_posts'], 'nothing created' );
+			$this->assertSame( [], $this->samples->installed() );
+			$this->assertFalse( Samples::is_adoptable( get_userdata( 7 ) ) );
+		}
+		bfrc_test_add_user( 7, [ 'roles' => [], 'user_login' => 'bfrc_sample_writer', 'user_email' => 'BFRC_Sample_Writer@Example.invalid' ] );
+		$this->assertTrue( Samples::is_adoptable( get_userdata( 7 ) ), 'no role at all (an uninstall removed Writer) and our address, whatever its case' );
+		$this->assertIsArray( $this->samples->install() );
+	}
+
+	public function test_remove_without_anyone_to_inherit_keeps_the_account(): void {
+		$record = $this->samples->install();
+		wp_set_current_user( 0 ); // A script, not a person.
+		$this->samples->remove();
+		$this->assertSame( [], $GLOBALS['bfrc_test_deleted_users'], 'core would delete the writer\'s other posts with no reassign: the account stays' );
+		$this->assertSame( [], $this->samples->installed() );
+		$this->assertNull( get_post( $record['recipes'][0] ), 'the recorded set still goes' );
+		$this->assertTrue( Samples::is_adoptable( get_userdata( 900 ) ), 'and the next Install adopts it' );
 	}
 
 	public function test_remove_keeps_an_account_the_owner_renamed_or_promoted_and_reassigns_its_other_posts(): void {
@@ -90,28 +123,40 @@ final class SamplesTest extends TestCase {
 		foreach ( $record['recipes'] as $id ) {
 			$this->assertNull( get_post( $id ) );
 		}
-		$this->samples->install();
-		$writer = $GLOBALS['bfrc_test_users'][ $this->samples->installed()['writer'] ];
-		$writer->set_role( 'bfrc_writer' );
+		$this->assertSame( 'writer_taken', $this->samples->install()->get_error_code(), 'and the promoted account is never adopted either' );
+		unset( $GLOBALS['bfrc_test_users'][900] ); // The owner deleted it themselves.
+		$record = $this->samples->install();
+		$this->assertIsArray( $record );
+		$writer             = $GLOBALS['bfrc_test_users'][ $record['writer'] ];
 		$writer->user_login = 'sam';
 		bfrc_test_store_user( $writer );
 		$this->assertFalse( Samples::is_sample_writer( $writer->ID ), 'renamed: no longer the sample writer' );
 		$this->samples->remove( 5 );
 		$this->assertSame( [], $GLOBALS['bfrc_test_deleted_users'] );
+		$this->assertSame( [], $this->samples->installed() );
 		$this->assertFalse( Samples::is_sample_writer( 0 ) );
 		$this->assertFalse( Samples::is_sample_writer( 12345 ) );
 	}
 
-	public function test_remove_on_multisite_drops_the_network_account_only_when_it_belongs_to_no_other_site(): void {
+	public function test_remove_on_multisite_drops_the_network_account_only_when_it_belongs_to_no_other_site_and_the_remover_may(): void {
 		$GLOBALS['bfrc_test_multisite'] = true;
 		$this->samples->install();
-		$GLOBALS['bfrc_test_user_blogs'][900] = [ 2 => 'another site' ];
+		$GLOBALS['bfrc_test_user_blogs'][900] = [ 1 => 'this site', 2 => 'another site' ];
 		$this->samples->remove( 5 );
 		$this->assertSame( [ [ 900, 5 ] ], $GLOBALS['bfrc_test_deleted_users_reassign'], 'removed from this site, posts reassigned' );
+		$this->assertSame( [ [ 900, 1 ] ], $GLOBALS['bfrc_test_removed_from_blog'] );
 		$this->assertSame( [], $GLOBALS['bfrc_test_network_deleted_users'], 'still a member elsewhere: the network row stays' );
-		$this->samples->install();
+		$this->assertInstanceOf( \WP_User::class, get_userdata( 900 ), 'core keeps the users row on multisite' );
+		$this->assertIsArray( $this->samples->install(), 'the network row is adopted by the next Install' );
+		$GLOBALS['bfrc_test_user_blogs'][900] = [ 1 => 'this site' ];
 		$this->samples->remove( 5 );
-		$this->assertSame( [ 901 ], $GLOBALS['bfrc_test_network_deleted_users'], 'nowhere else: gone from the network, or username_exists() would refuse every later Install' );
+		$this->assertSame( [], $GLOBALS['bfrc_test_network_deleted_users'], 'nowhere else, but a site administrator cannot delete_users on a network: the row stays, to be adopted again' );
+		$this->assertIsArray( $this->samples->install() );
+		$GLOBALS['bfrc_test_user_blogs'][900] = [ 1 => 'this site' ];
+		bfrc_test_grant( 'delete_users' );
+		$this->samples->remove( 5 );
+		$this->assertSame( [ 900 ], $GLOBALS['bfrc_test_network_deleted_users'], 'a super admin with no other site for the account: the network row goes' );
+		$this->assertFalse( get_userdata( 900 ) );
 	}
 
 	public function test_remove_deletes_exactly_what_was_recorded_and_the_record(): void {
@@ -153,6 +198,13 @@ final class SamplesTest extends TestCase {
 		$GLOBALS['bfrc_test_option_write_fails'] = [ Samples::OPTION ];
 		$this->assertSame( 'failed', $this->samples->install()->get_error_code(), 'an unrecorded set would be unremovable: refused and undone' );
 		$this->assertSame( [], $this->samples->installed() );
+	}
+
+	public function test_terms_attach_on_a_translated_site_because_the_names_share_the_starter_terms_msgids(): void {
+		add_filter( 'gettext', static fn( string $tr, string $orig, string $domain ): string => 'bluefairy-recipes' === $domain && 'Dinner' === $orig ? 'Abendessen' : $tr, 10, 3 );
+		wp_insert_term( 'Abendessen', 'bfrc_meal_type' ); // What Taxonomies::ensure_default_terms() seeds on a German site.
+		$record = $this->samples->install();
+		$this->assertSame( [ 'Abendessen' ], array_map( static fn( \WP_Term $t ): string => $t->name, get_the_terms( $record['recipes'][0], 'bfrc_meal_type' ) ), 'looked up by the translated name, so the term attaches' );
 	}
 
 	public function test_the_set_is_three_new_recipes_with_shipped_photos(): void {

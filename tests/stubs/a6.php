@@ -62,22 +62,45 @@ if ( ! function_exists( 'wp_insert_user' ) ) {
 		}
 		$id   = (int) ( $GLOBALS['bfrc_test_next_user_id'] ?? 900 );
 		$GLOBALS['bfrc_test_next_user_id'] = $id + 1;
-		$user = bfrc_test_add_user( $id, [ 'roles' => [ (string) ( $userdata['role'] ?? 'subscriber' ) ], 'display_name' => (string) ( $userdata['display_name'] ?? '' ), 'user_login' => (string) ( $userdata['user_login'] ?? '' ), 'user_nicename' => sanitize_title( (string) ( $userdata['user_login'] ?? '' ) ) ] );
+		$user = bfrc_test_add_user( $id, [ 'roles' => [ (string) ( $userdata['role'] ?? 'subscriber' ) ], 'display_name' => (string) ( $userdata['display_name'] ?? '' ), 'user_login' => (string) ( $userdata['user_login'] ?? '' ), 'user_email' => (string) ( $userdata['user_email'] ?? '' ), 'user_nicename' => sanitize_title( (string) ( $userdata['user_login'] ?? '' ) ) ] );
 		$GLOBALS['bfrc_test_inserted_users'][ $id ] = $userdata;
 		return $id;
 	}
 }
 if ( ! function_exists( 'wp_delete_user' ) ) {
+	/** As core: on a single site the users row goes; on multisite the user is only removed from the current site (remove_user_from_blog). */
 	function wp_delete_user( int $id, ?int $reassign = null ): bool {
 		$GLOBALS['bfrc_test_deleted_users'][]         = $id;
 		$GLOBALS['bfrc_test_deleted_users_reassign'][] = [ $id, $reassign ];
+		if ( is_multisite() ) {
+			$GLOBALS['bfrc_test_removed_from_blog'][] = [ $id, get_current_blog_id() ];
+			unset( $GLOBALS['bfrc_test_user_blogs'][ $id ][ get_current_blog_id() ] );
+			return true;
+		}
 		unset( $GLOBALS['bfrc_test_users'][ $id ], $GLOBALS['bfrc_test_user_meta'][ $id ] );
 		return true;
+	}
+}
+if ( ! function_exists( 'wp_set_password' ) ) {
+	function wp_set_password( string $password, int $user_id ): void {
+		$GLOBALS['bfrc_test_passwords_set'][] = $user_id;
+	}
+}
+if ( ! class_exists( 'WP_Session_Tokens' ) ) {
+	class WP_Session_Tokens {
+		public function __construct( private int $user_id ) {}
+		public static function get_instance( int $user_id ): self {
+			return new self( $user_id );
+		}
+		public function destroy_all(): void {
+			$GLOBALS['bfrc_test_sessions_destroyed'][] = $this->user_id;
+		}
 	}
 }
 if ( ! function_exists( 'wpmu_delete_user' ) ) {
 	function wpmu_delete_user( int $id ): bool {
 		$GLOBALS['bfrc_test_network_deleted_users'][] = $id;
+		unset( $GLOBALS['bfrc_test_users'][ $id ], $GLOBALS['bfrc_test_user_meta'][ $id ] );
 		return true;
 	}
 }

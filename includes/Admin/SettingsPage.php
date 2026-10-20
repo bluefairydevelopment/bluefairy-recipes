@@ -12,6 +12,7 @@ namespace BlueFairy\Recipes\Admin;
 use BlueFairy\Recipes\Capabilities;
 use BlueFairy\Recipes\Content\PostType;
 use BlueFairy\Recipes\Content\Taxonomies;
+use BlueFairy\Recipes\Front\Writers;
 use BlueFairy\Recipes\Settings;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -227,7 +228,8 @@ final class SettingsPage {
 			'samples_present'         => [ 'warning', __( 'The sample recipes are already installed.', 'bluefairy-recipes' ) ],
 			'samples_failed'          => [ 'error', __( 'The sample recipes could not be installed. Nothing was kept.', 'bluefairy-recipes' ) ],
 			'samples_no_users'        => [ 'error', __( 'Installing the samples creates a sample writer, which needs the right to create users.', 'bluefairy-recipes' ) ],
-			'samples_no_delete_users' => [ 'error', __( 'Removing the samples deletes the sample writer account, which needs the right to delete users.', 'bluefairy-recipes' ) ],
+			'samples_no_delete_users' => [ 'error', __( 'Removing the samples deletes the sample writer account, which needs the right to delete users (on a network, to remove users).', 'bluefairy-recipes' ) ],
+			'samples_writer_taken'    => [ 'error', __( 'An account named bfrc_sample_writer exists and is not the sample writer the plugin created. Rename or delete it, then install the samples.', 'bluefairy-recipes' ) ],
 		];
 		if ( ! isset( $texts[ $code ] ) ) {
 			return;
@@ -264,7 +266,7 @@ final class SettingsPage {
 				break;
 			case 'writers':
 				/* translators: %s: the writers listing path, e.g. /recipes/chef/ */
-				$this->checkbox( 'writers_listing', __( 'Writer listing', 'bluefairy-recipes' ), (bool) $s['writers_listing'], sprintf( __( 'The list of recipe writers at %s (each writer can opt out on their profile).', 'bluefairy-recipes' ), '/' . (string) $s['archive_slug'] . '/' . \BlueFairy\Recipes\Front\Writers::SEGMENT . '/' ) );
+				$this->checkbox( 'writers_listing', __( 'Writer listing', 'bluefairy-recipes' ), (bool) $s['writers_listing'], sprintf( __( 'The list of recipe writers at %s (each writer can opt out on their profile).', 'bluefairy-recipes' ), wp_make_link_relative( ( new Writers( $this->settings ) )->listing_url() ) ) );
 				$this->checkbox( 'grant_core_roles', __( 'Grant core roles', 'bluefairy-recipes' ), (bool) $s['grant_core_roles'], __( 'Authors can write recipes and Editors can manage them. Turning it off takes those capabilities back; Administrators can always do everything.', 'bluefairy-recipes' ) );
 				break;
 			case 'data':
@@ -307,8 +309,9 @@ final class SettingsPage {
 			echo '</form>';
 			return;
 		}
-		$recipes   = (array) ( $installed['recipes'] ?? [] );
-		$published = count( array_filter( $recipes, static fn( mixed $id ): bool => 'publish' === get_post_status( (int) $id ) ) );
+		$recipes = array_map( 'intval', (array) ( $installed['recipes'] ?? [] ) );
+		_prime_post_caches( $recipes, false, false ); // One query for the three, not three.
+		$published = count( array_filter( $recipes, static fn( int $id ): bool => 'publish' === get_post_status( $id ) ) );
 		/* translators: 1: number of recipes, 2: the sample writer's login */
 		echo '<p>' . esc_html( sprintf( _n( 'The sample recipes are installed (%1$d recipe by the sample writer %2$s).', 'The sample recipes are installed (%1$d recipes by the sample writer %2$s).', count( $recipes ), 'bluefairy-recipes' ), count( $recipes ), (string) ( $installed['writer_login'] ?? '' ) ) ) . '</p>';
 		echo '<p>' . esc_html__( 'Remove deletes the sample recipes permanently (not to the trash), even if you edited or published them, together with their photos and the sample writer account; a recipe the writer account wrote outside the samples is given to you. It cannot be undone.', 'bluefairy-recipes' );
@@ -319,7 +322,13 @@ final class SettingsPage {
 		echo '</p>';
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="action" value="' . esc_attr( Samples::ACTION_REMOVE ) . '">';
 		wp_nonce_field( Samples::ACTION_REMOVE );
-		submit_button( __( 'Remove sample recipes', 'bluefairy-recipes' ), 'delete button-link-delete', 'submit', false );
+		// Core's own destructive control (button-link button-link-delete), which every admin colour scheme paints red.
+		if ( self::can_remove_writer() ) {
+			echo '<button type="submit" name="submit" class="button-link button-link-delete">' . esc_html__( 'Remove sample recipes', 'bluefairy-recipes' ) . '</button>';
+		} else {
+			echo '<button type="submit" name="submit" class="button-link button-link-delete" disabled="disabled" aria-describedby="bfrc-samples-remove-why">' . esc_html__( 'Remove sample recipes', 'bluefairy-recipes' ) . '</button>';
+			echo '<p class="description" id="bfrc-samples-remove-why">' . esc_html__( 'Removing the samples deletes the sample writer account, which needs the right to delete users (on a network, to remove users).', 'bluefairy-recipes' ) . '</p>';
+		}
 		echo '</form>';
 	}
 
@@ -363,7 +372,7 @@ final class SettingsPage {
 		}
 		// A value the sanitiser changed (a reserved archive slug, a page size outside 1..100) is said, not hidden behind "saved".
 		$adjusted = ( isset( $values['archive_slug'] ) && sanitize_title( (string) $values['archive_slug'] ) !== (string) $clean['archive_slug'] )
-			|| ( isset( $values['per_page'] ) && trim( (string) $values['per_page'] ) !== (string) $clean['per_page'] );
+			|| ( isset( $values['per_page'] ) && ( ! is_numeric( trim( (string) $values['per_page'] ) ) || (int) trim( (string) $values['per_page'] ) !== (int) $clean['per_page'] ) );
 		$this->redirect( $tab, $adjusted ? 'saved_adjusted' : 'saved' );
 	}
 
@@ -380,9 +389,23 @@ final class SettingsPage {
 		}
 		$result = $this->samples->install();
 		if ( is_wp_error( $result ) ) {
-			$this->redirect( 'data', 'exists' === $result->get_error_code() ? 'samples_present' : 'samples_failed' );
+			$codes = [
+				'exists'       => 'samples_present',
+				'writer_taken' => 'samples_writer_taken',
+			];
+			$this->redirect( 'data', $codes[ $result->get_error_code() ] ?? 'samples_failed' );
 		}
 		$this->redirect( 'data', 'samples_added' );
+	}
+
+	/**
+	 * May the current user remove the sample writer account? `delete_users`
+	 * on a single site; on a network core maps that to super admins only,
+	 * while a site administrator removes a user from the site with
+	 * `remove_users`, which is what Remove does there.
+	 */
+	public static function can_remove_writer(): bool {
+		return current_user_can( is_multisite() ? 'remove_users' : 'delete_users' );
 	}
 
 	/**
@@ -393,7 +416,7 @@ final class SettingsPage {
 			wp_die( esc_html__( 'You are not allowed to manage recipe settings.', 'bluefairy-recipes' ), '', [ 'response' => 403 ] );
 		}
 		check_admin_referer( Samples::ACTION_REMOVE );
-		if ( ! current_user_can( 'delete_users' ) ) {
+		if ( ! self::can_remove_writer() ) {
 			$this->redirect( 'data', 'samples_no_delete_users' ); // Removing deletes the writer account: the mirror of Install's create_users.
 		}
 		$this->samples->remove( (int) get_current_user_id() );
@@ -425,7 +448,7 @@ final class SettingsPage {
 		foreach ( array_keys( $this->taxonomies->definitions() ) as $code ) {
 			$row          = is_array( $raw[ $code ] ?? null ) ? $raw[ $code ] : [];
 			$out[ $code ] = [
-				'enabled'    => isset( $row['enabled'] ),
+				'enabled'    => isset( $row['enabled'] ) && Settings::to_bool( $row['enabled'] ),
 				'sort_order' => is_scalar( $row['sort_order'] ?? null ) ? (string) $row['sort_order'] : '',
 			];
 		}

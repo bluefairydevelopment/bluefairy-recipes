@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-20T23:12:13+00:00\n"
+"POT-Creation-Date: 2026-10-20T23:41:07+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: bluefairy-recipes\n"
@@ -662,253 +662,256 @@ msgstr ""
 msgid "Spring"
 msgstr ""
 
-#: includes/Admin/Samples.php:158
-#: includes/Admin/SettingsPage.php:227
+#: includes/Admin/Samples.php:160
+#: includes/Admin/SettingsPage.php:228
 msgid "The sample recipes are already installed."
 msgstr ""
 
-#: includes/Admin/Samples.php:172
-msgid "The sample writer account exists but could not be read."
+#: includes/Admin/Samples.php:177
+#: includes/Admin/SettingsPage.php:232
+msgid "An account named bfrc_sample_writer exists and is not the sample writer the plugin created. Rename or delete it, then install the samples."
 msgstr ""
 
-#: includes/Admin/Samples.php:182
+#: includes/Admin/Samples.php:192
 msgid "Sam Sample"
 msgstr ""
 
-#: includes/Admin/Samples.php:191
+#: includes/Admin/Samples.php:201
 msgid "Sam is the sample writer who comes with BlueFairy Recipes: three recipes that show what a recipe page, the archive and a writer page look like."
 msgstr ""
 
-#: includes/Admin/Samples.php:212
+#: includes/Admin/Samples.php:222
 msgid "The recipe could not be created."
 msgstr ""
 
-#: includes/Admin/Samples.php:250
+#: includes/Admin/Samples.php:260
 msgid "The record of the sample recipes could not be saved."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:95
-#: includes/Admin/SettingsPage.php:103
+#: includes/Admin/SettingsPage.php:96
+#: includes/Admin/SettingsPage.php:104
 msgid "Settings"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:103
-#: includes/Admin/SettingsPage.php:194
+#: includes/Admin/SettingsPage.php:104
+#: includes/Admin/SettingsPage.php:195
 msgid "Recipe Settings"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:127
+#: includes/Admin/SettingsPage.php:128
 msgid "General"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:128
+#: includes/Admin/SettingsPage.php:129
 msgid "Listing"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:129
+#: includes/Admin/SettingsPage.php:130
 msgid "Writers"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:130
+#: includes/Admin/SettingsPage.php:131
 msgid "Data"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:190
-#: includes/Admin/SettingsPage.php:332
-#: includes/Admin/SettingsPage.php:375
-#: includes/Admin/SettingsPage.php:393
+#: includes/Admin/SettingsPage.php:191
+#: includes/Admin/SettingsPage.php:341
+#: includes/Admin/SettingsPage.php:384
+#: includes/Admin/SettingsPage.php:416
 msgid "You are not allowed to manage recipe settings."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:196
+#: includes/Admin/SettingsPage.php:197
 msgid "Settings tabs"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:222
+#: includes/Admin/SettingsPage.php:223
 msgid "Settings saved."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:223
+#: includes/Admin/SettingsPage.php:224
 msgid "Settings saved. A value was adjusted: the archive slug must not be a route WordPress owns, and recipes per page is 1 to 100. The stored values are shown."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:224
+#: includes/Admin/SettingsPage.php:225
 msgid "The settings could not be saved. Try again."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:225
+#: includes/Admin/SettingsPage.php:226
 msgid "Sample recipes installed: three recipes by a sample writer, as drafts you can publish."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:226
+#: includes/Admin/SettingsPage.php:227
 msgid "Sample recipes removed."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:228
+#: includes/Admin/SettingsPage.php:229
 msgid "The sample recipes could not be installed. Nothing was kept."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:229
+#: includes/Admin/SettingsPage.php:230
 msgid "Installing the samples creates a sample writer, which needs the right to create users."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:230
-msgid "Removing the samples deletes the sample writer account, which needs the right to delete users."
+#: includes/Admin/SettingsPage.php:231
+#: includes/Admin/SettingsPage.php:330
+msgid "Removing the samples deletes the sample writer account, which needs the right to delete users (on a network, to remove users)."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:252
-#: includes/Admin/SettingsPage.php:407
+#: includes/Admin/SettingsPage.php:254
+#: includes/Admin/SettingsPage.php:430
 msgid "Enabled"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:252
+#: includes/Admin/SettingsPage.php:254
 msgid "Off: recipes, the archive and the filter pages return 404, recipes leave search, the sitemap and the public REST API; the admin keeps working."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:253
+#: includes/Admin/SettingsPage.php:255
 msgid "Rich snippets"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:253
+#: includes/Admin/SettingsPage.php:255
 msgid "Recipe JSON-LD for Google on every recipe page with a photo."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:254
+#: includes/Admin/SettingsPage.php:256
 msgid "Archive slug"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:254
+#: includes/Admin/SettingsPage.php:256
 msgid "The address of the recipe archive, filter pages and writer pages. Changing it updates the site's rewrite rules on the next page load."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:255
+#: includes/Admin/SettingsPage.php:257
 msgid "Archive title"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:259
+#: includes/Admin/SettingsPage.php:261
 #: src/blocks/recipe-list/index.js:24
 msgid "Recipes per page"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:260
+#: includes/Admin/SettingsPage.php:262
 msgid "Social share"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:260
+#: includes/Admin/SettingsPage.php:262
 msgid "Share buttons on recipe pages."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:261
+#: includes/Admin/SettingsPage.php:263
 #: includes/Admin/WriterProfile.php:140
 msgid "Facebook"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:262
+#: includes/Admin/SettingsPage.php:264
 msgid "X"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:263
+#: includes/Admin/SettingsPage.php:265
 msgid "Pinterest"
 msgstr ""
 
 #. translators: %s: the writers listing path, e.g. /recipes/chef
-#: includes/Admin/SettingsPage.php:267
+#: includes/Admin/SettingsPage.php:269
 #: includes/Admin/WriterProfile.php:125
 msgid "Writer listing"
 msgstr ""
 
 #. translators: %s: the writers listing path, e.g. /recipes/chef
-#: includes/Admin/SettingsPage.php:267
+#: includes/Admin/SettingsPage.php:269
 #, php-format
 msgid "The list of recipe writers at %s (each writer can opt out on their profile)."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:268
+#: includes/Admin/SettingsPage.php:270
 msgid "Grant core roles"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:268
+#: includes/Admin/SettingsPage.php:270
 msgid "Authors can write recipes and Editors can manage them. Turning it off takes those capabilities back; Administrators can always do everything."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:271
+#: includes/Admin/SettingsPage.php:273
 msgid "Delete all data on uninstall"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:271
+#: includes/Admin/SettingsPage.php:273
 msgid "Off: deleting the plugin keeps your recipes, terms and writer profiles. On: everything the plugin created is removed."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:275
+#: includes/Admin/SettingsPage.php:277
 msgid "Save settings"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:287
+#: includes/Admin/SettingsPage.php:289
 msgid "Sample recipes"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:289
+#: includes/Admin/SettingsPage.php:291
 msgid "Install three sample recipes by a sample writer, with illustrative placeholder images, to see the archive, the filters and a recipe page filled in. They are created as drafts; remove them from here when you are done."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:293
-#: includes/Admin/SettingsPage.php:296
+#: includes/Admin/SettingsPage.php:295
+#: includes/Admin/SettingsPage.php:298
 msgid "Install sample recipes"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:305
+#: includes/Admin/SettingsPage.php:307
 msgid "Installing the samples creates a sample writer account, which needs the right to create users."
 msgstr ""
 
 #. translators: 1: number of recipes, 2: the sample writer's login
-#: includes/Admin/SettingsPage.php:313
+#: includes/Admin/SettingsPage.php:316
 #, php-format
 msgid "The sample recipes are installed (%1$d recipe by the sample writer %2$s)."
 msgid_plural "The sample recipes are installed (%1$d recipes by the sample writer %2$s)."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/Admin/SettingsPage.php:314
+#: includes/Admin/SettingsPage.php:317
 msgid "Remove deletes the sample recipes permanently (not to the trash), even if you edited or published them, together with their photos and the sample writer account; a recipe the writer account wrote outside the samples is given to you. It cannot be undone."
 msgstr ""
 
 #. translators: %d: number of published sample recipes
-#: includes/Admin/SettingsPage.php:317
+#: includes/Admin/SettingsPage.php:320
 #, php-format
 msgid "%d of them is published on your site."
 msgid_plural "%d of them are published on your site."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/Admin/SettingsPage.php:322
+#: includes/Admin/SettingsPage.php:327
+#: includes/Admin/SettingsPage.php:329
 msgid "Remove sample recipes"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:407
+#: includes/Admin/SettingsPage.php:430
 msgid "Filter types"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:407
+#: includes/Admin/SettingsPage.php:430
 msgid "Filter type"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:407
+#: includes/Admin/SettingsPage.php:430
 msgid "Sort order"
 msgstr ""
 
 #. translators: %s: filter type name
-#: includes/Admin/SettingsPage.php:410
+#: includes/Admin/SettingsPage.php:433
 #, php-format
 msgid "%s enabled"
 msgstr ""
 
 #. translators: %s: filter type name
-#: includes/Admin/SettingsPage.php:411
+#: includes/Admin/SettingsPage.php:434
 #, php-format
 msgid "%s sort order"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:413
+#: includes/Admin/SettingsPage.php:436
 msgid "A disabled filter type keeps its terms and leaves the filter form, the badges and the REST filters."
 msgstr ""
 

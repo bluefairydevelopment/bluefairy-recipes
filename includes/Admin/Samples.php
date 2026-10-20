@@ -147,9 +147,11 @@ final class Samples {
 	}
 
 	/**
-	 * Install the set. Refused (`exists`) while the record or the writer
-	 * login exists; on any failure everything created so far is removed
-	 * (`failed`).
+	 * Install the set. Refused (`exists`) while the record exists and
+	 * (`writer_taken`) while an account with the writer's login exists that
+	 * is not the plugin's own leftover (see is_adoptable()); a leftover is
+	 * adopted with a new password and its sessions ended. On any failure
+	 * everything created so far is removed (`failed`).
 	 *
 	 * @return array<string, mixed>|\WP_Error The record, or why not.
 	 */
@@ -164,15 +166,23 @@ final class Samples {
 			'attachments'  => [],
 			'installed_at' => (string) current_time( 'mysql', true ),
 		];
+		$adopted  = false;
 		$existing = username_exists( self::WRITER_LOGIN );
 		if ( false !== $existing ) {
-			// An uninstall that kept content removed the record and the role but not the account: adopt it.
+			// An uninstall that kept content removed the record and the role but not the account: adopt it,
+			// but only an account that is demonstrably the plugin's own (its address, no role beyond Writer or
+			// the role-less leftover). Anything else is someone's account: never demoted, never handed the samples.
 			$user = get_userdata( (int) $existing );
-			if ( ! $user instanceof \WP_User ) {
-				return new \WP_Error( 'failed', __( 'The sample writer account exists but could not be read.', 'bluefairy-recipes' ) );
+			if ( ! $user instanceof \WP_User || ! self::is_adoptable( $user ) ) {
+				return new \WP_Error( 'writer_taken', __( 'An account named bfrc_sample_writer exists and is not the sample writer the plugin created. Rename or delete it, then install the samples.', 'bluefairy-recipes' ) );
 			}
-			$user->set_role( Capabilities::ROLE_WRITER );
-			$writer = (int) $existing;
+			wp_set_password( wp_generate_password( 32, true, true ), (int) $existing ); // A fresh secret for a fresh set.
+			\WP_Session_Tokens::get_instance( (int) $existing )->destroy_all();
+			if ( [ Capabilities::ROLE_WRITER ] !== array_values( (array) $user->roles ) ) {
+				$user->set_role( Capabilities::ROLE_WRITER );
+			}
+			$writer  = (int) $existing;
+			$adopted = true;
 		} else {
 			$writer = wp_insert_user(
 				[
@@ -203,12 +213,12 @@ final class Samples {
 				true
 			);
 			if ( is_wp_error( $post_id ) ) {
-				$this->delete_record( $record );
+				$this->delete_record( $record, 0, ! $adopted );
 				return new \WP_Error( 'failed', $post_id->get_error_message() );
 			}
 			$post_id = (int) $post_id;
 			if ( $post_id <= 0 ) {
-				$this->delete_record( $record );
+				$this->delete_record( $record, 0, ! $adopted );
 				return new \WP_Error( 'failed', __( 'The recipe could not be created.', 'bluefairy-recipes' ) );
 			}
 			$record['recipes'][] = $post_id;
@@ -246,7 +256,7 @@ final class Samples {
 			}
 		}
 		if ( ! $this->write_option( self::OPTION, $record, false ) ) {
-			$this->delete_record( $record );
+			$this->delete_record( $record, 0, ! $adopted );
 			return new \WP_Error( 'failed', __( 'The record of the sample recipes could not be saved.', 'bluefairy-recipes' ) );
 		}
 		return $record;
@@ -267,6 +277,20 @@ final class Samples {
 	}
 
 	/**
+	 * May install() adopt this leftover `bfrc_sample_writer` account? Only
+	 * the plugin's own: the `@example.invalid` address it created it with,
+	 * and no role beyond Writer (an uninstall that kept content leaves it
+	 * with no role or with core's default role for new users, subscriber).
+	 *
+	 * @param \WP_User $user The account with the sample writer's login.
+	 */
+	public static function is_adoptable( \WP_User $user ): bool {
+		$roles = array_values( (array) $user->roles );
+		return self::WRITER_LOGIN . '@example.invalid' === strtolower( (string) $user->user_email )
+			&& [] === array_diff( $roles, [ Capabilities::ROLE_WRITER, 'subscriber' ] );
+	}
+
+	/**
 	 * Is the account still the sample writer: the login and exactly the
 	 * Writer role? An account the owner renamed or promoted is theirs.
 	 *
@@ -278,36 +302,41 @@ final class Samples {
 	}
 
 	/**
+	/**
 	 * Delete everything a record names, then the record. The writer goes
-	 * only while it is still the sample writer; a post of theirs outside
-	 * the record is reassigned, never deleted (on multisite the account is
-	 * deleted network-wide when it belongs to no other site, so a later
-	 * Install is not refused for ever).
+	 * only while it is still the sample writer AND there is someone to
+	 * inherit any other post of theirs (no current user, as from a script:
+	 * the account stays rather than core deleting those posts with it).
+	 * On multisite the account leaves this site; the network row goes too
+	 * when it belongs to no other site and the remover may delete users
+	 * (a site administrator may only remove), so a later Install adopts the
+	 * leftover instead of being refused.
 	 *
 	 * @param array<string, mixed> $record      The record (complete or partial).
 	 * @param int                  $reassign_to User id that inherits any other post of the writer's (0: the current user).
+	 * @param bool                 $created_now Rolling back an install() that just created the account: it has no other posts, so no inheritor is needed.
 	 */
-	private function delete_record( array $record, int $reassign_to = 0 ): void {
+	private function delete_record( array $record, int $reassign_to = 0, bool $created_now = false ): void {
 		foreach ( (array) ( $record['recipes'] ?? [] ) as $id ) {
 			wp_delete_post( (int) $id, true );
 		}
 		foreach ( (array) ( $record['attachments'] ?? [] ) as $id ) {
 			wp_delete_attachment( (int) $id, true );
 		}
-		$writer = (int) ( $record['writer'] ?? 0 );
-		if ( $writer > 0 && self::is_sample_writer( $writer ) ) {
-			$reassign = $reassign_to > 0 ? $reassign_to : (int) get_current_user_id();
-			$reassign = $reassign > 0 && $reassign !== $writer ? $reassign : null;
+		$writer   = (int) ( $record['writer'] ?? 0 );
+		$reassign = $reassign_to > 0 ? $reassign_to : (int) get_current_user_id();
+		$reassign = $reassign > 0 && $reassign !== $writer ? $reassign : null;
+		if ( $writer > 0 && ( null !== $reassign || $created_now ) && self::is_sample_writer( $writer ) ) {
 			if ( ! function_exists( 'wp_delete_user' ) ) {
 				require_once ABSPATH . 'wp-admin/includes/user.php';
 			}
 			if ( is_multisite() ) {
-				if ( ! function_exists( 'wpmu_delete_user' ) ) {
-					require_once ABSPATH . 'wp-admin/includes/ms.php';
-				}
 				wp_delete_user( $writer, $reassign ); // This site's posts reassigned, the account removed from the site.
-				if ( [] === get_blogs_of_user( $writer ) ) {
-					wpmu_delete_user( $writer ); // Nowhere else: the network row goes too, or username_exists() refuses every later Install.
+				if ( [] === get_blogs_of_user( $writer ) && current_user_can( 'delete_users' ) ) {
+					if ( ! function_exists( 'wpmu_delete_user' ) ) {
+						require_once ABSPATH . 'wp-admin/includes/ms.php';
+					}
+					wpmu_delete_user( $writer ); // Nowhere else and allowed: the network row goes too.
 				}
 			} else {
 				wp_delete_user( $writer, $reassign );
