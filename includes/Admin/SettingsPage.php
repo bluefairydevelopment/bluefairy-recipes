@@ -291,8 +291,9 @@ final class SettingsPage {
 			echo '<p>' . esc_html__( 'Install three sample recipes by a sample writer, with illustrative placeholder images, to see the archive, the filters and a recipe page filled in. They are created as drafts; remove them from here when you are done.', 'bluefairy-recipes' ) . '</p>';
 			echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="action" value="' . esc_attr( Samples::ACTION_INSTALL ) . '">';
 			wp_nonce_field( Samples::ACTION_INSTALL );
+			// Its own id: the tab's Save button is `#submit` already, and two elements may not share an id.
 			if ( current_user_can( 'create_users' ) ) {
-				submit_button( __( 'Install sample recipes', 'bluefairy-recipes' ), 'secondary', 'submit', false );
+				submit_button( __( 'Install sample recipes', 'bluefairy-recipes' ), 'secondary', 'submit', false, [ 'id' => 'bfrc-install-samples' ] );
 			} else {
 				submit_button(
 					__( 'Install sample recipes', 'bluefairy-recipes' ),
@@ -300,6 +301,7 @@ final class SettingsPage {
 					'submit',
 					false,
 					[
+						'id'               => 'bfrc-install-samples',
 						'disabled'         => 'disabled',
 						'aria-describedby' => 'bfrc-samples-why',
 					]

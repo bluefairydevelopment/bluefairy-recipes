@@ -22,11 +22,13 @@ if ( ! function_exists( 'get_post_time' ) ) {
 		if ( ! $p instanceof WP_Post ) {
 			return false;
 		}
-		if ( '' === $p->post_date_gmt || str_starts_with( $p->post_date_gmt, '0000' ) ) {
-			return false; // Core: a draft's zero date is false, not the epoch.
+		// Core: get_post_datetime() reads post_date_gmt (UTC) or post_date (site time; the harness site is UTC+2), and a zero date is false, not the epoch.
+		$time = $gmt ? $p->post_date_gmt : $p->post_date;
+		if ( '' === $time || str_starts_with( $time, '0000' ) ) {
+			return false;
 		}
-		$ts = strtotime( $p->post_date_gmt . ' UTC' );
-		return 'U' === $format ? (int) $ts : gmdate( $format, (int) $ts );
+		$ts = strtotime( $time . ( $gmt ? ' UTC' : ' +02:00' ) );
+		return 'U' === $format ? (int) $ts : ( $gmt ? gmdate( $format, (int) $ts ) : ( new DateTimeImmutable( '@' . (int) $ts ) )->setTimezone( new DateTimeZone( '+02:00' ) )->format( $format ) );
 	}
 }
 if ( ! function_exists( 'get_post_modified_time' ) ) {
@@ -35,11 +37,12 @@ if ( ! function_exists( 'get_post_modified_time' ) ) {
 		if ( ! $p instanceof WP_Post ) {
 			return false;
 		}
-		if ( '' === $p->post_modified_gmt || str_starts_with( $p->post_modified_gmt, '0000' ) ) {
+		$time = $gmt ? $p->post_modified_gmt : $p->post_modified;
+		if ( '' === $time || str_starts_with( $time, '0000' ) ) {
 			return false;
 		}
-		$ts = strtotime( $p->post_modified_gmt . ' UTC' );
-		return 'U' === $format ? (int) $ts : gmdate( $format, (int) $ts );
+		$ts = strtotime( $time . ( $gmt ? ' UTC' : ' +02:00' ) );
+		return 'U' === $format ? (int) $ts : ( $gmt ? gmdate( $format, (int) $ts ) : ( new DateTimeImmutable( '@' . (int) $ts ) )->setTimezone( new DateTimeZone( '+02:00' ) )->format( $format ) );
 	}
 }
 if ( ! function_exists( 'username_exists' ) ) {

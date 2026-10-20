@@ -1411,7 +1411,9 @@ class WP_Post {
 	public string $post_title  = '';
 	public string $post_name   = '';
 	public int $post_author    = 0;
+	public string $post_date = '';
 	public string $post_date_gmt = '';
+	public string $post_modified = '';
 	public string $post_modified_gmt = '';
 	public string $post_content = '';
 	public string $post_excerpt = '';

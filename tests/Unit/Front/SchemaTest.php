@@ -127,6 +127,11 @@ final class SchemaTest extends TestCase {
 		$data = $this->schema->build( get_post( 42 ) );
 		$this->assertTrue( $this->validate( $data )->isValid(), wp_json_encode( $this->validate( $data )->getErrors() ) );
 		$this->assertSame( [ '@context', '@type', 'name', 'url', 'image' ], array_keys( $data ), 'nothing invented for an empty field; a deleted author is no author; a post without dates (a draft) has no date keys rather than empty ones' );
+		$GLOBALS['bfrc_test_posts'][42]->post_date     = '2026-10-20 23:45:53'; // wp_publish_post() sets the local date and leaves the GMT column zero.
+		$GLOBALS['bfrc_test_posts'][42]->post_modified = '2026-10-21 01:00:00';
+		$data                                          = $this->schema->build( get_post( 42 ) );
+		$this->assertSame( [ '2026-10-20T23:45:53+02:00', '2026-10-21T01:00:00+02:00' ], [ $data['datePublished'], $data['dateModified'] ], 'the local time with the site\'s offset stands in for a missing UTC date' );
+		$this->assertTrue( $this->validate( $data )->isValid(), 'still ISO 8601 for the fixture' );
 	}
 
 	public function test_head_markup_prints_on_a_recipe_page_only_when_enabled_rich_snippets_on_and_not_locked(): void {

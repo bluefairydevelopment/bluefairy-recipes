@@ -40,8 +40,10 @@ if ( ! defined( 'ABSPATH' ) ) {
  * `nutrition` (`NutritionInformation`, numbers in machine form whatever
  * the site's locale), `video` (`VideoObject` with `embedUrl`; a watch-page
  * URL is not a media file, so no `contentUrl`) for a video recipe, plus
- * `suitableForDiet` for the diet terms schema.org names. A draft (no
- * publish date) gets no `datePublished`.
+ * `suitableForDiet` for the diet terms schema.org names. Dates are UTC,
+ * or the site's local time with its offset when only that is stored (a
+ * post published through wp_publish_post()); a draft has neither and
+ * gets no `datePublished`.
  * `tests/fixtures/recipe-jsonld.schema.json` is the contract the unit test
  * and `bin/check-jsonld.php` validate against.
  */
@@ -145,17 +147,21 @@ final class Schema {
 		if ( [] === $images ) {
 			return [];
 		}
-		$data      = RecipeData::for_post( $post );
-		$terms     = $this->terms( $post );
-		$out       = [
+		$data  = RecipeData::for_post( $post );
+		$terms = $this->terms( $post );
+		$out   = [
 			'@context' => 'https://schema.org',
 			'@type'    => 'Recipe',
 			'name'     => self::text( get_the_title( $post ) ),
 			'url'      => (string) get_permalink( $post ),
 			'image'    => $images,
 		];
+		// UTC when the post has it; a post published by wp_publish_post() keeps a zero GMT column, so fall back to
+		// the local time, which `c` prints with the site's offset (still ISO 8601). A draft has neither: no key.
 		$published = get_post_time( 'c', true, $post );
+		$published = false === $published ? get_post_time( 'c', false, $post ) : $published;
 		$modified  = get_post_modified_time( 'c', true, $post );
+		$modified  = false === $modified ? get_post_modified_time( 'c', false, $post ) : $modified;
 		if ( is_string( $published ) && '' !== $published ) {
 			$out['datePublished'] = $published; // A draft has no date: the key is left out rather than empty.
 		}

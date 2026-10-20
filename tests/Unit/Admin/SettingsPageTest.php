@@ -112,6 +112,8 @@ final class SettingsPageTest extends TestCase {
 		$data = $this->render( 'data' );
 		$this->assertStringContainsString( 'bfrc[delete_data_on_uninstall]', $data );
 		$this->assertStringContainsString( 'value="bfrc_install_samples"', $data, 'nothing installed: the Install button' );
+		$this->assertStringContainsString( 'id="bfrc-install-samples"', $data, 'its own id: the Save button on the same tab is #submit' );
+		$this->assertSame( 1, substr_count( $data, 'id="submit"' ), 'one #submit on the page' );
 		$this->assertStringNotContainsString( 'bfrc_remove_samples', $data );
 		$_GET['bfrc_notice'] = 'nope';
 		$this->assertStringNotContainsString( 'notice-', $this->render( 'general' ), 'an unknown notice code prints nothing' );
