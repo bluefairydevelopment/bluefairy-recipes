@@ -57,6 +57,10 @@ final class RecipeQueryTest extends TestCase {
 		$this->assertSame( 'publish', $args['post_status'] );
 		$this->assertSame( [ 6, 2 ], [ $args['posts_per_page'], $args['paged'] ] );
 		$this->assertTrue( $args['ignore_sticky_posts'] );
+		$this->assertFalse( $args['update_post_term_cache'], 'cards read no terms' );
+		$this->assertFalse( $args['no_found_rows'], 'counted by default' );
+		$this->assertTrue( $this->query->args( $this->query->normalize( [] ), 'block', false )['no_found_rows'], 'a list without pagination skips SQL_CALC_FOUND_ROWS' );
+		$this->assertTrue( $this->query->run( $this->query->normalize( [] ), 'block', false )->get( 'no_found_rows' ) );
 		$this->assertSame( 'soup', $args['s'] );
 		$this->assertSame( [ 'post_title' ], $args['search_columns'], 'title only, as the archive' );
 		$this->assertSame( 'AND', $args['tax_query']['relation'] );

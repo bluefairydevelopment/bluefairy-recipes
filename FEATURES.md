@@ -85,14 +85,17 @@ Administrators can always change settings.
 | Block | Shortcode | What it shows |
 |---|---|---|
 | Recipe List | `[bfrc_recipes per_page="12" show_filters="1" show_pagination="1" diet="vegan"]` | A page of recipes with the filter form and pagination. Recipes per page 0 (or absent) uses the setting. A fixed filter (one attribute per filter type: `meal_type`, `diet`, `season`, `cuisine`, …) narrows the list and removes that select from the form. Changing a filter, or pausing while typing, updates the list without a reload (600 ms); the page's address follows, so a reload or a shared link opens the same list. Without JavaScript the form and the page links work as plain links |
-| Recipe Filters | — | The filter form alone, for a Recipe List block placed elsewhere on the page (set that list's "Show the filter form" off) |
+| Recipe Filters | — | The filter form alone, for a Recipe List block placed elsewhere on the page (set that list's "Show the filter form" off). A select for a filter type that list fixes hides itself once the page scripts run |
 | Featured Recipes | `[bfrc_featured title="Featured recipes" mode="featured" count="4"]` | The featured recipes, or with `mode="recent"` the newest ones, 1 to 12 cards. Shows nothing when there is nothing to show |
 | Recipe Card | — | One recipe as a card, chosen by title in the block settings |
 | Recipe Writers (template) | `[bfrc_writers]` | The writers listing; on a page it is paged by `?bfrc_page=N` of that page |
 
-A shortcode renders exactly the markup of its block (less the block's wrapper element). One
-list per page follows the filters; a second list on the same page shows the page's address
-only. A password-protected recipe is a locked card (title, photo, writer) in every list.
+A shortcode renders exactly the markup of its block (less the block's wrapper element). The
+first list on a page (block or shortcode) is the one the filters update without a reload; a
+second list on the same page shows the page's address with a plain form and plain links. The
+browser's Back button does not step through filter changes (the address is updated in place).
+A list on page 2 or later of a post split with "Page break" is not supported. A
+password-protected recipe is a locked card (title, photo, writer) in every list.
 
 ## REST API
 

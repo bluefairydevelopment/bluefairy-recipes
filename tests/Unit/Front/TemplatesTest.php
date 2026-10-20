@@ -677,15 +677,22 @@ final class TemplatesTest extends TestCase {
 		$GLOBALS['wp']->query_vars['rest_route'] = '/wp/v2/pages/5';
 		$GLOBALS['wp']->query_vars['rest_route'] = '/wp/v2/block-renderer/bfrc/recipe-single';
 		$this->assertTrue( Templates::is_editor_preview(), 'the block-renderer route is the Site Editor asking' );
-		$_REQUEST['post_id'] = '41'; // The post editor: the editor script's ServerSideRender sends the numeric current post id (the Site Editor's template ids are strings, so it sends none).
+		$_GET['post_id'] = '41'; // The post editor: the editor script's ServerSideRender sends the numeric current post id (the Site Editor's template ids are strings, so it sends none).
 		$this->assertTrue( Templates::is_post_editor_preview() );
 		$this->assertSame( Templates::body_note(), $t->render_single_block(), 'a view block pasted into a post\'s text shows the note, never another recipe\'s page' );
 		$this->assertSame( Templates::body_note(), $t->render_archive_block(), 'nor a grid' );
 		$this->assertStringContainsString( 'bfrc-block-note', Templates::body_note() );
-		$_REQUEST['post_id'] = '0';
+		$_GET['post_id'] = '0';
 		$this->assertFalse( Templates::is_post_editor_preview(), 'post_id=0 is no post' );
+		unset( $_GET['post_id'] );
+		$_REQUEST['post_id'] = '41';
+		$this->assertFalse( Templates::is_post_editor_preview(), 'the query string only: never a cookie through $_REQUEST' );
 		unset( $_REQUEST['post_id'] );
 		$this->assertFalse( Templates::is_post_editor_preview() );
+		$scripts_before = count( $GLOBALS['bfrc_test_enqueued']['script'] ?? [] );
+		Templates::enqueue_style();
+		$this->assertContains( 'bfrc-recipes', $GLOBALS['bfrc_test_enqueued']['style'] );
+		$this->assertCount( $scripts_before, $GLOBALS['bfrc_test_enqueued']['script'] ?? [], 'the style alone: blocks need no archive script' );
 		$this->assertStringContainsString( 'class="bfrc-recipe__title">Soup<', $t->render_single_block(), 'the Site Editor\'s block-renderer request has no recipe in context: preview the newest published one' );
 		$this->assertSame( 'publish', $GLOBALS['bfrc_test_get_posts_calls'][0]['post_status'] );
 		$this->assertSame( 1, $GLOBALS['bfrc_test_get_posts_calls'][0]['numberposts'] );

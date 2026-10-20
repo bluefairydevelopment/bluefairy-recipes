@@ -10,7 +10,7 @@
 	"keywords": [ "recipe", "featured", "recent" ],
 	"textdomain": "bluefairy-recipes",
 	"attributes": {
-		"title": { "type": "string", "default": "Featured recipes" },
+		"title": { "type": "string" },
 		"mode": { "type": "string", "enum": [ "featured", "recent" ], "default": "featured" },
 		"count": { "type": "integer", "default": 4, "minimum": 1, "maximum": 12 }
 	},

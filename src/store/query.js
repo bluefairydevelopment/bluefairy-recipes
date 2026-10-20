@@ -1,14 +1,15 @@
 /**
  * Pure helpers of the `bfrc/recipes` store: the request to the endpoint, the
- * page URL that mirrors it, and the grid and pagination markup, built to the
- * byte as the PHP side builds them (Renderer::grid(), Blocks::page_links()).
- * No DOM, no runtime: tested with node --test.
+ * page URL that mirrors it, and the grid and pagination markup, built as the
+ * PHP side builds them (Renderer::grid(), Blocks::page_links(); the two
+ * pagination fixtures are asserted equal by a test). No DOM, no runtime:
+ * tested with node --test.
  */
 
 export const DEBOUNCE = 600;
 export const SEARCH_MAX = 100;
 
-function escapeHtml( text ) {
+export function escapeHtml( text ) {
 	return String( text )
 		.replace( /&/g, '&amp;' )
 		.replace( /</g, '&lt;' )
@@ -17,12 +18,17 @@ function escapeHtml( text ) {
 		.replace( /'/g, '&#039;' );
 }
 
-/** esc_url() of an href: `&` becomes `&#038;`. */
-function escapeUrl( url ) {
-	return String( url ).replace( /&/g, '&#038;' );
+/** An href as esc_url() prints it: `&` becomes `&#038;`, and nothing can close the attribute. */
+export function escapeUrl( url ) {
+	return String( url )
+		.replace( /&/g, '&#038;' )
+		.replace( /"/g, '%22' )
+		.replace( /'/g, '%27' )
+		.replace( /</g, '%3C' )
+		.replace( />/g, '%3E' );
 }
 
-/** The non-empty filters, fixed ones first (a fixed code wins). */
+/** The non-empty filters, fixed ones winning over the form's. */
 export function effectiveFilters( query, fixed ) {
 	const out = {};
 	Object.keys( query.filter || {} ).forEach( ( code ) => {
@@ -39,9 +45,9 @@ export function effectiveFilters( query, fixed ) {
 }
 
 /** The endpoint's query string for the state: s, filter[code], page, per_page. */
-export function buildParams( query, fixed, perPage ) {
+export function buildParams( query, fixed, perPage, searchMax ) {
 	const params = new URLSearchParams();
-	const s = String( query.s || '' ).slice( 0, SEARCH_MAX );
+	const s = String( query.s || '' ).slice( 0, searchMax || SEARCH_MAX );
 	if ( s !== '' ) {
 		params.set( 's', s );
 	}
@@ -56,10 +62,11 @@ export function buildParams( query, fixed, perPage ) {
 
 /**
  * The page's own URL for the state (what a reload or a shared link would
- * open): bfrc_s, bfrc_filter[code] for the user's filters (never the fixed
- * ones: the page applies those itself) and bfrc_page above 1.
+ * open): bfrc_s, bfrc_filter[code] for the user's filters (never a fixed
+ * code: the page applies those itself, and a choice for one is ignored) and
+ * bfrc_page above 1.
  */
-export function buildPageUrl( base, query, vars ) {
+export function buildPageUrl( base, query, vars, fixed, searchMax ) {
 	const url = new URL( base, 'https://localhost/' );
 	[ vars.s, vars.page ].forEach( ( name ) => url.searchParams.delete( name ) );
 	Array.from( url.searchParams.keys() ).forEach( ( key ) => {
@@ -67,12 +74,12 @@ export function buildPageUrl( base, query, vars ) {
 			url.searchParams.delete( key );
 		}
 	} );
-	const s = String( query.s || '' ).slice( 0, SEARCH_MAX );
+	const s = String( query.s || '' ).slice( 0, searchMax || SEARCH_MAX );
 	if ( s !== '' ) {
 		url.searchParams.set( vars.s, s );
 	}
 	Object.keys( query.filter || {} ).forEach( ( code ) => {
-		if ( query.filter[ code ] ) {
+		if ( query.filter[ code ] && ! ( fixed && fixed[ code ] ) ) {
 			url.searchParams.set( vars.filter + '[' + code + ']', String( query.filter[ code ] ) );
 		}
 	} );
@@ -110,7 +117,8 @@ export function gridHtml( cards, emptyText ) {
 
 /**
  * As Blocks::page_links(): ul.page-numbers with prev, numbers, dots and
- * next; '' for one page. `urlFor( n )` gives the page's plain href.
+ * next; '' for one page. `urlFor( n )` gives the page's plain href; the
+ * labels arrive escaped from the server config.
  */
 export function paginationHtml( current, total, urlFor, labels ) {
 	if ( total < 2 ) {
@@ -126,7 +134,7 @@ export function paginationHtml( current, total, urlFor, labels ) {
 		if ( item === 'dots' ) {
 			html += '<li><span class="page-numbers dots">&hellip;</span></li>';
 		} else if ( item === current ) {
-			html += '<li><span aria-current="page" class="page-numbers current">' + item + '</span></li>';
+			html += '<li><span aria-current="page" class="page-numbers current" tabindex="-1">' + item + '</span></li>';
 		} else {
 			html += link( item, 'page-numbers', String( item ) );
 		}
@@ -137,7 +145,15 @@ export function paginationHtml( current, total, urlFor, labels ) {
 	return html + '</ul>';
 }
 
-/** "%s recipes shown." with the count. */
-export function statusText( template, count ) {
-	return String( template ).replace( '%s', String( count ) );
+/** "%s recipe shown." / "%s recipes shown." with the count. */
+export function statusText( oneTemplate, manyTemplate, count ) {
+	return String( count === 1 ? oneTemplate : manyTemplate ).replace( '%s', String( count ) );
+}
+
+/** Is anything chosen in the form? */
+export function isFiltered( query ) {
+	if ( query.s ) {
+		return true;
+	}
+	return Object.keys( query.filter || {} ).some( ( code ) => !! query.filter[ code ] );
 }

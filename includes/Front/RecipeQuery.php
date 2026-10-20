@@ -112,21 +112,27 @@ final class RecipeQuery {
 	/**
 	 * `WP_Query` arguments for a normalised request: published recipes,
 	 * newest first, title-only keyword search, one `tax_query` clause per
-	 * filter (AND), paged and bounded.
+	 * filter (AND), paged and bounded. The term cache is not primed (cards
+	 * read no terms); the meta cache is (one `postmeta IN` per list keeps
+	 * `RecipeData::for_post()` at zero queries per card). `$count` false
+	 * skips `SQL_CALC_FOUND_ROWS` for a list that shows no pagination.
 	 *
 	 * @param array{s: string, filters: array<string, string>, page: int, per_page: int} $args    From normalize().
 	 * @param string                                                                     $context `rest`, `block` or `shortcode`.
+	 * @param bool                                                                       $count   Count the matches (pagination needs it).
 	 * @return array<string, mixed>
 	 */
-	public function args( array $args, string $context ): array {
+	public function args( array $args, string $context, bool $count = true ): array {
 		$query = [
-			'post_type'           => PostType::NAME,
-			'post_status'         => 'publish',
-			'posts_per_page'      => $args['per_page'],
-			'paged'               => $args['page'],
-			'orderby'             => 'date',
-			'order'               => 'DESC',
-			'ignore_sticky_posts' => true,
+			'post_type'              => PostType::NAME,
+			'post_status'            => 'publish',
+			'posts_per_page'         => $args['per_page'],
+			'paged'                  => $args['page'],
+			'orderby'                => 'date',
+			'order'                  => 'DESC',
+			'ignore_sticky_posts'    => true,
+			'update_post_term_cache' => false,
+			'no_found_rows'          => ! $count,
 		];
 		if ( '' !== $args['s'] ) {
 			$query['s']              = $args['s'];
@@ -164,9 +170,10 @@ final class RecipeQuery {
 	 *
 	 * @param array{s: string, filters: array<string, string>, page: int, per_page: int} $args    From normalize().
 	 * @param string                                                                     $context `rest`, `block` or `shortcode`.
+	 * @param bool                                                                       $count   Count the matches (pagination needs it).
 	 */
-	public function run( array $args, string $context ): \WP_Query {
-		return new \WP_Query( $this->args( $args, $context ) );
+	public function run( array $args, string $context, bool $count = true ): \WP_Query {
+		return new \WP_Query( $this->args( $args, $context, $count ) );
 	}
 
 	/**
@@ -218,7 +225,7 @@ final class RecipeQuery {
 			return [];
 		}
 		if ( function_exists( '_prime_post_caches' ) ) {
-			_prime_post_caches( $ids, true, true );
+			_prime_post_caches( $ids, false, true ); // Posts and meta; cards read no terms.
 		}
 		$posts = [];
 		foreach ( $ids as $id ) {

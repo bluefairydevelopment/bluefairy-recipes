@@ -120,6 +120,7 @@ final class RecipesTest extends TestCase {
 		$this->assertSame( [ 'name' => 'Ann', 'url' => 'https://example.com/recipes/chef/ann/' ], $soup['writer'] );
 		$this->assertSame( [ 'prep' => 20, 'cook' => 25, 'total' => 45 ], $soup['times'] );
 		$this->assertSame( 'A warm bowl.', $soup['excerpt'] );
+		$this->assertSame( [ [ 77 ], false, true ], $GLOBALS['bfrc_test_prime_args'][0] ?? null, 'every card\'s photo primed in one query before the loop, as the grid does' );
 		$this->assertSame( $this->renderer->card( get_post( 41 ), 'https://example.com/recipes/chef/ann/' ), $soup['html'], 'the card the archive renders' );
 		$pie = $items[1];
 		$this->assertSame( [ 'prep' => 0, 'cook' => 0, 'total' => 0 ], $pie['times'], 'a locked recipe: no times' );
@@ -156,5 +157,10 @@ final class RecipesTest extends TestCase {
 		$GLOBALS['bfrc_test_posts'][41]->post_author = 999;
 		$item                                        = $this->rest->item( get_post( 41 ), null );
 		$this->assertSame( [ 'name' => '', 'url' => '' ], $item['writer'] );
+	}
+
+	public function test_item_title_is_plain_text_without_entities_or_markup(): void {
+		$GLOBALS['bfrc_test_posts'][41]->post_title = 'Mom&#8217;s <b>Soup</b> &#038; Co';
+		$this->assertSame( 'Mom’s Soup & Co', $this->rest->item( get_post( 41 ), null )['title'], 'the_title filters texturise; the item does not' );
 	}
 }

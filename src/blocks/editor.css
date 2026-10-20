@@ -1,6 +1,6 @@
 /* The blocks preview as the site renders them; inside the editor nothing in them is live. */
-.editor-styles-wrapper .bfrc-list .bfrc-filters,
-.editor-styles-wrapper .bfrc-list .bfrc-pagination,
+.editor-styles-wrapper .bfrc-filters,
+.editor-styles-wrapper .bfrc-pagination,
 .editor-styles-wrapper .bfrc-card a,
 .editor-styles-wrapper .bfrc-featured a {
 	pointer-events: none;

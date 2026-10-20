@@ -15,8 +15,7 @@
   "textdomain": "bluefairy-recipes",
   "attributes": {
     "title": {
-      "type": "string",
-      "default": "Featured recipes"
+      "type": "string"
     },
     "mode": {
       "type": "string",

@@ -121,6 +121,15 @@ final class RendererTest extends TestCase {
 		$this->assertStringNotContainsString( 'bfrc-card--protected', $this->renderer->card( get_post( 41 ), null, 2, false ), 'and false forces it open' );
 	}
 
+	public function test_prime_thumbnails_primes_every_photo_once_without_terms(): void {
+		update_post_meta( 41, '_thumbnail_id', 77 );
+		update_post_meta( 42, '_thumbnail_id', 77 );
+		$this->renderer->prime_thumbnails( [ get_post( 41 ), get_post( 42 ), 'not a post' ] );
+		$this->assertSame( [ [ [ 77 ], false, true ] ], $GLOBALS['bfrc_test_prime_args'], 'one id, no term cache, the meta cache' );
+		$this->renderer->prime_thumbnails( [ get_post( 43 ) ?? new \WP_Post( [ 'ID' => 43 ] ) ] );
+		$this->assertCount( 1, $GLOBALS['bfrc_test_prime_args'], 'nothing to prime: no call' );
+	}
+
 	public function test_grid_empty_line_is_the_text_the_store_config_carries(): void {
 		$this->assertSame( '<p class="bfrc-empty">' . esc_html( Renderer::empty_text() ) . '</p>', $this->renderer->grid( [] ) );
 		$this->assertSame( 'No recipes match. Try fewer filters.', Renderer::empty_text() );

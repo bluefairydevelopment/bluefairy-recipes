@@ -19,6 +19,14 @@ test( 'buildPageUrl: the page URL for a reload or a shared link, never the fixed
 	assert.equal( buildPageUrl( 'https://example.com/cook/', { s: 'pie', filter: { diet: 'vegan', cuisine: '' }, page: 2 }, VARS ), 'https://example.com/cook/?bfrc_s=pie&bfrc_filter%5Bdiet%5D=vegan&bfrc_page=2' );
 	assert.equal( buildPageUrl( 'https://example.com/?page_id=5&bfrc_s=old&bfrc_filter%5Bdiet%5D=old&bfrc_page=9', { s: 'new', filter: {}, page: 1 }, VARS ), 'https://example.com/?page_id=5&bfrc_s=new', 'plain permalinks: the page id stays, stale list arguments go' );
 	assert.equal( buildPageUrl( '/cook/', { s: '', filter: { diet: 'vegan' }, page: 1 }, VARS ), '/cook/?bfrc_filter%5Bdiet%5D=vegan', 'a relative base stays relative' );
+	assert.equal( buildPageUrl( 'https://example.com/cook/', { s: '', filter: { diet: 'vegetarian', meal_type: 'lunch' }, page: 1 }, VARS, { diet: 'vegan' } ), 'https://example.com/cook/?bfrc_filter%5Bmeal_type%5D=lunch', 'a choice for a fixed code is never written: the page ignores it' );
+	assert.equal( buildPageUrl( 'https://example.com/cook/', { s: 'x'.repeat( 150 ), filter: {}, page: 1 }, VARS, {}, 100 ).length, 'https://example.com/cook/?bfrc_s='.length + 100, 'cut at the server\'s maximum' );
+} );
+
+test( 'escapeUrl keeps an href inside its attribute whatever the text', async () => {
+	const { escapeUrl, escapeHtml } = await load();
+	assert.equal( escapeUrl( 'https://x/?a=1&b=2"onmouseover="alert(1)\'<>' ), 'https://x/?a=1&#038;b=2%22onmouseover=%22alert(1)%27%3C%3E' );
+	assert.equal( escapeHtml( '<a href="x">&\'' ), '&lt;a href=&quot;x&quot;&gt;&amp;&#039;' );
 } );
 
 test( 'pageItems mirrors Blocks::page_items (end_size 1, mid_size 2)', async () => {
@@ -46,7 +54,7 @@ test( 'paginationHtml mirrors Blocks::page_links to the byte', async () => {
 	// The same string the PHP test (BlocksTest::test_page_items_and_page_links…) asserts for page 5 of 10.
 	assert.equal(
 		paginationHtml( 5, 10, urlFor, labels ),
-		'<ul class="page-numbers"><li><a class="prev page-numbers" href="https://example.com/cook/?bfrc_s=a%26b&#038;bfrc_page=4" data-bfrc-page="4">&laquo; Previous</a></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=a%26b" data-bfrc-page="1">1</a></li><li><span class="page-numbers dots">&hellip;</span></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=a%26b&#038;bfrc_page=3" data-bfrc-page="3">3</a></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=a%26b&#038;bfrc_page=4" data-bfrc-page="4">4</a></li><li><span aria-current="page" class="page-numbers current">5</span></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=a%26b&#038;bfrc_page=6" data-bfrc-page="6">6</a></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=a%26b&#038;bfrc_page=7" data-bfrc-page="7">7</a></li><li><span class="page-numbers dots">&hellip;</span></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=a%26b&#038;bfrc_page=10" data-bfrc-page="10">10</a></li><li><a class="next page-numbers" href="https://example.com/cook/?bfrc_s=a%26b&#038;bfrc_page=6" data-bfrc-page="6">Next &raquo;</a></li></ul>'
+		'<ul class="page-numbers"><li><a class="prev page-numbers" href="https://example.com/cook/?bfrc_s=a%26b&#038;bfrc_page=4" data-bfrc-page="4">&laquo; Previous</a></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=a%26b" data-bfrc-page="1">1</a></li><li><span class="page-numbers dots">&hellip;</span></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=a%26b&#038;bfrc_page=3" data-bfrc-page="3">3</a></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=a%26b&#038;bfrc_page=4" data-bfrc-page="4">4</a></li><li><span aria-current="page" class="page-numbers current" tabindex="-1">5</span></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=a%26b&#038;bfrc_page=6" data-bfrc-page="6">6</a></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=a%26b&#038;bfrc_page=7" data-bfrc-page="7">7</a></li><li><span class="page-numbers dots">&hellip;</span></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=a%26b&#038;bfrc_page=10" data-bfrc-page="10">10</a></li><li><a class="next page-numbers" href="https://example.com/cook/?bfrc_s=a%26b&#038;bfrc_page=6" data-bfrc-page="6">Next &raquo;</a></li></ul>'
 	);
 } );
 
@@ -64,7 +72,12 @@ test( 'the PHP and JS pagination fixtures are the same string', async () => {
 	assert.equal( pick( js ), pick( php ) );
 } );
 
-test( 'statusText fills the count', async () => {
-	const { statusText } = await load();
-	assert.equal( statusText( '%s recipes shown.', 3 ), '3 recipes shown.' );
+test( 'statusText picks the singular for one and fills the count', async () => {
+	const { statusText, isFiltered } = await load();
+	assert.equal( statusText( '%s recipe shown.', '%s recipes shown.', 3 ), '3 recipes shown.' );
+	assert.equal( statusText( '%s recipe shown.', '%s recipes shown.', 1 ), '1 recipe shown.' );
+	assert.equal( statusText( '%s recipe shown.', '%s recipes shown.', 0 ), '0 recipes shown.' );
+	assert.equal( isFiltered( { s: '', filter: { diet: '' } } ), false );
+	assert.equal( isFiltered( { s: '', filter: { diet: 'vegan' } } ), true );
+	assert.equal( isFiltered( { s: 'pie', filter: {} } ), true );
 } );

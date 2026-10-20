@@ -1,15 +1,22 @@
 /**
  * The `bfrc/recipes` store definition, built against an `api` object so the
  * actions and callbacks run under node --test without the Interactivity
- * runtime: `api.state()` is the store's state proxy, `api.getElement()` the
- * directive's element, `api.getConfig()` the server config, and
- * `api.fetch`, `api.setTimeout`, `api.clearTimeout`, `api.history` the
- * browser's.
+ * runtime: `api.state()` is the store's state proxy (every value comes from
+ * the server: this definition sets none, since store() would merge a default
+ * over the page's), `api.getElement()` the directive's element,
+ * `api.getConfig()` the server config, and `api.fetch`, `api.setTimeout`,
+ * `api.clearTimeout`, `api.history`, `api.abortController` the browser's.
  */
-import { DEBOUNCE, buildParams, buildPageUrl, gridHtml, paginationHtml, statusText } from './query.js';
+import { DEBOUNCE, buildParams, buildPageUrl, gridHtml, paginationHtml, statusText, isFiltered } from './query.js';
 
 export function createStore( api ) {
 	let timer = null;
+	let seq = 0; // The latest request's number: a response for an earlier one is dropped.
+	let inflight = null;
+
+	function ready( state ) {
+		return !! ( state && state.restUrl ); // No list seeded the store (a form alone, before the page's state arrived): the plain form stands.
+	}
 
 	function schedule() {
 		const config = api.getConfig();
@@ -27,22 +34,31 @@ export function createStore( api ) {
 
 	function urlFor( state, page ) {
 		const config = api.getConfig();
-		return buildPageUrl( state.baseUrl, { s: state.query.s, filter: state.query.filter, page }, config.vars );
+		return buildPageUrl( state.baseUrl, { s: state.query.s, filter: state.query.filter, page }, config.vars, state.fixed, config.searchMax );
 	}
 
 	async function load() {
 		const state = api.state();
 		const config = api.getConfig();
-		const url = state.restUrl + ( state.restUrl.indexOf( '?' ) === -1 ? '?' : '&' ) + buildParams( state.query, state.fixed, state.perPage );
+		const mine = ++seq;
+		if ( inflight && typeof inflight.abort === 'function' ) {
+			inflight.abort(); // The previous request's answer would be stale.
+		}
+		inflight = typeof api.abortController === 'function' ? api.abortController() : null;
 		state.loading = true;
 		state.error = false;
 		state.status = config.loadingText;
+		state.filtered = isFiltered( state.query );
 		try {
-			const response = await api.fetch( url, { headers: { Accept: 'application/json' }, credentials: 'same-origin' } );
+			const url = state.restUrl + ( state.restUrl.indexOf( '?' ) === -1 ? '?' : '&' ) + buildParams( state.query, state.fixed, state.perPage, config.searchMax );
+			const response = await api.fetch( url, { headers: { Accept: 'application/json' }, credentials: 'same-origin', signal: inflight ? inflight.signal : undefined } );
 			if ( ! response.ok ) {
 				throw new Error( 'HTTP ' + response.status );
 			}
 			const items = await response.json();
+			if ( mine !== seq ) {
+				return; // A newer request has been sent; its answer is the one to show.
+			}
 			if ( ! Array.isArray( items ) ) {
 				throw new Error( 'not a list' );
 			}
@@ -50,40 +66,38 @@ export function createStore( api ) {
 			state.total = Number( response.headers.get( 'X-WP-Total' ) ) || 0;
 			state.totalPages = Number( response.headers.get( 'X-WP-TotalPages' ) ) || 0;
 			state.hasPages = state.totalPages > 1;
-			state.status = statusText( config.foundText, state.cards.length );
+			state.status = statusText( config.foundOneText, config.foundText, state.cards.length );
 			state.version = ( state.version || 0 ) + 1;
 			api.history.replaceState( null, '', urlFor( state, state.query.page ) );
 		} catch ( e ) {
+			if ( mine !== seq ) {
+				return; // Aborted by a newer request, or an old failure: nothing to report.
+			}
 			state.error = true;
 			state.status = config.errorText;
 		}
-		state.loading = false;
+		if ( mine === seq ) {
+			state.loading = false;
+			inflight = null;
+		}
 	}
 
-	function filtered( state ) {
-		if ( state.query.s ) {
-			return true;
+	function focus( element ) {
+		if ( element && typeof element.focus === 'function' ) {
+			element.focus();
 		}
-		return Object.keys( state.query.filter || {} ).some( ( code ) => !! state.query.filter[ code ] );
 	}
 
 	return {
-		// The state's values come from the server (wp_interactivity_state()): store() merges this
-		// definition OVER the server state, so a default here would overwrite what the page sent.
-		// Only the derived getter is defined.
-		state: {
-			get filtered() {
-				return filtered( api.state() );
-			},
-		},
+		state: {},
 		actions: {
 			/** Typing in the search box (not mid-composition) or a finished IME composition. */
 			keyword( event ) {
-				if ( event.isComposing ) {
+				const state = api.state();
+				if ( event.isComposing || ! ready( state ) ) {
 					return;
 				}
-				const state = api.state();
-				state.query.s = String( event.target.value || '' ).slice( 0, 100 );
+				state.query.s = String( event.target.value || '' ).slice( 0, Number( api.getConfig().searchMax ) || 100 );
 				state.query.page = 1;
 				schedule();
 			},
@@ -91,27 +105,27 @@ export function createStore( api ) {
 			filter( event ) {
 				const state = api.state();
 				const code = event.target.getAttribute( 'data-bfrc-code' );
-				if ( ! code ) {
+				if ( ! code || ! ready( state ) ) {
 					return;
 				}
 				state.query.filter[ code ] = String( event.target.value || '' );
 				state.query.page = 1;
 				schedule();
 			},
-			/** The Filter button: at once. After a failed load the form submits as a plain form. */
+			/** The Filter button: at once. After a failed load, or without a store, the form submits as a plain form. */
 			submit( event ) {
 				const state = api.state();
-				if ( state.error ) {
+				if ( ! ready( state ) || state.error ) {
 					return;
 				}
 				event.preventDefault();
 				cancel();
 				return load();
 			},
-			/** The Reset link: clear every field and reload. */
-			reset( event ) {
+			/** The Reset link: clear every field and reload; focus goes to the search box. */
+			async reset( event ) {
 				const state = api.state();
-				if ( state.error ) {
+				if ( ! ready( state ) || state.error ) {
 					return;
 				}
 				event.preventDefault();
@@ -125,23 +139,26 @@ export function createStore( api ) {
 				state.query.s = '';
 				state.query.filter = {};
 				state.query.page = 1;
-				return load();
+				await load();
+				focus( form ? form.querySelector( 'input[type=search]' ) : null );
 			},
-			/** A pagination link (delegated from the nav). */
-			paginate( event ) {
+			/** A pagination link (delegated from the nav); focus lands on the new current page. */
+			async paginate( event ) {
 				const state = api.state();
 				const link = event.target.closest ? event.target.closest( 'a[data-bfrc-page]' ) : null;
-				if ( ! link || state.error ) {
+				if ( ! link || ! ready( state ) || state.error ) {
 					return;
 				}
 				event.preventDefault();
 				cancel();
 				state.query.page = Math.max( 1, Number( link.getAttribute( 'data-bfrc-page' ) ) || 1 );
 				const list = link.closest( '.bfrc-list' );
-				if ( list && typeof list.scrollIntoView === 'function' ) {
-					list.scrollIntoView( { block: 'start' } );
+				const nav = link.closest( 'nav' );
+				if ( list && typeof list.getBoundingClientRect === 'function' && list.getBoundingClientRect().top < 0 && typeof list.scrollIntoView === 'function' ) {
+					list.scrollIntoView( { block: 'start' } ); // Only when the list's top is above the viewport.
 				}
-				return load();
+				await load();
+				focus( nav ? nav.querySelector( '[aria-current="page"]' ) : null );
 			},
 		},
 		callbacks: {

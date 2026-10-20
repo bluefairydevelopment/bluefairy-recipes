@@ -1,4 +1,6 @@
 # Files left out of the distributable zip (WordPress.org and the download build).
+# src/, build/, package.json, package-lock.json and webpack.config.js ship: WordPress.org
+# requires the human-readable source of built JavaScript and the command that builds it.
 /.git
 /.github
 /.gitignore
@@ -12,8 +14,6 @@
 /bin
 /docs/screenshots
 /coverage
-/package.json
-/package-lock.json
 /composer.json
 /composer.lock
 /phpcs.xml.dist

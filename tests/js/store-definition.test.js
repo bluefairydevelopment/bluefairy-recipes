@@ -1,17 +1,22 @@
-// The bfrc/recipes store's actions and callbacks, run against a fake runtime: a fake state, element, config, fetch and history.
+// The bfrc/recipes store's actions and callbacks, run against a fake runtime: a fake state, element, config, fetch, timers, history and abort controllers.
 const test = require( 'node:test' );
 const assert = require( 'node:assert/strict' );
 
 const CONFIG = {
 	vars: { s: 'bfrc_s', filter: 'bfrc_filter', page: 'bfrc_page' },
+	searchMax: 100,
 	emptyText: 'No recipes match. Try fewer filters.',
 	loadingText: 'Loading recipes…',
 	errorText: 'The recipes could not be loaded. Press Filter to reload the page.',
+	foundOneText: '%s recipe shown.',
 	foundText: '%s recipes shown.',
 	prevText: '&laquo; Previous',
 	nextText: 'Next &raquo;',
 	debounce: 600,
 };
+
+// What wp_interactivity_state() sends.
+const SERVER_STATE = () => ( { restUrl: 'https://example.com/wp-json/bfrc/v1/recipes', baseUrl: 'https://example.com/cook/', perPage: 4, query: { s: '', filter: {}, page: 1 }, fixed: {}, total: 0, totalPages: 0, hasPages: false, filtered: false, loading: false, error: false, cards: null, status: '', version: 0 } );
 
 function response( items, total, pages, ok = true ) {
 	return {
@@ -22,9 +27,14 @@ function response( items, total, pages, ok = true ) {
 	};
 }
 
+class FakeAbort {
+	constructor() { this.aborted = false; this.signal = this; }
+	abort() { this.aborted = true; }
+}
+
 async function harness( overrides ) {
 	const { createStore } = await import( '../../src/store/definition.js' );
-	const calls = { fetch: [], replaced: [], timers: [] };
+	const calls = { fetch: [], replaced: [], timers: [], controllers: [] };
 	const results = { innerHTML: '' };
 	const pagination = { innerHTML: '' };
 	let element = results;
@@ -32,27 +42,20 @@ async function harness( overrides ) {
 		state: () => def.state,
 		getElement: () => ( { ref: element } ),
 		getConfig: () => CONFIG,
-		fetch: async ( url ) => { calls.fetch.push( url ); return ( overrides && overrides.respond ? overrides.respond : () => response( [], 0, 0 ) )( url ); },
-		setTimeout: ( fn, ms ) => { calls.timers.push( ms ); return { fn }; }, // Timers are held; the test fires them.
+		fetch: async ( url, options ) => { calls.fetch.push( url ); const respond = ( overrides && overrides.respond ) ? overrides.respond : () => response( [], 0, 0 ); return respond( url, options ); },
+		setTimeout: ( fn, ms ) => { calls.timers.push( ms ); const id = { fn }; api.lastTimer = id; return id; }, // Timers are held; the test fires them.
 		clearTimeout: ( id ) => { if ( id ) { id.cleared = true; } },
 		history: { replaceState: ( a, b, url ) => calls.replaced.push( url ) },
+		abortController: () => { const c = new FakeAbort(); calls.controllers.push( c ); return c; },
 	};
 	const def = createStore( api );
-	// What wp_interactivity_state() sends; the definition itself carries no values (store() would merge them over the server's).
-	assert.deepEqual( Object.keys( def.state ), [ 'filtered' ], 'the definition defines only the derived getter' );
-	Object.assign( def.state, { restUrl: 'https://example.com/wp-json/bfrc/v1/recipes', baseUrl: 'https://example.com/cook/', perPage: 4, query: { s: '', filter: {}, page: 1 }, fixed: {}, total: 0, totalPages: 0, hasPages: false, loading: false, error: false, cards: null, status: '', version: 0 } );
-	return { def, state: def.state, actions: def.actions, callbacks: def.callbacks, calls, results, pagination, setElement: ( el ) => { element = el; }, fire: () => { const t = calls.timers.length; const last = api.lastTimer; return last; }, api };
-}
-
-// Reach the held timer: setTimeout returned { fn }; keep the latest.
-function patchTimers( h ) {
-	const original = h.api.setTimeout;
-	h.api.setTimeout = ( fn, ms ) => { const id = original( fn, ms ); h.api.lastTimer = id; return id; };
+	assert.deepEqual( Object.keys( def.state ), [], 'the definition sets no state value: store() would merge it over the server\'s' );
+	Object.assign( def.state, ( overrides && overrides.state ) || SERVER_STATE() );
+	return { def, state: def.state, actions: def.actions, callbacks: def.callbacks, calls, results, pagination, setElement: ( el ) => { element = el; }, api };
 }
 
 test( 'typing schedules one debounced load after the last keystroke, resets the page, and ignores composition', async () => {
 	const h = await harness( { respond: () => response( [ { html: '<article>a</article>' } ], 9, 3 ) } );
-	patchTimers( h );
 	h.state.query.page = 3;
 	h.actions.keyword( { isComposing: true, target: { value: 'p' } } );
 	assert.equal( h.calls.timers.length, 0, 'mid-composition: nothing' );
@@ -65,14 +68,15 @@ test( 'typing schedules one debounced load after the last keystroke, resets the 
 	await h.api.lastTimer.fn();
 	assert.deepEqual( h.calls.fetch, [ 'https://example.com/wp-json/bfrc/v1/recipes?s=pie&page=1&per_page=4' ] );
 	assert.deepEqual( h.state.cards, [ '<article>a</article>' ] );
-	assert.deepEqual( [ h.state.total, h.state.totalPages, h.state.hasPages, h.state.loading, h.state.error, h.state.version ], [ 9, 3, true, false, false, 1 ] );
-	assert.equal( h.state.status, '1 recipes shown.' );
+	assert.deepEqual( [ h.state.total, h.state.totalPages, h.state.hasPages, h.state.filtered, h.state.loading, h.state.error, h.state.version ], [ 9, 3, true, true, false, false, 1 ] );
+	assert.equal( h.state.status, '1 recipe shown.', 'singular' );
 	assert.deepEqual( h.calls.replaced, [ 'https://example.com/cook/?bfrc_s=pie' ], 'the page URL follows' );
+	h.actions.keyword( { isComposing: false, target: { value: 'x'.repeat( 150 ) } } );
+	assert.equal( h.state.query.s.length, 100, 'cut at the server\'s maximum' );
 } );
 
-test( 'a select change, the Filter button, Reset and a page link', async () => {
-	const h = await harness( { respond: ( url ) => response( [ { html: '<article>' + url + '</article>' } ], 5, 2 ) } );
-	patchTimers( h );
+test( 'a select change, the Filter button, Reset and a page link, with focus placed afterwards', async () => {
+	const h = await harness( { respond: ( url ) => response( [ { html: '<article>' + url + '</article>' }, { html: '<article>b</article>' } ], 5, 2 ) } );
 	h.state.fixed = { meal_type: 'dinner' };
 	h.actions.filter( { target: { getAttribute: () => 'diet', value: 'vegan' } } );
 	assert.equal( h.calls.timers.length, 1 );
@@ -85,23 +89,34 @@ test( 'a select change, the Filter button, Reset and a page link', async () => {
 	assert.equal( h.calls.fetch[ 0 ], 'https://example.com/wp-json/bfrc/v1/recipes?filter%5Bdiet%5D=vegan&filter%5Bmeal_type%5D=dinner&page=1&per_page=4', 'fixed filters are sent too' );
 	assert.equal( h.calls.replaced[ 0 ], 'https://example.com/cook/?bfrc_filter%5Bdiet%5D=vegan', 'but never put in the page URL' );
 	assert.equal( h.state.filtered, true );
-	// A page link: delegated from the nav, scrolls the list into view.
+	assert.equal( h.state.status, '2 recipes shown.', 'plural' );
+	// A page link: delegated from the nav; the list is scrolled to only when its top is above the viewport; focus goes to the new current page.
 	let scrolled = 0;
-	const link = { getAttribute: () => '2', closest: ( sel ) => sel === '.bfrc-list' ? { scrollIntoView: () => scrolled++ } : null };
-	await h.actions.paginate( { preventDefault: () => prevented++, target: { closest: ( sel ) => sel === 'a[data-bfrc-page]' ? link : null } } );
+	let focused = null;
+	const current = { focus: () => { focused = 'current'; } };
+	const nav = { querySelector: ( sel ) => ( sel === '[aria-current="page"]' ? current : null ) };
+	const list = { scrollIntoView: () => scrolled++, getBoundingClientRect: () => ( { top: 120 } ) };
+	const link = { getAttribute: () => '2', closest: ( sel ) => ( sel === '.bfrc-list' ? list : sel === 'nav' ? nav : null ) };
+	await h.actions.paginate( { preventDefault: () => prevented++, target: { closest: ( sel ) => ( sel === 'a[data-bfrc-page]' ? link : null ) } } );
 	assert.equal( h.state.query.page, 2 );
-	assert.equal( scrolled, 1 );
+	assert.equal( scrolled, 0, 'the list top is in view: no scroll' );
+	assert.equal( focused, 'current' );
 	assert.ok( h.calls.fetch[ 1 ].endsWith( '&page=2&per_page=4' ) );
 	assert.equal( h.calls.replaced[ 1 ], 'https://example.com/cook/?bfrc_filter%5Bdiet%5D=vegan&bfrc_page=2' );
+	list.getBoundingClientRect = () => ( { top: -40 } );
+	await h.actions.paginate( { preventDefault: () => prevented++, target: { closest: ( sel ) => ( sel === 'a[data-bfrc-page]' ? link : null ) } } );
+	assert.equal( scrolled, 1, 'the list top is above the viewport: scrolled into view' );
 	await h.actions.paginate( { preventDefault: () => prevented++, target: { closest: () => null } } );
-	assert.equal( prevented, 2, 'a click elsewhere in the nav is not a page' );
-	// Reset: fields cleared, state cleared, loaded.
+	assert.equal( prevented, 3, 'a click elsewhere in the nav is not a page' );
+	// Reset: fields cleared, state cleared, loaded, focus on the search box.
 	const fields = [ { value: 'vegan' }, { value: 'pie' } ];
-	await h.actions.reset( { preventDefault: () => prevented++, target: { closest: () => ( { querySelectorAll: () => fields } ) } } );
+	const search = { focus: () => { focused = 'search'; } };
+	await h.actions.reset( { preventDefault: () => prevented++, target: { closest: () => ( { querySelectorAll: () => fields, querySelector: () => search } ) } } );
 	assert.deepEqual( fields.map( ( f ) => f.value ), [ '', '' ] );
 	assert.deepEqual( [ h.state.query.s, h.state.query.filter, h.state.query.page ], [ '', {}, 1 ] );
-	assert.equal( h.calls.replaced[ 2 ], 'https://example.com/cook/' );
+	assert.equal( h.calls.replaced[ 3 ], 'https://example.com/cook/' );
 	assert.equal( h.state.filtered, false );
+	assert.equal( focused, 'search' );
 } );
 
 test( 'callbacks write the grid and the pagination only after a load, as the PHP markup', async () => {
@@ -118,13 +133,31 @@ test( 'callbacks write the grid and the pagination only after a load, as the PHP
 	assert.equal( h.results.innerHTML, '<ul class="bfrc-grid"><li class="bfrc-grid__item"><article>a</article></li><li class="bfrc-grid__item"><article>b</article></li></ul>' );
 	h.setElement( h.pagination );
 	h.callbacks.renderPagination();
-	assert.equal( h.pagination.innerHTML, '<ul class="page-numbers"><li><a class="prev page-numbers" href="https://example.com/cook/?bfrc_s=pie" data-bfrc-page="1">&laquo; Previous</a></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=pie" data-bfrc-page="1">1</a></li><li><span aria-current="page" class="page-numbers current">2</span></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=pie&#038;bfrc_page=3" data-bfrc-page="3">3</a></li><li><a class="next page-numbers" href="https://example.com/cook/?bfrc_s=pie&#038;bfrc_page=3" data-bfrc-page="3">Next &raquo;</a></li></ul>' );
+	assert.equal( h.pagination.innerHTML, '<ul class="page-numbers"><li><a class="prev page-numbers" href="https://example.com/cook/?bfrc_s=pie" data-bfrc-page="1">&laquo; Previous</a></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=pie" data-bfrc-page="1">1</a></li><li><span aria-current="page" class="page-numbers current" tabindex="-1">2</span></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=pie&#038;bfrc_page=3" data-bfrc-page="3">3</a></li><li><a class="next page-numbers" href="https://example.com/cook/?bfrc_s=pie&#038;bfrc_page=3" data-bfrc-page="3">Next &raquo;</a></li></ul>' );
 	const empty = await harness( { respond: () => response( [], 0, 0 ) } );
 	await empty.actions.submit( { preventDefault() {} } );
 	empty.callbacks.renderResults();
 	assert.equal( empty.results.innerHTML, '<p class="bfrc-empty">No recipes match. Try fewer filters.</p>' );
 	assert.equal( empty.state.hasPages, false );
 	assert.equal( empty.state.status, '0 recipes shown.' );
+} );
+
+test( 'a late response for an earlier request is dropped and the request is aborted', async () => {
+	let resolveSlow;
+	const slow = new Promise( ( r ) => { resolveSlow = r; } );
+	const h = await harness( { respond: ( url ) => ( url.includes( 'page=2' ) ? slow : response( [ { html: '<article>pie</article>' } ], 1, 1 ) ) } );
+	const link = { getAttribute: () => '2', closest: () => null };
+	const p2 = h.actions.paginate( { preventDefault() {}, target: { closest: () => link } } ); // page 2: slow
+	h.actions.keyword( { isComposing: false, target: { value: 'pie' } } ); // then a keyword
+	const p1 = h.api.lastTimer.fn();
+	assert.equal( h.calls.controllers.length, 2 );
+	assert.equal( h.calls.controllers[ 0 ].aborted, true, 'the page-2 request was aborted when the keyword request went out' );
+	resolveSlow( response( [ { html: '<article>page 2 stale</article>' }, { html: '<article>x</article>' } ], 5, 2 ) ); // the stale answer arrives last
+	await p1;
+	await p2;
+	assert.deepEqual( h.state.cards, [ '<article>pie</article>' ], 'the newer request\'s answer stays' );
+	assert.deepEqual( [ h.state.query.page, h.state.totalPages, h.state.loading, h.state.version ], [ 1, 1, false, 1 ] );
+	assert.deepEqual( h.calls.replaced, [ 'https://example.com/cook/?bfrc_s=pie' ], 'the URL was written once, for the kept answer' );
 } );
 
 test( 'a failed or malformed response leaves the page as it was and hands the form back to the browser', async () => {
@@ -141,4 +174,17 @@ test( 'a failed or malformed response leaves the page as it was and hands the fo
 	const bad = await harness( { respond: () => ( { ok: true, status: 200, headers: { get: () => '0' }, json: async () => ( { not: 'a list' } ) } ) } );
 	await bad.actions.submit( { preventDefault() {} } );
 	assert.equal( bad.state.error, true, 'a non-list body is an error, never rendered' );
+} );
+
+test( 'without a store (no list seeded it) the form is left to the browser and nothing throws', async () => {
+	const h = await harness( { state: {} } );
+	let prevented = 0;
+	h.actions.keyword( { isComposing: false, target: { value: 'pie' } } );
+	h.actions.filter( { target: { getAttribute: () => 'diet', value: 'vegan' } } );
+	await h.actions.submit( { preventDefault: () => prevented++ } );
+	await h.actions.reset( { preventDefault: () => prevented++, target: { closest: () => null } } );
+	await h.actions.paginate( { preventDefault: () => prevented++, target: { closest: () => ( { getAttribute: () => '2', closest: () => null } ) } } );
+	assert.equal( prevented, 0 );
+	assert.equal( h.calls.fetch.length, 0 );
+	assert.equal( h.calls.timers.length, 0 );
 } );

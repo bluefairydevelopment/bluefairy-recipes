@@ -62,7 +62,7 @@ npm test           # node --test tests/js/*.test.js
 ```
 
 `build/` is committed so a checkout works without Node; rebuild and commit it with any change
-under `src/`. The release zip ships `build/`, `src/`, `package.json` and `webpack.config.js`
+under `src/`. The release zip ships `build/`, `src/`, `package.json`, `package-lock.json` and `webpack.config.js`
 (WordPress.org requires the source of built JavaScript), never `node_modules/`.
 
 Architecture and extension seams: `docs/ARCHITECTURE.md`.

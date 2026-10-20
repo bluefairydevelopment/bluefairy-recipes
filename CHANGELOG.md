@@ -28,7 +28,10 @@
   `[bfrc_recipes]`, `[bfrc_featured]` and `[bfrc_writers]` with the same markup.
 - Filtering a Recipe List updates it without a reload (600 ms after the last change); the
   page address follows so a reload or a shared link opens the same list; plain links and a
-  plain form without JavaScript.
+  plain form without JavaScript; a slow answer never overwrites a newer one; focus stays
+  with the control used; the first list on a page is the live one.
+- Inside the editor the blocks' previews are inert: a click in the preview's form cannot
+  navigate the editor.
 - Public REST endpoint `GET /bfrc/v1/recipes` (keyword, filters, page, per page; bounded;
   cards included; a locked recipe is its locked card for every caller; empty while disabled).
 - A view block pasted into a post's text shows a note in the editor instead of another

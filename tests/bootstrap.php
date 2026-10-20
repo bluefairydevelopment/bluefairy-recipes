@@ -149,6 +149,8 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_queries']          = []; // every new WP_Query( $args ) with args.
 	$GLOBALS['bfrc_test_query_resolver']   = null;
 	$GLOBALS['bfrc_test_last_changed_seq'] = 0;
+	$GLOBALS['bfrc_test_unique_id']        = 0;
+	BlueFairy\Recipes\Front\Blocks::reset();
 	$_COOKIE                               = [];
 	$_REQUEST                              = [];
 	$GLOBALS['bfrc_test_user_query_where'] = [];

@@ -103,6 +103,12 @@ if ( ! function_exists( 'wp_cache_set_last_changed' ) ) {
 		return $value;
 	}
 }
+if ( ! function_exists( 'wp_unique_id' ) ) {
+	function wp_unique_id( string $prefix = '' ): string {
+		$GLOBALS['bfrc_test_unique_id'] = ( $GLOBALS['bfrc_test_unique_id'] ?? 0 ) + 1;
+		return $prefix . (string) $GLOBALS['bfrc_test_unique_id'];
+	}
+}
 if ( ! function_exists( 'is_singular' ) ) {
 	function is_singular( mixed $post_types = '' ): bool {
 		$q = $GLOBALS['wp_query'] ?? null;

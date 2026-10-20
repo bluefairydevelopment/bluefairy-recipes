@@ -753,7 +753,7 @@ final class Renderer {
 	 *
 	 * @param array<int, \WP_Post> $posts The recipes.
 	 */
-	private function prime_thumbnails( array $posts ): void {
+	public function prime_thumbnails( array $posts ): void {
 		$ids = [];
 		foreach ( $posts as $post ) {
 			$thumb = (int) get_post_thumbnail_id( $post );

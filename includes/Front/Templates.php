@@ -609,8 +609,16 @@ final class Templates {
 	public static function enqueue_assets(): void {
 		// The src is repeated so the classic templates work even if register() has not run (a theme
 		// calling the Renderer before init 20).
-		wp_enqueue_style( self::STYLE, BFRC_URL . 'assets/front/recipes.css', [], BFRC_VERSION );
+		self::enqueue_style();
 		wp_enqueue_script( self::SCRIPT, BFRC_URL . 'assets/front/recipes.js', [], BFRC_VERSION, true );
+	}
+
+	/**
+	 * The stylesheet alone: blocks and shortcodes need no archive script
+	 * (it binds the archive's form and the recipe page's print button).
+	 */
+	public static function enqueue_style(): void {
+		wp_enqueue_style( self::STYLE, BFRC_URL . 'assets/front/recipes.css', [], BFRC_VERSION );
 	}
 
 	/**
@@ -732,7 +740,7 @@ final class Templates {
 	 */
 	public static function is_post_editor_preview(): bool {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- the block-renderer route verified its own nonce; only the presence of the id matters here.
-		return self::is_editor_preview() && absint( wp_unslash( $_REQUEST['post_id'] ?? 0 ) ) > 0;
+		return self::is_editor_preview() && absint( wp_unslash( $_GET['post_id'] ?? 0 ) ) > 0;
 	}
 
 	/**

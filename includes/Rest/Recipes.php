@@ -213,8 +213,9 @@ final class Recipes {
 		);
 		$query  = $this->query->run( $args, 'rest' );
 		$posts  = array_values( array_filter( is_array( $query->posts ) ? $query->posts : [], static fn( mixed $p ): bool => $p instanceof \WP_Post ) );
-		$links  = $this->renderer->writer_links( $posts );
-		$items  = [];
+		$this->renderer->prime_thumbnails( $posts ); // As the grid does: one query for every card's photo, not two per card.
+		$links = $this->renderer->writer_links( $posts );
+		$items = [];
 		foreach ( $posts as $post ) {
 			$items[] = $this->item( $post, $links[ (int) $post->post_author ] ?? null );
 		}
@@ -236,7 +237,7 @@ final class Recipes {
 		$text   = ! $locked && has_excerpt( $post ) ? get_the_excerpt( $post ) : '';
 		return [
 			'id'      => (int) $post->ID,
-			'title'   => wp_strip_all_tags( get_the_title( $post ) ),
+			'title'   => html_entity_decode( wp_strip_all_tags( get_the_title( $post ) ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ), // Plain text: the_title filters texturise.
 			'url'     => (string) get_permalink( $post ),
 			'thumb'   => is_string( $thumb ) ? $thumb : '',
 			'writer'  => [

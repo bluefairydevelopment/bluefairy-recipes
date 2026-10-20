@@ -10,7 +10,9 @@ import metadata from './block.json';
 import '../editor.css';
 
 function Edit( { attributes, setAttributes } ) {
-	const { title, mode, count } = attributes;
+	const { mode, count } = attributes;
+	// Unset (never edited) = the site language's "Featured recipes" (the server translates it); '' = no heading.
+	const title = attributes.title === undefined ? __( 'Featured recipes', 'bluefairy-recipes' ) : attributes.title;
 	return (
 		<>
 			<InspectorControls>

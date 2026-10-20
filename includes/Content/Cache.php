@@ -20,9 +20,10 @@ if ( ! defined( 'ABSPATH' ) ) {
  * post cache is cleaned (every insert, update, delete, status change and
  * term assignment through core goes through `clean_post_cache`), when a
  * `_bfrc*` meta value is written (the edit screen writes meta after the post
- * is saved), and when a recipe taxonomy's term is edited or deleted (a
- * renamed term changes every cached card that names it). Lists cached under
- * `key()` are then stale by key, never by content.
+ * is saved), and when a recipe taxonomy's term is edited or deleted (for
+ * any list a later milestone caches by term). Today only the featured and
+ * recent id sets are cached (`RecipeQuery::featured()`); lists cached under
+ * `key()` are stale by key, never by content.
  */
 final class Cache {
 
