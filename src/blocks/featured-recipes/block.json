@@ -1,0 +1,23 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "bfrc/featured-recipes",
+	"version": "1.0.0",
+	"title": "Featured Recipes",
+	"category": "widgets",
+	"icon": "star-filled",
+	"description": "The featured recipes, or the most recent ones, as cards.",
+	"keywords": [ "recipe", "featured", "recent" ],
+	"textdomain": "bluefairy-recipes",
+	"attributes": {
+		"title": { "type": "string", "default": "Featured recipes" },
+		"mode": { "type": "string", "enum": [ "featured", "recent" ], "default": "featured" },
+		"count": { "type": "integer", "default": 4, "minimum": 1, "maximum": 12 }
+	},
+	"supports": {
+		"html": false,
+		"align": [ "wide", "full" ]
+	},
+	"editorScript": "file:./index.js",
+	"editorStyle": [ "bfrc-recipes", "file:./index.css" ]
+}

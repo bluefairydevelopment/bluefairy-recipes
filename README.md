@@ -9,7 +9,7 @@ release tag.
 - WordPress 6.7 or newer, with pretty permalinks
 - PHP 8.1 or newer
 
-## What is in the tree today (milestones A1–A4)
+## What is in the tree today (milestones A1–A5)
 
 - Plugin bootstrap, settings model, roles and capabilities, activation, deactivation and
   uninstall.
@@ -20,7 +20,10 @@ release tag.
 - The public pages: the recipe archive with filters, title search and pagination, the
   filter-type pages, recipe pages (photo or video, ingredients, method, nutrition, share and
   print), the writers listing and writer pages; block and classic theme templates.
-  Blocks, shortcodes, the REST endpoint and JSON-LD follow in A5 and A6.
+- Blocks (Recipe List, Recipe Filters, Featured Recipes, Recipe Card) and the shortcodes
+  that mirror them (`[bfrc_recipes]`, `[bfrc_featured]`, `[bfrc_writers]`); the public
+  `GET /bfrc/v1/recipes` endpoint; filtering a Recipe List without a reload (Interactivity
+  API). JSON-LD follows in A6.
 
 ## Notes for site owners
 
@@ -53,9 +56,14 @@ vendor/bin/phpunit
 vendor/bin/phpcs
 vendor/bin/phpstan analyse --memory-limit=1G
 php bin/method-coverage.php
-npm install        # once: jsdom for the DOM tests (dev only, not shipped)
+npm install        # once: @wordpress/scripts and jsdom (dev only, not shipped)
+npm run build      # src/ → build/ (the blocks' editor scripts, the view module); build/ is committed
 npm test           # node --test tests/js/*.test.js
 ```
+
+`build/` is committed so a checkout works without Node; rebuild and commit it with any change
+under `src/`. The release zip ships `build/`, `src/`, `package.json` and `webpack.config.js`
+(WordPress.org requires the source of built JavaScript), never `node_modules/`.
 
 Architecture and extension seams: `docs/ARCHITECTURE.md`.
 

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "bfrc/recipe-list",
+  "version": "1.0.0",
+  "title": "Recipe List",
+  "category": "widgets",
+  "icon": "grid-view",
+  "description": "A page of recipes with filters and pagination. Fix a filter to list one meal type, diet, season or cuisine.",
+  "keywords": [
+    "recipe",
+    "list",
+    "grid"
+  ],
+  "textdomain": "bluefairy-recipes",
+  "attributes": {
+    "perPage": {
+      "type": "integer",
+      "default": 0
+    },
+    "filters": {
+      "type": "object",
+      "default": {}
+    },
+    "showFilters": {
+      "type": "boolean",
+      "default": true
+    },
+    "showPagination": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "supports": {
+    "html": false,
+    "interactivity": true,
+    "align": [
+      "wide",
+      "full"
+    ]
+  },
+  "editorScript": "file:./index.js",
+  "editorStyle": [
+    "bfrc-recipes",
+    "file:./index.css"
+  ],
+  "viewScriptModule": "bfrc-recipe-filters-view-script-module"
+}

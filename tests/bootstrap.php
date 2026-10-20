@@ -140,6 +140,15 @@ function bfrc_test_reset(): void {
 		}
 	}
 	$GLOBALS['bfrc_test_doing_filter']     = []; // doing_filter() answers true for these hook names.
+	$GLOBALS['bfrc_test_shortcodes']       = []; // add_shortcode() tag => callback.
+	$GLOBALS['bfrc_test_script_modules']   = []; // wp_register_script_module() id => args.
+	$GLOBALS['bfrc_test_enqueued_modules'] = []; // wp_enqueue_script_module() ids.
+	$GLOBALS['bfrc_test_interactivity_state']  = []; // wp_interactivity_state() namespace => state.
+	$GLOBALS['bfrc_test_interactivity_config'] = []; // wp_interactivity_config() namespace => config.
+	$GLOBALS['bfrc_test_directives_processed'] = 0;
+	$GLOBALS['bfrc_test_queries']          = []; // every new WP_Query( $args ) with args.
+	$GLOBALS['bfrc_test_query_resolver']   = null;
+	$GLOBALS['bfrc_test_last_changed_seq'] = 0;
 	$_COOKIE                               = [];
 	$_REQUEST                              = [];
 	$GLOBALS['bfrc_test_user_query_where'] = [];
@@ -528,10 +537,14 @@ function sanitize_url( mixed $url, ?array $protocols = null ): string {
 	return esc_url_raw( $url, $protocols );
 }
 function esc_url( mixed $url, ?array $protocols = null ): string {
-	return htmlspecialchars( esc_url_raw( $url, $protocols ), ENT_QUOTES, 'UTF-8' );
+	// As core (display context): `&` and `&amp;` become `&#038;`, a quote `&#039;`; other entities stay.
+	$clean = esc_url_raw( $url, $protocols );
+	$clean = str_replace( '&amp;', '&', $clean );
+	return str_replace( [ '&', "'" ], [ '&#038;', '&#039;' ], $clean );
 }
 function esc_html( mixed $text ): string {
-	return htmlspecialchars( is_scalar( $text ) ? (string) $text : '', ENT_QUOTES, 'UTF-8' );
+	// As core's _wp_specialchars(): existing entities (`&laquo;`, `&#038;`) are not encoded again.
+	return htmlspecialchars( is_scalar( $text ) ? (string) $text : '', ENT_QUOTES, 'UTF-8', false );
 }
 function esc_attr( mixed $text ): string {
 	return esc_html( $text );
@@ -621,7 +634,22 @@ function add_query_arg( mixed ...$args ): string {
 	$url = is_string( $args[ count( $args ) - 1 ] ) ? array_pop( $args ) : '';
 	$add = is_array( $args[0] ?? null ) ? $args[0] : ( isset( $args[1] ) ? [ $args[0] => $args[1] ] : [] );
 	$sep = str_contains( $url, '?' ) ? '&' : '?';
-	return $url . ( [] === $add ? '' : $sep . http_build_query( $add ) );
+	return $url . ( [] === $add ? '' : $sep . bfrc_test_http_build_query( $add ) );
+}
+/** As core's _http_build_query() with urlencode false: values are NOT encoded (callers encode), nested keys are `k%5Bsub%5D`. */
+function bfrc_test_http_build_query( array $data, string $key = '' ): string {
+	$out = [];
+	foreach ( $data as $k => $v ) {
+		$k = '' !== $key ? $key . '%5B' . $k . '%5D' : (string) $k;
+		if ( null === $v ) {
+			continue;
+		}
+		if ( false === $v ) {
+			$v = '0';
+		}
+		$out[] = is_array( $v ) ? bfrc_test_http_build_query( $v, $k ) : $k . '=' . ( is_scalar( $v ) ? (string) $v : '' );
+	}
+	return implode( '&', $out );
 }
 function remove_query_arg( mixed $key, string $url = '' ): string {
 	// As core: drop the named keys from the query string.

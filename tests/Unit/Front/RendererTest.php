@@ -114,6 +114,16 @@ final class RendererTest extends TestCase {
 		$this->assertStringContainsString( '<dt>Prep</dt><dd>20 min</dd>', $open, 'unlocked (cookie): the fields are back' );
 		$this->assertStringContainsString( 'bfrc-card__excerpt', $open );
 		$this->assertStringNotContainsString( 'bfrc-card--protected', $open );
+		$forced = $this->renderer->card( get_post( 41 ), null, 2, true );
+		$this->assertStringContainsString( 'bfrc-card--protected', $forced, 'the REST endpoint forces the locked card whatever the cookie says' );
+		$this->assertStringNotContainsString( '20 min', $forced );
+		$this->assertSame( $html, $this->renderer->card( get_post( 41 ), 'https://example.com/recipes/chef/ann/', 2, true ), 'forced locked is the locked card, byte for byte' );
+		$this->assertStringNotContainsString( 'bfrc-card--protected', $this->renderer->card( get_post( 41 ), null, 2, false ), 'and false forces it open' );
+	}
+
+	public function test_grid_empty_line_is_the_text_the_store_config_carries(): void {
+		$this->assertSame( '<p class="bfrc-empty">' . esc_html( Renderer::empty_text() ) . '</p>', $this->renderer->grid( [] ) );
+		$this->assertSame( 'No recipes match. Try fewer filters.', Renderer::empty_text() );
 	}
 
 	public function test_terms_by_taxonomy_asks_nothing_when_every_taxonomy_is_off(): void {
@@ -230,7 +240,7 @@ final class RendererTest extends TestCase {
 		$this->assertStringContainsString( '<div class="bfrc-writer__header"><img src="https://example.test/uploads/78.jpg"', $page );
 		$this->assertStringContainsString( '<h1 class="bfrc-writer__name">Ann &lt;b&gt;Lee&lt;/b&gt;</h1>', $page );
 		$this->assertStringContainsString( '<div class="bfrc-writer__about"><p>I bake <b>bread</b>', $page, 'about keeps post-safe HTML' );
-		$this->assertStringContainsString( 'href="https://ann.test/?a=1&amp;b=2" rel="noopener nofollow me" target="_blank">Website<span class="screen-reader-text"> (opens in a new tab)</span></a>', $page );
+		$this->assertStringContainsString( 'href="https://ann.test/?a=1&#038;b=2" rel="noopener nofollow me" target="_blank">Website<span class="screen-reader-text"> (opens in a new tab)</span></a>', $page );
 		$this->assertStringNotContainsString( 'javascript:', $page, 'a link that bypassed the profile sanitiser is dropped' );
 		$this->assertStringNotContainsString( 'YouTube', $page );
 		$this->assertStringContainsString( 'Recipes by Ann &lt;b&gt;Lee&lt;/b&gt;</h2>', $page );
@@ -254,6 +264,13 @@ final class RendererTest extends TestCase {
 		$this->assertSame( 'https://example.com/recipes/chef/%_%', $call['base'] );
 		$this->assertSame( 'page/%#%/', $call['format'] );
 		$this->assertSame( [ 2, 2 ], [ $call['total'], $call['current'] ] );
+		$this->assertStringContainsString( '<h1 class="bfrc-archive__title">Recipe writers</h1>', $html );
+		$bare = $this->renderer->writers_list( 2, false, 'https://example.com/cook/' );
+		$this->assertStringStartsWith( '<div class="bfrc-writers"><ul class="bfrc-writers__grid">', $bare, 'inside a page: no heading, no "All recipes" link' );
+		$this->assertStringNotContainsString( 'All recipes', $bare );
+		$call = $GLOBALS['bfrc_test_paginate_calls'][1];
+		$this->assertSame( 'https://example.com/cook/?bfrc_page=%#%', $call['base'], 'paged on the page that holds it' );
+		$this->assertSame( '', $call['format'] );
 	}
 
 	public function test_single_renders_every_section_the_seams_and_the_share_buttons(): void {
@@ -288,7 +305,7 @@ final class RendererTest extends TestCase {
 		$this->assertStringContainsString( '<nav class="bfrc-share" aria-label="Share this recipe">', $html );
 		$this->assertStringContainsString( 'https://www.facebook.com/sharer/sharer.php?u=https%3A%2F%2Fexample.com%2F%3Fp%3D41', $html );
 		$this->assertStringContainsString( 'https://twitter.com/intent/tweet?url=', $html );
-		$this->assertStringContainsString( '&amp;media=https%3A%2F%2Fexample.test%2Fuploads%2F77.jpg', $html, 'Pinterest media = the recipe photo' );
+		$this->assertStringContainsString( '&#038;media=https%3A%2F%2Fexample.test%2Fuploads%2F77.jpg', $html, 'Pinterest media = the recipe photo' );
 		$this->assertStringContainsString( 'target="_blank" rel="noopener nofollow">Share on X<span class="screen-reader-text"> (opens in a new tab)</span></a>', $html );
 		$this->assertStringContainsString( 'data-bfrc-print', $html );
 		$this->assertStringNotContainsString( 'bfrc-recipe__content', $html, 'no body content: no block' );
@@ -408,7 +425,7 @@ final class RendererTest extends TestCase {
 		$GLOBALS['bfrc_test_posts'][41]->post_title = 'Mom&#8217;s Soup';
 		$this->settings->update( [ 'share_x' => false, 'share_facebook' => false ] + $this->settings->all() );
 		$html = $this->renderer->single( get_post( 41 ) );
-		$this->assertStringContainsString( '<div class="bfrc-recipe__hero"><div class="bfrc-recipe__video"><iframe src="https://player.vimeo.com/video/123456789?h=abc123" title="Mom&amp;#8217;s Soup" loading="lazy"', $html );
+		$this->assertStringContainsString( '<div class="bfrc-recipe__hero"><div class="bfrc-recipe__video"><iframe src="https://player.vimeo.com/video/123456789?h=abc123" title="Mom&#8217;s Soup" loading="lazy"', $html );
 		$this->assertStringNotContainsString( 'bfrc-recipe__ingredients', $html, 'no rows: no section' );
 		$this->assertStringContainsString( 'bfrc-share__link--pinterest', $html );
 		$this->assertStringContainsString( 'description=Mom%E2%80%99s%20Soup', $html, 'entities decoded for the share text' );
@@ -434,14 +451,14 @@ final class RendererTest extends TestCase {
 	public function test_share_text_is_the_plain_title_with_entities_and_markup_gone(): void {
 		$GLOBALS['bfrc_test_posts'][41]->post_title = 'Tomato &#039;Soup&#039; <b>&amp; Bread</b>';
 		$html                                        = $this->renderer->share_buttons( get_post( 41 ) );
-		$this->assertStringContainsString( '&amp;text=Tomato%20%27Soup%27%20%26%20Bread"', $html, 'X: quotes decoded (ENT_QUOTES), tags stripped, then URL-encoded' );
-		$this->assertStringContainsString( '&amp;description=Tomato%20%27Soup%27%20%26%20Bread', $html, 'Pinterest the same' );
+		$this->assertStringContainsString( '&#038;text=Tomato%20%27Soup%27%20%26%20Bread"', $html, 'X: quotes decoded (ENT_QUOTES), tags stripped, then URL-encoded' );
+		$this->assertStringContainsString( '&#038;description=Tomato%20%27Soup%27%20%26%20Bread', $html, 'Pinterest the same' );
 		$GLOBALS['bfrc_test_posts'][41]->post_title = "Grandma's <Soup> & Co"; // One space each side of the tag: stripping it leaves two.
-		$this->assertStringContainsString( '&amp;text=Grandma%27s%20%26%20Co"', $this->renderer->share_buttons( get_post( 41 ) ), 'a bracketed word is stripped as a tag (as core\'s <title> does) and the whitespace collapses' );
+		$this->assertStringContainsString( '&#038;text=Grandma%27s%20%26%20Co"', $this->renderer->share_buttons( get_post( 41 ) ), 'a bracketed word is stripped as a tag (as core\'s <title> does) and the whitespace collapses' );
 		$GLOBALS['bfrc_test_posts'][41]->post_title = "Grandma's\n<Soup>\t&\xC2\xA0Co";
-		$this->assertStringContainsString( '&amp;text=Grandma%27s%20%26%20Co"', $this->renderer->share_buttons( get_post( 41 ) ), 'newline, tab and non-breaking space collapse too' );
+		$this->assertStringContainsString( '&#038;text=Grandma%27s%20%26%20Co"', $this->renderer->share_buttons( get_post( 41 ) ), 'newline, tab and non-breaking space collapse too' );
 		$GLOBALS['bfrc_test_posts'][41]->post_title = "Bad \xFF byte";
-		$this->assertStringContainsString( '&amp;text=Bad%20%FF%20byte"', $this->renderer->share_buttons( get_post( 41 ) ), 'invalid UTF-8 makes preg give up: the text is kept, not emptied' );
+		$this->assertStringContainsString( '&#038;text=Bad%20%FF%20byte"', $this->renderer->share_buttons( get_post( 41 ) ), 'invalid UTF-8 makes preg give up: the text is kept, not emptied' );
 		$this->assertStringNotContainsString( '%3Cb%3E', $html, 'no markup in the share text' );
 	}
 

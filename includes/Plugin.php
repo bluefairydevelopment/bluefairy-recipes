@@ -74,14 +74,17 @@ final class Plugin {
 		$post_type  = new Content\PostType( $settings );
 		$meta       = new Content\Meta();
 		$slugs      = new Content\Slugs( $taxonomies );
+		$cache      = new Content\Cache();
 		$taxonomies->register_hooks();
 		$post_type->register_hooks();
 		$meta->register_hooks();
 		$slugs->register_hooks();
+		$cache->register_hooks();
 		self::set( 'content.taxonomies', $taxonomies );
 		self::set( 'content.post_type', $post_type );
 		self::set( 'content.meta', $meta );
 		self::set( 'content.slugs', $slugs );
+		self::set( 'content.cache', $cache );
 
 		$writers   = new Front\Writers( $settings );
 		$renderer  = new Front\Renderer( $settings, $writers, $taxonomies );
@@ -91,6 +94,15 @@ final class Plugin {
 		self::set( 'front.writers', $writers );
 		self::set( 'front.renderer', $renderer );
 		self::set( 'front.templates', $templates );
+
+		$query  = new Front\RecipeQuery( $settings, $taxonomies );
+		$blocks = new Front\Blocks( $settings, $taxonomies, $renderer, $query, $templates );
+		$rest   = new Rest\Recipes( $settings, $taxonomies, $query, $renderer );
+		$blocks->register_hooks();
+		$rest->register_hooks();
+		self::set( 'front.query', $query );
+		self::set( 'front.blocks', $blocks );
+		self::set( 'rest.recipes', $rest );
 
 		if ( is_admin() ) {
 			$editor = new Admin\RecipeEditor();

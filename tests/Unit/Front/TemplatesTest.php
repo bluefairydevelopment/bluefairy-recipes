@@ -134,7 +134,7 @@ final class TemplatesTest extends TestCase {
 		$this->assertFalse( $GLOBALS['wp_query']->is_404(), 'no rewrite rules run: the query string is the page, never redirected' );
 		ob_start();
 		$t->rel_canonical();
-		$this->assertSame( '<link rel="canonical" href="https://example.com/?post_type=bfrc_recipe&amp;author_name=ann&amp;bfrc_writer=1">' . "\n", ob_get_clean(), 'the canonical names a URL that resolves (the pretty one would serve the home page)' );
+		$this->assertSame( '<link rel="canonical" href="https://example.com/?post_type=bfrc_recipe&#038;author_name=ann&#038;bfrc_writer=1">' . "\n", ob_get_clean(), 'the canonical names a URL that resolves (the pretty one would serve the home page)' );
 		$_GET = [];
 		$GLOBALS['bfrc_test_rewrite_rules'] = [];
 		$this->writers->add_rewrite_rules();
@@ -388,8 +388,13 @@ final class TemplatesTest extends TestCase {
 		Templates::register_assets();
 		$this->assertStringEndsWith( 'assets/front/recipes.css', $GLOBALS['bfrc_test_registered']['style']['bfrc-recipes'], 'registered on enqueue_block_assets so the editor_style handle resolves' );
 		$this->assertStringEndsWith( 'assets/front/recipes.js', $GLOBALS['bfrc_test_registered']['script']['bfrc-recipes'] );
+		$this->assertStringEndsWith( 'build/view-blocks.js', $GLOBALS['bfrc_test_registered']['script'][ Templates::VIEW_BLOCKS_SCRIPT ], 'the view blocks\' editor script, from its built asset file, registered with the other assets' );
+		$this->assertTrue( Templates::register_view_blocks_script() );
+		$asset = include BFRC_DIR . 'build/view-blocks.asset.php';
+		$this->assertContains( 'wp-server-side-render', $asset['dependencies'], 'the edit is a server-side render (its request carries post_id in the post editor)' );
 		foreach ( $GLOBALS['bfrc_test_blocks'] as $name => $args ) {
 			$this->assertTrue( is_callable( $args['render_callback'] ), $name );
+			$this->assertSame( [ Templates::VIEW_BLOCKS_SCRIPT ], $args['editor_script_handles'], "$name: the editor loads the ServerSideRender edit, whose post-editor request carries post_id" );
 			$this->assertTrue( $args['supports']['autoRegister'], "$name: the Site Editor gets a server-rendered preview on WordPress 7.0+" );
 			$this->assertFalse( $args['supports']['inserter'], "$name: a template block, not an inserter tile named bfrc/…" );
 			$this->assertSame( 'theme', $args['category'], $name );
@@ -672,9 +677,15 @@ final class TemplatesTest extends TestCase {
 		$GLOBALS['wp']->query_vars['rest_route'] = '/wp/v2/pages/5';
 		$GLOBALS['wp']->query_vars['rest_route'] = '/wp/v2/block-renderer/bfrc/recipe-single';
 		$this->assertTrue( Templates::is_editor_preview(), 'the block-renderer route is the Site Editor asking' );
-		$_REQUEST['post_id'] = '41'; // The post editor's own preview (core's auto-registered block sends no post_id on 7.0.6; a later editor script may): it previews as the Site Editor does.
-		$this->assertStringContainsString( 'class="bfrc-recipe__title">Soup<', $t->render_single_block(), 'until A5 ships editor blocks, a pasted view block previews the newest recipe in the post editor too' );
+		$_REQUEST['post_id'] = '41'; // The post editor: the editor script's ServerSideRender sends the numeric current post id (the Site Editor's template ids are strings, so it sends none).
+		$this->assertTrue( Templates::is_post_editor_preview() );
+		$this->assertSame( Templates::body_note(), $t->render_single_block(), 'a view block pasted into a post\'s text shows the note, never another recipe\'s page' );
+		$this->assertSame( Templates::body_note(), $t->render_archive_block(), 'nor a grid' );
+		$this->assertStringContainsString( 'bfrc-block-note', Templates::body_note() );
+		$_REQUEST['post_id'] = '0';
+		$this->assertFalse( Templates::is_post_editor_preview(), 'post_id=0 is no post' );
 		unset( $_REQUEST['post_id'] );
+		$this->assertFalse( Templates::is_post_editor_preview() );
 		$this->assertStringContainsString( 'class="bfrc-recipe__title">Soup<', $t->render_single_block(), 'the Site Editor\'s block-renderer request has no recipe in context: preview the newest published one' );
 		$this->assertSame( 'publish', $GLOBALS['bfrc_test_get_posts_calls'][0]['post_status'] );
 		$this->assertSame( 1, $GLOBALS['bfrc_test_get_posts_calls'][0]['numberposts'] );

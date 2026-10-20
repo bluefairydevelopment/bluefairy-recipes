@@ -175,7 +175,7 @@ final class Renderer {
 	public function grid( array $posts, int $heading_level = 2 ): string {
 		$posts = array_values( array_filter( $posts, static fn( mixed $p ): bool => $p instanceof \WP_Post ) );
 		if ( [] === $posts ) {
-			return '<p class="bfrc-empty">' . esc_html__( 'No recipes match. Try fewer filters.', 'bluefairy-recipes' ) . '</p>';
+			return '<p class="bfrc-empty">' . esc_html( self::empty_text() ) . '</p>';
 		}
 		$this->prime_thumbnails( $posts );
 		$links = $this->writer_links( $posts );
@@ -187,6 +187,14 @@ final class Renderer {
 	}
 
 	/**
+	 * The "no recipes" line's text (the view script prints the same line
+	 * from the store's config).
+	 */
+	public static function empty_text(): string {
+		return __( 'No recipes match. Try fewer filters.', 'bluefairy-recipes' );
+	}
+
+	/**
 	 * One recipe card. A password-protected recipe shows core's protected
 	 * title and its photo (as core's own loops do), and none of its fields:
 	 * no badges and no excerpt (core would print "There is no excerpt
@@ -195,11 +203,12 @@ final class Renderer {
 	 * @param \WP_Post    $post          The recipe.
 	 * @param string|null $writer_url    The writer's public URL, or null when they have no page.
 	 * @param int         $heading_level Title level (2..6).
+	 * @param bool|null   $locked        Render as locked (true), unlocked (false), or as `post_password_required()` says (null).
 	 */
-	public function card( \WP_Post $post, ?string $writer_url = null, int $heading_level = 2 ): string {
+	public function card( \WP_Post $post, ?string $writer_url = null, int $heading_level = 2, ?bool $locked = null ): string {
 		$h         = 'h' . min( 6, max( 2, $heading_level ) ); // h2 under the archive's h1; h3 under a writer page's "Recipes by" h2.
 		$data      = RecipeData::for_post( $post );
-		$protected = post_password_required( $post );
+		$protected = $locked ?? post_password_required( $post ); // The REST endpoint passes true for any recipe with a password: its item never varies by cookie.
 		$url       = get_permalink( $post );
 		$title     = get_the_title( $post );
 		$html      = '<article class="bfrc-card' . ( $data->featured ? ' bfrc-card--featured' : '' ) . ( $protected ? ' bfrc-card--protected' : '' ) . '">';
@@ -339,12 +348,17 @@ final class Renderer {
 	/**
 	 * The writers listing page.
 	 *
-	 * @param int $page 1-based page.
+	 * @param int         $page        1-based page.
+	 * @param bool        $with_header With the page heading and the "All recipes" link (the listing page); false for a shortcode inside a page.
+	 * @param string|null $base_url    Page links as `?bfrc_page=N` of this URL instead of the listing's `/page/N/`.
 	 */
-	public function writers_list( int $page ): string {
+	public function writers_list( int $page, bool $with_header = true, ?string $base_url = null ): string {
 		$listing = $this->writers->listed( $page );
-		$html    = '<div class="bfrc-writers"><header class="bfrc-archive__header"><h1 class="bfrc-archive__title">' . esc_html__( 'Recipe writers', 'bluefairy-recipes' ) . '</h1>';
-		$html   .= '<p class="bfrc-archive__writers-link"><a href="' . esc_url( (string) get_post_type_archive_link( PostType::NAME ) ) . '">' . esc_html__( 'All recipes', 'bluefairy-recipes' ) . '</a></p></header>';
+		$html    = '<div class="bfrc-writers">';
+		if ( $with_header ) {
+			$html .= '<header class="bfrc-archive__header"><h1 class="bfrc-archive__title">' . esc_html__( 'Recipe writers', 'bluefairy-recipes' ) . '</h1>';
+			$html .= '<p class="bfrc-archive__writers-link"><a href="' . esc_url( (string) get_post_type_archive_link( PostType::NAME ) ) . '">' . esc_html__( 'All recipes', 'bluefairy-recipes' ) . '</a></p></header>';
+		}
 		if ( [] === $listing['writers'] ) {
 			return $html . '<p class="bfrc-empty">' . esc_html__( 'No recipe writers yet.', 'bluefairy-recipes' ) . '</p></div>';
 		}
@@ -366,10 +380,11 @@ final class Renderer {
 		}
 		$html .= '</ul>';
 		if ( $listing['pages'] > 1 ) {
+			// On the listing page the pages are core's `/page/N/`; on a page holding the shortcode they are `?bfrc_page=N` of that page.
 			$links = paginate_links(
 				[
-					'base'      => trailingslashit( $this->writers->listing_url() ) . '%_%',
-					'format'    => user_trailingslashit( Writers::pagination_base() . '/%#%' ),
+					'base'      => null === $base_url ? trailingslashit( $this->writers->listing_url() ) . '%_%' : add_query_arg( RecipeQuery::PAGE_VAR, '%#%', $base_url ),
+					'format'    => null === $base_url ? user_trailingslashit( Writers::pagination_base() . '/%#%' ) : '',
 					'total'     => $listing['pages'],
 					'current'   => $page,
 					'prev_text' => __( '&laquo; Previous', 'bluefairy-recipes' ),

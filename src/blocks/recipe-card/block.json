@@ -1,0 +1,20 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "bfrc/recipe-card",
+	"version": "1.0.0",
+	"title": "Recipe Card",
+	"category": "widgets",
+	"icon": "food",
+	"description": "One recipe as a card: photo, title, times, writer and short description.",
+	"keywords": [ "recipe", "card" ],
+	"textdomain": "bluefairy-recipes",
+	"attributes": {
+		"recipeId": { "type": "integer", "default": 0 }
+	},
+	"supports": {
+		"html": false
+	},
+	"editorScript": "file:./index.js",
+	"editorStyle": [ "bfrc-recipes", "file:./index.css" ]
+}
