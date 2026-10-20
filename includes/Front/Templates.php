@@ -419,10 +419,8 @@ final class Templates {
 			if ( null !== $writer ) {
 				// The writer's feed URL as the rules serve it: no page segment (core paginates feeds by
 				// query argument), the requested format kept when it is not the default.
-				global $wp_rewrite;
 				$feed   = (string) $query->get( 'feed' );
-				$known  = $wp_rewrite instanceof \WP_Rewrite && is_array( $wp_rewrite->feeds ) ? $wp_rewrite->feeds : [ 'feed', 'rdf', 'rss', 'rss2', 'atom' ];
-				$suffix = 'feed/' . ( in_array( $feed, $known, true ) && 'feed' !== $feed && get_default_feed() !== $feed ? $feed . '/' : '' ); // Only a format core serves; never a caller's string in the Location.
+				$suffix = 'feed/' . ( in_array( $feed, Writers::feed_formats(), true ) && 'feed' !== $feed && get_default_feed() !== $feed ? $feed . '/' : '' ); // Only a format core serves (the same list the writer routes use); never a caller's string in the Location.
 				wp_safe_redirect( trailingslashit( $this->writers->url( $writer ) ) . $suffix, 301, 'BlueFairy Recipes' );
 				exit;
 			}

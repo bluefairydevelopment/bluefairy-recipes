@@ -51,6 +51,13 @@ final class WritersTest extends TestCase {
 		$this->assertSame( 'index.php?post_type=bfrc_recipe&bfrc_writers=1', $rules[0][1] );
 		$this->assertStringContainsString( 'bfrc_writers=1&paged=$matches[1]', $rules[1][1] );
 		$this->assertStringContainsString( '/feed/(feed|rdf|rss|rss2|atom)/?$', $rules[2][0] );
+		$this->assertSame( [ 'feed', 'rdf', 'rss', 'rss2', 'atom' ], Writers::feed_formats() );
+		$GLOBALS['wp_rewrite']->feeds[]     = 'json';
+		$GLOBALS['bfrc_test_rewrite_rules'] = [];
+		$this->writers->add_rewrite_rules();
+		$this->assertStringContainsString( '/feed/(feed|rdf|rss|rss2|atom|json)/?$', $GLOBALS['bfrc_test_rewrite_rules'][2][0], 'a format added with add_feed() is routed too, so the feed redirect and the routes agree' );
+		unset( $GLOBALS['wp_rewrite'] );
+		$this->assertSame( [ 'feed', 'rdf', 'rss', 'rss2', 'atom' ], Writers::feed_formats(), 'core\'s defaults before the rewrite object exists' );
 		$this->assertStringContainsString( 'author_name=$matches[1]&bfrc_writer=1&feed=$matches[2]', $rules[2][1], 'a writer\'s feed is the author feed of the recipe type' );
 		$this->assertStringContainsString( 'author_name=$matches[1]&bfrc_writer=1&feed=$matches[2]', $rules[3][1] );
 		$this->assertStringContainsString( 'paged=$matches[2]', $rules[4][1] );

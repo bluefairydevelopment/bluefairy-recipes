@@ -320,6 +320,16 @@ final class TemplatesTest extends TestCase {
 		} catch ( \BfrcTestExit $e ) {
 			$this->assertSame( 'https://example.com/recipes/chef/ann/feed/atom/', $e->payload, 'the format is kept, the page segment is not (no feed rule serves /page/N/, core paginates feeds by query argument)' );
 		}
+		$GLOBALS['wp_rewrite']->feeds[] = 'json';
+		$json          = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann', 'feed' => 'json' ], 'author' );
+		$json->is_feed = true;
+		$_GET          = [ 'author_name' => 'ann', 'feed' => 'json' ];
+		try {
+			$this->templates->guard();
+			$this->fail( 'expected a redirect' );
+		} catch ( \BfrcTestExit $e ) {
+			$this->assertSame( 'https://example.com/recipes/chef/ann/feed/json/', $e->payload, 'a custom feed registered with add_feed() is a format the routes serve' );
+		}
 		foreach ( [ '../../wp-login.php', 'junk', 'rss2' ] as $bad ) {
 			$f          = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann', 'feed' => $bad ], 'author' );
 			$f->is_feed = true;

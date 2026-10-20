@@ -93,8 +93,22 @@ final class MetaTest extends TestCase {
 		$server     = new \WP_REST_Server();
 		$collection = Meta::no_store_when_protected( new \WP_REST_Response( [ $locked, [ 'id' => 42 ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' ) );
 		$this->assertSame( 'no-store', $collection->get_headers()['Cache-Control'], 'a collection that carried a locked recipe is not cached' );
+		$still = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 42 ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' ) );
+		$this->assertSame( 'no-store', $still->get_headers()['Cache-Control'], 'the flag outlives the after-callbacks hook: a cache deciding at rest_post_dispatch must still see it' );
+		$this->assertTrue( Meta::bypass_rest_cache( false, new \WP_REST_Request() ), 'the gateway bypass answers from the same flag' );
+		$this->assertNull( Meta::forget_protected( null, [], new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' ) ), 'the next dispatch starts clean and the pre-callback value passes through' );
+		$this->assertFalse( Meta::bypass_rest_cache( false, new \WP_REST_Request() ) );
+		$this->assertTrue( Meta::bypass_rest_cache( true, new \WP_REST_Request() ), 'a bypass someone else decided stands' );
 		$next = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 42 ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' ) );
 		$this->assertArrayNotHasKey( 'Cache-Control', $next->get_headers(), 'the flag is per request: the next response is untouched' );
+		Meta::hide_protected_meta( $make(), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) );
+		$wrapped = Meta::no_store_when_protected( [ 'id' => 41, 'plain' => 'array' ], $server, new \WP_REST_Request( 'GET', '/bfrc/v1/x' ) );
+		$this->assertInstanceOf( \WP_REST_Response::class, $wrapped, 'a route returning a plain array is wrapped as core would, so it can carry the header' );
+		$this->assertSame( 'no-store', $wrapped->get_headers()['Cache-Control'] );
+		Meta::forget_protected( null, [], new \WP_REST_Request() );
+		$this->assertSame( [ 'id' => 42 ], Meta::no_store_when_protected( [ 'id' => 42 ], $server, new \WP_REST_Request( 'GET', '/bfrc/v1/x' ) ), 'nothing to mark: the array passes through untouched' );
+		$err = new \WP_Error( 'x', 'y' );
+		$this->assertSame( $err, Meta::no_store_when_protected( $err, $server, new \WP_REST_Request() ) );
 		$this->assertSame( 'x', Meta::no_store_when_protected( 'x', $server, new \WP_REST_Request() ), 'not a response object: passed through' );
 		$search = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 41, 'type' => 'post', 'subtype' => 'bfrc_recipe' ], [ 'id' => 42, 'type' => 'post', 'subtype' => 'bfrc_recipe' ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/search' ) );
 		$this->assertSame( 'no-store', $search->get_headers()['Cache-Control'], 'a search listing a locked recipe: its items are embedded after the headers go out, so the ids decide' );
@@ -107,6 +121,7 @@ final class MetaTest extends TestCase {
 		$this->assertTrue( Meta::caller_has_unlock_cookie() );
 		$with_cookie = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 42 ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' ) );
 		$this->assertSame( 'no-store', $with_cookie->get_headers()['Cache-Control'], 'an open recipe\'s item, but a cookie holder asked: not stored' );
+		$this->assertTrue( Meta::bypass_rest_cache( false, new \WP_REST_Request() ), 'and the gateway bypasses at request level' );
 		$_COOKIE = [ 'wordpress_test_cookie' => 'WP Cookie check' ];
 		$this->assertFalse( Meta::caller_has_unlock_cookie(), 'other cookies are not unlock cookies' );
 		$open = Meta::hide_protected_meta( $make(), get_post( 42 ), new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/42' ) );
@@ -128,6 +143,8 @@ final class MetaTest extends TestCase {
 		$this->assertSame( 10, has_filter( 'rest_prepare_bfrc_recipe', [ Meta::class, 'hide_protected_meta' ] ), 'a locked recipe\'s REST item carries no field values' );
 		$this->assertSame( 10, has_filter( 'rest_request_after_callbacks', [ Meta::class, 'no_store_when_protected' ] ), 'inside dispatch, before any rest_post_dispatch consumer (a REST cache stores there)' );
 		$this->assertFalse( has_filter( 'rest_post_dispatch', [ Meta::class, 'no_store_when_protected' ] ), 'not on rest_post_dispatch: the API Gateway stores at that hook and priority before a later registrant runs' );
+		$this->assertSame( 10, has_filter( 'rest_request_before_callbacks', [ Meta::class, 'forget_protected' ] ), 'the flag resets when the next dispatch starts, not after the callbacks' );
+		$this->assertSame( 10, has_filter( 'bfag_cache_bypass', [ Meta::class, 'bypass_rest_cache' ] ), 'the gateway asks at request level too: a rule header cannot overwrite that' );
 		foreach ( [ 'added_post_meta', 'updated_post_meta', 'deleted_post_meta' ] as $hook ) {
 			$this->assertSame( 10, has_action( $hook, [ Meta::class, 'flush_featured_ids' ] ), $hook );
 		}

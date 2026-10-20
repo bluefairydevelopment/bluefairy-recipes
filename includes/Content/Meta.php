@@ -124,7 +124,9 @@ final class Meta {
 	public function register_hooks(): void {
 		add_action( 'init', [ $this, 'register' ], 7 );
 		add_filter( 'rest_prepare_' . PostType::NAME, [ self::class, 'hide_protected_meta' ], 10, 3 );
+		add_filter( 'rest_request_before_callbacks', [ self::class, 'forget_protected' ], 10, 3 );
 		add_filter( 'rest_request_after_callbacks', [ self::class, 'no_store_when_protected' ], 10, 3 );
+		add_filter( 'bfag_cache_bypass', [ self::class, 'bypass_rest_cache' ], 10, 2 );
 		add_action( 'added_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
 		add_action( 'updated_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
 		add_action( 'added_post_meta', [ self::class, 'flush_featured_ids' ], 10, 3 );
@@ -402,11 +404,50 @@ final class Meta {
 	 */
 	public static function no_store_when_protected( mixed $response, mixed $handler, \WP_REST_Request $request ): mixed {
 		unset( $handler, $request );
-		if ( $response instanceof \WP_REST_Response && ( self::$saw_protected || self::caller_has_unlock_cookie() || self::lists_protected_recipe( $response->get_data() ) ) ) {
-			$response->header( 'Cache-Control', 'no-store' );
+		if ( $response instanceof \WP_Error ) {
+			return $response;
 		}
+		$data = $response instanceof \WP_REST_Response ? $response->get_data() : $response;
+		if ( self::$saw_protected || self::caller_has_unlock_cookie() || self::lists_protected_recipe( $data ) ) {
+			$response = rest_ensure_response( $response ); // A route may return a plain array; core wraps it two lines later, so this is the same object core serves.
+			if ( $response instanceof \WP_REST_Response ) {
+				$response->header( 'Cache-Control', 'no-store' );
+			}
+		}
+		return $response; // The flag is kept until the next dispatch starts (forget_protected()): a REST cache deciding at rest_post_dispatch must still see it.
+	}
+
+	/**
+	 * `rest_request_before_callbacks`: a fresh dispatch, a fresh answer to
+	 * "did this request prepare a locked recipe?". Reset here rather than
+	 * after the callbacks so that a cache consulting the flag at
+	 * `rest_post_dispatch` (see bypass_rest_cache()) still sees it, and so
+	 * that a nested dispatch inside a route cannot wipe the outer one's.
+	 *
+	 * @param mixed            $response Core's pre-callback value (null, or a short-circuit).
+	 * @param mixed            $handler  The route handler.
+	 * @param \WP_REST_Request $request  The request.
+	 */
+	public static function forget_protected( mixed $response, mixed $handler, \WP_REST_Request $request ): mixed {
+		unset( $handler, $request );
 		self::$saw_protected = false;
 		return $response;
+	}
+
+	/**
+	 * `bfag_cache_bypass` (the BlueFairy API Gateway's REST cache): never
+	 * store or serve a stored response for a request that prepared a locked
+	 * recipe or comes from a caller holding an unlock cookie. The header
+	 * says the same, but a gateway cache rule may set its own
+	 * `Cache-Control` over it before the gateway reads it; a request-level
+	 * answer cannot be overwritten by a header.
+	 *
+	 * @param mixed $bypass The decision so far.
+	 * @param mixed $request The request.
+	 */
+	public static function bypass_rest_cache( mixed $bypass, mixed $request ): bool {
+		unset( $request );
+		return (bool) $bypass || self::$saw_protected || self::caller_has_unlock_cookie();
 	}
 
 	/**

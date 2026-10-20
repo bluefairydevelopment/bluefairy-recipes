@@ -83,6 +83,19 @@ final class Writers {
 	}
 
 	/**
+	 * The feed formats core serves (`$wp_rewrite->feeds`: feed, rdf, rss,
+	 * rss2, atom, plus any `add_feed()`); the writer routes and the feed
+	 * redirect use the same list.
+	 *
+	 * @return list<string>
+	 */
+	public static function feed_formats(): array {
+		global $wp_rewrite;
+		$feeds = $wp_rewrite instanceof \WP_Rewrite && is_array( $wp_rewrite->feeds ) ? array_values( array_filter( $wp_rewrite->feeds, 'is_string' ) ) : [];
+		return [] !== $feeds ? $feeds : [ 'feed', 'rdf', 'rss', 'rss2', 'atom' ];
+	}
+
+	/**
 	 * Core's pagination segment (`page` unless the site changed it).
 	 */
 	public static function pagination_base(): string {
@@ -116,7 +129,7 @@ final class Writers {
 		}
 		$base  = preg_quote( $this->archive_slug(), '#' ) . '/' . self::SEGMENT;
 		$type  = 'post_type=' . PostType::NAME;
-		$feeds = '(feed|rdf|rss|rss2|atom)';
+		$feeds = '(' . implode( '|', array_map( static fn( string $f ): string => preg_quote( $f, '#' ), self::feed_formats() ) ) . ')';
 		$paged = preg_quote( self::pagination_base(), '#' ) . '/([0-9]{1,})/?$';
 		add_rewrite_rule( '^' . $base . '/?$', 'index.php?' . $type . '&' . self::LIST_VAR . '=1', 'top' );
 		add_rewrite_rule( '^' . $base . '/' . $paged, 'index.php?' . $type . '&' . self::LIST_VAR . '=1&paged=$matches[1]', 'top' );
