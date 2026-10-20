@@ -38,7 +38,9 @@ async function harness( overrides ) {
 		history: { replaceState: ( a, b, url ) => calls.replaced.push( url ) },
 	};
 	const def = createStore( api );
-	Object.assign( def.state, { restUrl: 'https://example.com/wp-json/bfrc/v1/recipes', baseUrl: 'https://example.com/cook/', perPage: 4, query: { s: '', filter: {}, page: 1 }, fixed: {} } );
+	// What wp_interactivity_state() sends; the definition itself carries no values (store() would merge them over the server's).
+	assert.deepEqual( Object.keys( def.state ), [ 'filtered' ], 'the definition defines only the derived getter' );
+	Object.assign( def.state, { restUrl: 'https://example.com/wp-json/bfrc/v1/recipes', baseUrl: 'https://example.com/cook/', perPage: 4, query: { s: '', filter: {}, page: 1 }, fixed: {}, total: 0, totalPages: 0, hasPages: false, loading: false, error: false, cards: null, status: '', version: 0 } );
 	return { def, state: def.state, actions: def.actions, callbacks: def.callbacks, calls, results, pagination, setElement: ( el ) => { element = el; }, fire: () => { const t = calls.timers.length; const last = api.lastTimer; return last; }, api };
 }
 

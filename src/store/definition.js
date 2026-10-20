@@ -68,20 +68,10 @@ export function createStore( api ) {
 	}
 
 	return {
+		// The state's values come from the server (wp_interactivity_state()): store() merges this
+		// definition OVER the server state, so a default here would overwrite what the page sent.
+		// Only the derived getter is defined.
 		state: {
-			restUrl: '',
-			baseUrl: '',
-			query: { s: '', filter: {}, page: 1 },
-			fixed: {},
-			perPage: 12,
-			total: 0,
-			totalPages: 0,
-			hasPages: false,
-			loading: false,
-			error: false,
-			cards: null,
-			status: '',
-			version: 0,
 			get filtered() {
 				return filtered( api.state() );
 			},
@@ -159,7 +149,7 @@ export function createStore( api ) {
 			renderResults() {
 				const state = api.state();
 				const version = state.version;
-				if ( state.cards === null || ! version ) {
+				if ( ! state.cards || ! version ) {
 					return;
 				}
 				api.getElement().ref.innerHTML = gridHtml( state.cards, api.getConfig().emptyText );
@@ -168,7 +158,7 @@ export function createStore( api ) {
 			renderPagination() {
 				const state = api.state();
 				const version = state.version;
-				if ( state.cards === null || ! version ) {
+				if ( ! state.cards || ! version ) {
 					return;
 				}
 				const config = api.getConfig();
