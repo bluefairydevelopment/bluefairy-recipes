@@ -672,12 +672,8 @@ final class TemplatesTest extends TestCase {
 		$GLOBALS['wp']->query_vars['rest_route'] = '/wp/v2/pages/5';
 		$GLOBALS['wp']->query_vars['rest_route'] = '/wp/v2/block-renderer/bfrc/recipe-single';
 		$this->assertTrue( Templates::is_editor_preview(), 'the block-renderer route is the Site Editor asking' );
-		$this->assertFalse( Templates::is_post_editor_preview() );
-		$_REQUEST['post_id'] = '41';
-		$this->assertTrue( Templates::is_post_editor_preview(), 'the post editor sends the post being edited' );
-		$this->assertStringContainsString( 'bfrc-block-note', $t->render_single_block(), 'inside a post being edited the block is a note, never another recipe\'s page' );
-		$this->assertStringContainsString( 'bfrc-block-note', $t->render_archive_block(), 'nor a grid' );
-		$this->assertStringNotContainsString( 'bfrc-grid', $t->render_archive_block() );
+		$_REQUEST['post_id'] = '41'; // The post editor's own preview (core's auto-registered block sends no post_id on 7.0.6; a later editor script may): it previews as the Site Editor does.
+		$this->assertStringContainsString( 'class="bfrc-recipe__title">Soup<', $t->render_single_block(), 'until A5 ships editor blocks, a pasted view block previews the newest recipe in the post editor too' );
 		unset( $_REQUEST['post_id'] );
 		$this->assertStringContainsString( 'class="bfrc-recipe__title">Soup<', $t->render_single_block(), 'the Site Editor\'s block-renderer request has no recipe in context: preview the newest published one' );
 		$this->assertSame( 'publish', $GLOBALS['bfrc_test_get_posts_calls'][0]['post_status'] );

@@ -410,17 +410,20 @@ final class Meta {
 	 */
 	public static function no_store_when_protected( mixed $response, mixed $handler, \WP_REST_Request $request ): mixed {
 		unset( $handler, $request );
+		self::$dispatch_depth = max( 0, self::$dispatch_depth - 1 ); // Every before_callbacks has its after_callbacks, error responses included: balance first.
 		if ( $response instanceof \WP_Error ) {
 			return $response;
 		}
 		$data = $response instanceof \WP_REST_Response ? $response->get_data() : $response;
-		if ( self::$saw_protected || self::caller_has_unlock_cookie() || self::lists_protected_recipe( $data ) ) {
+		if ( self::lists_protected_recipe( $data ) ) {
+			self::$saw_protected = true; // A search naming a locked recipe: the request-level bypass must say so, not only the header.
+		}
+		if ( self::$saw_protected || self::caller_has_unlock_cookie() ) {
 			$response = rest_ensure_response( $response ); // A route may return a plain array; core wraps it two lines later, so this is the same object core serves.
 			if ( $response instanceof \WP_REST_Response ) {
 				$response->header( 'Cache-Control', 'no-store' );
 			}
 		}
-		self::$dispatch_depth = max( 0, self::$dispatch_depth - 1 );
 		return $response; // The flag is kept until the next outermost dispatch starts (forget_protected()): a REST cache deciding at rest_post_dispatch must still see it.
 	}
 
