@@ -42,7 +42,7 @@
 .bfrc-recipe__footer { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-top: 2rem; }
 .bfrc-share { display: flex; flex-wrap: wrap; gap: .5rem; }
 .bfrc-share__link { padding: .4rem .8rem; border: 1px solid currentColor; border-radius: 2rem; font-size: .9em; text-decoration: none; }
-/* paginate_links( type => list ) puts the page-numbers class on the <ul> too: the list rule must out-rank the item rule. */
+/* paginate_links( type => list ) puts the page-numbers class on the <ul> too: the list rule names the ul, the item rule the links, so they never match the same element. */
 .bfrc-pagination ul.page-numbers { list-style: none; display: flex; flex-wrap: wrap; gap: .5rem; padding: 0; margin: 2rem 0 0; border: 0; }
 .bfrc-pagination li > .page-numbers { display: inline-block; padding: .4rem .7rem; border: 1px solid rgba(0,0,0,.15); border-radius: .35rem; text-decoration: none; }
 .bfrc-pagination li > .page-numbers.current { font-weight: 700; }
@@ -70,5 +70,4 @@
 	.bfrc-recipes .bfrc-recipe__hero img { max-height: 3in; width: auto; }
 	.bfrc-recipes .bfrc-recipe__ingredients, .bfrc-recipes .bfrc-recipe__steps, .bfrc-recipes .bfrc-recipe__nutrition { break-inside: avoid; }
 	.bfrc-recipes a[href]::after { content: none; }
-}
 }

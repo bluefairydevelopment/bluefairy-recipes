@@ -295,11 +295,13 @@ final class Renderer {
 	 * @param string $html A paragraph's or classic content's HTML.
 	 */
 	private static function has_text_or_media( string $html ): bool {
-		if ( 1 === preg_match( '/<(img|picture|video|audio|iframe|embed|object|figure|svg)\b/i', $html ) ) {
-			return true;
+		$html = (string) preg_replace( '/<!--.*?-->/s', '', $html ); // An HTML comment is not media, whatever it mentions.
+		if ( 1 === preg_match( '/<(img|picture|video|audio|iframe|embed|object|svg)\b/i', $html ) ) {
+			return true; // A figure counts through what it holds: an empty figure is not media.
 		}
-		$text = str_replace( [ '&nbsp;', "\xC2\xA0" ], ' ', wp_strip_all_tags( $html ) );
-		return '' !== trim( $text );
+		$text = html_entity_decode( wp_strip_all_tags( $html ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+		$text = preg_replace( '/[\p{Z}\p{Cf}\s]+/u', '', $text ); // Every space, non-breaking or zero-width, numeric entity or literal.
+		return null !== $text && '' !== $text;
 	}
 
 	/**
@@ -641,9 +643,11 @@ final class Renderer {
 		if ( ! (bool) $this->settings->get( 'share_enabled' ) ) {
 			return '';
 		}
-		$url   = (string) get_permalink( $post );
-		$title = trim( (string) preg_replace( '/\s+/u', ' ', html_entity_decode( wp_strip_all_tags( get_the_title( $post ) ), ENT_QUOTES, 'UTF-8' ) ) ); // "<Soup>" in a title is stripped as a tag; no double space left behind.
-		$links = [];
+		$url       = (string) get_permalink( $post );
+		$decoded   = html_entity_decode( wp_strip_all_tags( get_the_title( $post ) ), ENT_QUOTES, 'UTF-8' );
+		$collapsed = preg_replace( '/\s+/u', ' ', $decoded ); // "<Soup>" in a title is stripped as a tag; no double space left behind.
+		$title     = trim( null === $collapsed ? $decoded : $collapsed ); // Invalid UTF-8 makes preg give up: keep the text rather than an empty share.
+		$links     = [];
 		if ( (bool) $this->settings->get( 'share_facebook' ) ) {
 			$links['facebook'] = [ __( 'Share on Facebook', 'bluefairy-recipes' ), 'https://www.facebook.com/sharer/sharer.php?u=' . rawurlencode( $url ) ];
 		}

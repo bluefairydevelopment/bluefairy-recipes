@@ -326,6 +326,12 @@ final class RendererTest extends TestCase {
 		$this->assertFalse( Renderer::has_body( '<!-- wp:spacer --><div style="height:10px" class="wp-block-spacer"></div><!-- /wp:spacer --><!-- wp:separator --><hr class="wp-block-separator"/><!-- /wp:separator -->' ), 'spacing alone is not a body' );
 		$this->assertFalse( Renderer::has_body( '<!-- wp:heading --><h2 class="wp-block-heading"></h2><!-- /wp:heading --><!-- wp:list --><ul class="wp-block-list"><!-- wp:list-item --><li></li><!-- /wp:list-item --></ul><!-- /wp:list -->' ), 'an empty heading and an empty list the editor left behind' );
 		$this->assertFalse( Renderer::has_body( '<!-- wp:group {"layout":{"type":"constrained"}} --><div class="wp-block-group"><!-- wp:paragraph --><p></p><!-- /wp:paragraph --></div><!-- /wp:group -->' ), 'a group around an empty paragraph' );
+		$this->assertFalse( Renderer::has_body( '<!-- wp:group --><!-- wp:paragraph --><p></p><!-- /wp:paragraph --><!-- /wp:group -->' ), 'a container with children and no HTML of its own is judged by its children, not taken as dynamic' );
+		$this->assertFalse( Renderer::has_body( '<!-- wp:paragraph --><p>&#160;&#8203;</p><!-- /wp:paragraph -->' ), 'numeric entities for a non-breaking and a zero-width space' );
+		$this->assertFalse( Renderer::has_body( "<!-- wp:paragraph --><p>\u{200B}\u{2003}</p><!-- /wp:paragraph -->" ), 'raw zero-width and em spaces' );
+		$this->assertFalse( Renderer::has_body( '<!-- wp:image --><figure class="wp-block-image"></figure><!-- /wp:image -->' ), 'an empty figure holds no media' );
+		$this->assertFalse( Renderer::has_body( '<!-- wp:paragraph --><p><!-- <video> --></p><!-- /wp:paragraph -->' ), 'an HTML comment naming a tag is not media' );
+		$this->assertTrue( Renderer::has_body( '<!-- wp:paragraph --><p>&#169; 2026</p><!-- /wp:paragraph -->' ), 'an entity that is text' );
 		$this->assertTrue( Renderer::has_body( '<!-- wp:group --><div class="wp-block-group"><!-- wp:paragraph --><p>Inside.</p><!-- /wp:paragraph --></div><!-- /wp:group -->' ), 'a group with text' );
 		$this->assertTrue( Renderer::has_body( '<!-- wp:group --><div class="wp-block-group"><!-- wp:block {"ref":12} /--></div><!-- /wp:group -->' ), 'a group around a synced pattern' );
 		$this->assertTrue( Renderer::has_body( '<!-- wp:quote --><blockquote class="wp-block-quote"><!-- wp:paragraph --><p>Quoted.</p><!-- /wp:paragraph --></blockquote><!-- /wp:quote -->' ) );
@@ -428,6 +434,10 @@ final class RendererTest extends TestCase {
 		$this->assertStringContainsString( '&amp;description=Tomato%20%27Soup%27%20%26%20Bread', $html, 'Pinterest the same' );
 		$GLOBALS['bfrc_test_posts'][41]->post_title = "Grandma's <Soup> & Co"; // One space each side of the tag: stripping it leaves two.
 		$this->assertStringContainsString( '&amp;text=Grandma%27s%20%26%20Co"', $this->renderer->share_buttons( get_post( 41 ) ), 'a bracketed word is stripped as a tag (as core\'s <title> does) and the whitespace collapses' );
+		$GLOBALS['bfrc_test_posts'][41]->post_title = "Grandma's\n<Soup>\t&\xC2\xA0Co";
+		$this->assertStringContainsString( '&amp;text=Grandma%27s%20%26%20Co"', $this->renderer->share_buttons( get_post( 41 ) ), 'newline, tab and non-breaking space collapse too' );
+		$GLOBALS['bfrc_test_posts'][41]->post_title = "Bad \xFF byte";
+		$this->assertStringContainsString( '&amp;text=Bad%20%FF%20byte"', $this->renderer->share_buttons( get_post( 41 ) ), 'invalid UTF-8 makes preg give up: the text is kept, not emptied' );
 		$this->assertStringNotContainsString( '%3Cb%3E', $html, 'no markup in the share text' );
 	}
 

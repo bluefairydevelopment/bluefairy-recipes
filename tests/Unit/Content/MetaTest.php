@@ -96,6 +96,10 @@ final class MetaTest extends TestCase {
 		$next = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 42 ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' ) );
 		$this->assertArrayNotHasKey( 'Cache-Control', $next->get_headers(), 'the flag is per request: the next response is untouched' );
 		$this->assertSame( 'x', Meta::no_store_when_protected( 'x', $server, new \WP_REST_Request() ), 'not a response object: passed through' );
+		$search = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 41, 'type' => 'post', 'subtype' => 'bfrc_recipe' ], [ 'id' => 42, 'type' => 'post', 'subtype' => 'bfrc_recipe' ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/search' ) );
+		$this->assertSame( 'no-store', $search->get_headers()['Cache-Control'], 'a search listing a locked recipe: its items are embedded after the headers go out, so the ids decide' );
+		$open_search = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 42, 'type' => 'post', 'subtype' => 'bfrc_recipe' ], [ 'id' => 41, 'type' => 'post', 'subtype' => 'page' ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/search' ) );
+		$this->assertArrayNotHasKey( 'Cache-Control', $open_search->get_headers(), 'only a locked recipe counts; a page with the same id does not' );
 		$open = Meta::hide_protected_meta( $make(), get_post( 42 ), new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/42' ) );
 		$this->assertSame( $meta, $open->get_data()['meta'], 'no password, nothing to hide' );
 		$this->assertArrayNotHasKey( 'Cache-Control', $open->get_headers(), 'an open recipe caches as core decides' );

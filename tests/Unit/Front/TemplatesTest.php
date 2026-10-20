@@ -577,6 +577,7 @@ final class TemplatesTest extends TestCase {
 		$this->assertFalse( $t->comments_closed( true, 41 ), 'recipes take no comments' );
 		bfrc_test_add_post( [ 'ID' => 50, 'post_type' => 'post' ] );
 		$this->assertTrue( $t->comments_closed( true, 50 ) );
+		$this->assertFalse( $t->comments_closed( false, 50 ), 'another post type keeps whatever it had' );
 	}
 
 	public function test_document_title_names_the_writer_pages_on_recipe_views_only(): void {
@@ -628,6 +629,17 @@ final class TemplatesTest extends TestCase {
 		$GLOBALS['wp']->query_vars['rest_route'] = '/wp/v2/pages/5';
 		$this->assertFalse( Templates::is_editor_preview(), 'a page\'s content.rendered over REST renders as on the site' );
 		$this->assertSame( '', $t->render_single_block() );
+		$GLOBALS['post']                   = get_post( 41 );
+		$rest_single                       = bfrc_test_front_query( [], 'single' );
+		$rest_single->queried_object       = get_post( 41 );
+		$this->assertSame( '', $t->render_single_block(), 'even with the recipe in context, a REST item\'s content.rendered never carries the recipe page' );
+		$GLOBALS['post'] = get_post( 50 );
+		$rest_single->posts = null; // As core: no main query ran for a REST request.
+		$GLOBALS['wp']->query_vars['rest_route'] = '/wp/v2/block-renderer/bfrc/recipe-archive';
+		$this->assertStringContainsString( 'bfrc-grid__item', $t->render_archive_block(), 'a null posts list is an empty editor query: previewed on a clone' );
+		$this->assertNull( $rest_single->posts, 'the clone was filled, not the request\'s query' );
+		$GLOBALS['bfrc_test_get_posts_calls']    = []; // The single-preview assertions below index the calls from here.
+		$GLOBALS['wp']->query_vars['rest_route'] = '/wp/v2/pages/5';
 		$GLOBALS['wp']->query_vars['rest_route'] = '/wp/v2/block-renderer/bfrc/recipe-single';
 		$this->assertTrue( Templates::is_editor_preview(), 'the block-renderer route is the Site Editor asking' );
 		$this->assertStringContainsString( 'class="bfrc-recipe__title">Soup<', $t->render_single_block(), 'the Site Editor\'s block-renderer request has no recipe in context: preview the newest published one' );

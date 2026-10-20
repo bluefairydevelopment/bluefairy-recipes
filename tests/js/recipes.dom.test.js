@@ -89,6 +89,8 @@ test( 'typing submits with a focus flag, IME composition waits, and the flag res
 	assert.equal( stale.doc.activeElement, stale.doc.body, 'a flag from a search that never navigated (a minute old) is ignored' );
 	assert.equal( stale.win.sessionStorage.getItem( 'bfrcFocus' ), null, 'and consumed' );
 
+	const future = page( form( 'sou' ), { query: '?bfrc_s=sou', flag: 'bfrc_s:' + ( Date.now() + 60000 ) } );
+	assert.equal( future.doc.activeElement, future.doc.body, 'a flag from the future (a wrong clock) is stale, not fresh' );
 	const cleared = page( form( '' ), { flag: 'bfrc_s:' + Date.now() } );
 	assert.equal( cleared.doc.activeElement, cleared.doc.querySelector( '[name="bfrc_s"]' ), 'the visitor cleared the box and the page reloaded: the caret goes back to the empty box' );
 
@@ -145,6 +147,20 @@ test( 'Filter with every field empty goes to the plain archive URL instead of su
 	const filled = page( form( 'soup' ), { navigate: true } );
 	filled.form.requestSubmit();
 	assert.ok( ! filled.jsdomErrors.some( ( m ) => /navigation/i.test( m ) ), 'with a value the form submits normally: ' + filled.jsdomErrors.join( ' | ' ) );
+} );
+
+test( 'the stylesheet is brace-balanced and keeps its print rules scoped', () => {
+	// No CSS linter runs here; a stray brace breaks the next stylesheet when an optimiser concatenates files.
+	const css = fs.readFileSync( path.join( __dirname, '../../assets/front/recipes.css' ), 'utf8' );
+	assert.equal( ( css.match( /{/g ) || [] ).length, ( css.match( /}/g ) || [] ).length, 'every { has its }' );
+	const print = css.slice( css.indexOf( '@media print' ) ).replace( /\/\*[\s\S]*?\*\//g, '' );
+	const selectors = print.match( /^[ \t]*([^{}@\s][^{]*)\{/gm ) || [];
+	assert.ok( selectors.length >= 6, 'print rules present: ' + selectors.length );
+	for ( const rule of selectors ) {
+		for ( const sel of rule.replace( /\{$/, '' ).split( ',' ) ) {
+			assert.ok( /bfrc-recipes/.test( sel ), 'print rule scoped to the recipe views: ' + sel.trim() );
+		}
+	}
 } );
 
 test( 'the print button prints', () => {

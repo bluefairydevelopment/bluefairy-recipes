@@ -19,7 +19,7 @@ if ( ! class_exists( 'WP_Query' ) ) {
 		public array $query_vars = [];
 		public bool $main        = true;
 		/** @var array<int, WP_Post> */
-		public array $posts        = [];
+		public mixed $posts        = []; // Core's is untyped and null before any query runs (a REST request).
 		public int $found_posts    = 0;
 		public int $post_count     = 0;
 		public int $max_num_pages  = 0;
@@ -208,7 +208,10 @@ if ( ! function_exists( 'parse_blocks' ) ) {
 	/**
 	 * A small block parser shaped like core's output: `blockName` (null for
 	 * freeform text), `attrs` (not decoded here), `innerBlocks` (children)
-	 * and `innerHTML` (the block's own static HTML, children removed).
+	 * and `innerHTML` (the block's own static HTML, children removed). Not
+	 * core on malformed input: whitespace-only freeform between blocks is
+	 * dropped, and an unclosed block or a stray closer keeps its nesting
+	 * where core flattens to freeform text.
 	 *
 	 * @return array<int, array{blockName: string|null, attrs: array<string, mixed>, innerBlocks: array<int, mixed>, innerHTML: string}>
 	 */

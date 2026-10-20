@@ -397,11 +397,33 @@ final class Meta {
 	 */
 	public static function no_store_when_protected( mixed $response, \WP_REST_Server $server, \WP_REST_Request $request ): mixed {
 		unset( $server, $request );
-		if ( self::$saw_protected && $response instanceof \WP_REST_Response ) {
+		if ( $response instanceof \WP_REST_Response && ( self::$saw_protected || self::lists_protected_recipe( $response->get_data() ) ) ) {
 			$response->header( 'Cache-Control', 'no-store' );
 		}
 		self::$saw_protected = false;
 		return $response;
+	}
+
+	/**
+	 * Does a search result list a password-protected recipe? `/wp/v2/search`
+	 * embeds the items only while serving, after the headers went out, so
+	 * the decision is taken from the ids it returns.
+	 *
+	 * @param mixed $data The response data.
+	 */
+	private static function lists_protected_recipe( mixed $data ): bool {
+		if ( ! is_array( $data ) ) {
+			return false;
+		}
+		foreach ( $data as $row ) {
+			if ( is_array( $row ) && 'post' === ( $row['type'] ?? '' ) && PostType::NAME === ( $row['subtype'] ?? '' ) ) {
+				$post = get_post( (int) ( $row['id'] ?? 0 ) );
+				if ( $post instanceof \WP_Post && '' !== (string) $post->post_password ) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	/**
