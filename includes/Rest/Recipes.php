@@ -253,7 +253,7 @@ final class Recipes {
 				'cook'  => $data->cook_minutes,
 				'total' => $data->total_minutes(),
 			],
-			'excerpt' => '' === $text ? '' : wp_trim_words( wp_strip_all_tags( $text ), 24, '…' ),
+			'excerpt' => '' === $text ? '' : html_entity_decode( wp_trim_words( wp_strip_all_tags( $text ), 24, '…' ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ), // Plain text, as the title.
 			'html'    => $this->renderer->card( $post, $writer_url, 2, $locked ),
 		];
 	}
@@ -278,7 +278,7 @@ final class Recipes {
 			'type'       => 'object',
 			'properties' => [
 				'id'      => $int( __( 'Recipe id.', 'bluefairy-recipes' ) ),
-				'title'   => $str( __( 'Title, plain text.', 'bluefairy-recipes' ) ),
+				'title'   => $str( __( 'Title: unescaped plain text; escape it before inserting into HTML.', 'bluefairy-recipes' ) ),
 				'url'     => $str( __( 'Recipe page.', 'bluefairy-recipes' ) ),
 				'thumb'   => $str( __( 'Photo URL, or empty.', 'bluefairy-recipes' ) ),
 				'writer'  => [
@@ -298,7 +298,7 @@ final class Recipes {
 						'total' => $int( __( 'Prep plus cook.', 'bluefairy-recipes' ) ),
 					],
 				],
-				'excerpt' => $str( __( 'Short description, plain text, at most 24 words; empty for a locked recipe.', 'bluefairy-recipes' ) ),
+				'excerpt' => $str( __( 'Short description: unescaped plain text, at most 24 words; empty for a locked recipe; escape it before inserting into HTML.', 'bluefairy-recipes' ) ),
 				'html'    => $str( __( 'The recipe card as the archive renders it.', 'bluefairy-recipes' ) ),
 			],
 		];

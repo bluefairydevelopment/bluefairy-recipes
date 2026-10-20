@@ -54,7 +54,7 @@ final class BlocksTest extends TestCase {
 				$per   = (int) $vars['posts_per_page'];
 				$page  = (int) ( $vars['paged'] ?? 1 );
 				$slice = array_slice( $all, ( $page - 1 ) * $per, $per );
-				$count = empty( $vars['no_found_rows'] );
+				$count = empty( $vars['no_found_rows'] ) && [] !== $slice; // As core: set_found_posts() bails on an empty page, so a page past the end counts nothing.
 				return [ ( $vars['fields'] ?? '' ) === 'ids' ? $slice : array_map( 'get_post', $slice ), $count ? count( $all ) : 0, $count ? (int) ceil( count( $all ) / $per ) : 0 ];
 			}
 		);
@@ -78,6 +78,16 @@ final class BlocksTest extends TestCase {
 		$b->register_hooks();
 		$this->assertSame( 20, has_action( 'init', [ $b, 'register' ] ) );
 		$this->assertSame( 10, has_action( 'init', [ $b, 'register_shortcodes' ] ) );
+		$this->assertSame( PHP_INT_MAX, has_action( 'wp_head', [ Blocks::class, 'reset_before_body' ] ), 'a classic theme\'s head renders before the loop: nothing there may take the live slot' );
+		$this->blocks->render_list( [] );
+		Blocks::reset_before_body();
+		$this->assertStringContainsString( 'data-wp-interactive', $this->blocks->render_list( [] ), 'classic theme: the slot is free again for the body' );
+		$GLOBALS['bfrc_test_block_theme'] = true;
+		$this->blocks->render_list( [] );
+		Blocks::reset_before_body();
+		$this->assertStringNotContainsString( 'data-wp-interactive', $this->blocks->render_list( [] ), 'block theme: the template rendered before wp_head, the slot stays taken' );
+		$GLOBALS['bfrc_test_block_theme'] = false;
+		Blocks::reset();
 		$b->register();
 		$dirs = array_keys( $GLOBALS['bfrc_test_blocks'] );
 		$this->assertSame( [ 'recipe-filters', 'recipe-list', 'featured-recipes', 'recipe-card' ], array_map( 'basename', $dirs ), 'the filters block first: it owns the view module the list block names' );
@@ -181,12 +191,23 @@ final class BlocksTest extends TestCase {
 		$html = $this->blocks->render_list( [ 'perPage' => 4 ] );
 		$this->assertSame( 1, substr_count( $html, 'bfrc-grid__item' ), 'page 2 of 2' );
 		$this->assertStringContainsString( '<span aria-current="page" class="page-numbers current" tabindex="-1">2</span>', $html );
-		$this->assertCount( 2, $GLOBALS['bfrc_test_queries'], 'the first query found the page count; the second ran on the last page' );
+		$queries = $GLOBALS['bfrc_test_queries'];
+		$this->assertCount( 3, $queries, 'the empty page (core counts nothing for it), page 1 for the count, then the last page' );
+		$this->assertSame( [ 900, 1, 2 ], [ $queries[0]['paged'], $queries[1]['paged'], $queries[2]['paged'] ] );
 		$this->assertSame( 2, $GLOBALS['bfrc_test_interactivity_state']['bfrc/recipes']['query']['page'] );
 		$this->fresh();
+		$GLOBALS['bfrc_test_queries'] = [];
+		$this->assertSame( 5, substr_count( $this->blocks->render_list( [ 'perPage' => 100 ] ), 'bfrc-grid__item' ), 'one page of five and page 900 asked: the first page is the last page' );
+		$this->assertCount( 2, $GLOBALS['bfrc_test_queries'], 'the page-1 run is the answer itself: no third query' );
+		$this->fresh();
+		$GLOBALS['bfrc_test_queries'] = [];
 		bfrc_test_query_resolver( static fn( array $vars ): array => [ [], 0, 0 ] );
-		$this->assertStringContainsString( 'bfrc-empty', $this->blocks->render_list( [ 'perPage' => 4 ] ), 'no recipes at all: the empty line, no second query' );
-		$this->assertCount( 3, $GLOBALS['bfrc_test_queries'] );
+		$this->assertStringContainsString( 'bfrc-empty', $this->blocks->render_list( [ 'perPage' => 4 ] ), 'no recipes at all: the empty line' );
+		$this->assertCount( 2, $GLOBALS['bfrc_test_queries'], 'page 900 then page 1, which is empty too: nothing more to run' );
+		$this->fresh();
+		$GLOBALS['bfrc_test_queries'] = [];
+		$this->blocks->render_list( [ 'perPage' => 4, 'showPagination' => false ] );
+		$this->assertCount( 1, $GLOBALS['bfrc_test_queries'], 'without pagination there is no count and no clamp' );
 	}
 
 	public function test_shortcodes_render_the_blocks_inner_markup_and_process_directives(): void {
@@ -371,6 +392,10 @@ final class BlocksTest extends TestCase {
 		$this->assertSame( 'https://example.com/recettes-%C3%A9t%C3%A9/page/2/', $this->blocks->base_url(), 'a percent-encoded path survives' );
 		$GLOBALS['wp']->request = '';
 		$this->assertSame( 'https://example.com/', $this->blocks->base_url(), 'the front page' );
+		$GLOBALS['wp']->query_vars = [ 's' => 'a b', 'cat' => '1', 'bfrc_s' => 'pie', 'bfrc_filter' => [ 'diet' => 'vegan' ], 'bfrc_page' => '2', 'empty' => '' ];
+		$this->assertSame( 'https://example.com/?s=a%20b&cat=1', $this->blocks->base_url(), 'a query-only request keeps its own public query vars (encoded), not the list\'s' );
+		$this->assertSame( [ 'action' => 'https://example.com/', 'hidden' => '<input type="hidden" name="s" value="a b"><input type="hidden" name="cat" value="1">' ], Blocks::form_target( $this->blocks->base_url() ), 'and the form carries them as hidden fields' );
+		$GLOBALS['wp']->query_vars = [];
 		$q                    = bfrc_test_front_query( [], 'single' );
 		$q->queried_object_id = 9;
 		bfrc_test_add_post( [ 'ID' => 9, 'post_type' => 'page', 'post_status' => 'publish' ] );

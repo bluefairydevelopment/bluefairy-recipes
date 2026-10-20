@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Four blocks, registered from `build/blocks/{name}/block.json` (built by
  * `@wordpress/scripts` from `src/blocks/{name}`; `build/` is committed and
- * shipped, `src/`, `package.json` and `webpack.config.js` ship too): Recipe
+ * shipped): Recipe
  * List (`bfrc/recipe-list`), Recipe Filters (`bfrc/recipe-filters`),
  * Featured Recipes (`bfrc/featured-recipes`) and Recipe Card
  * (`bfrc/recipe-card`). Their render callbacks live here so the shortcodes
@@ -31,17 +31,19 @@ if ( ! defined( 'ABSPATH' ) ) {
  * once the wrapper element is stripped).
  *
  * The list and the filters are one Interactivity API store (`bfrc/recipes`,
- * `build/blocks/recipe-filters/view.js`): a change in the form fetches
+ * `build/blocks/recipe-filters/view.js`; `src/`, `package.json`, `package-lock.json`
+ * and `webpack.config.js` ship with it): a change in the form fetches
  * `GET /bfrc/v1/recipes` after 600 ms and the grid and pagination are
  * replaced with the cards the endpoint rendered (the same Renderer), the
  * page's URL kept in step. Without the module (no script modules, a failed
  * fetch) the form is a plain GET form to the same page and the pagination
  * links are plain links: `bfrc_s`, `bfrc_filter[{code}]` and `bfrc_page` are
  * read from the request. The store's state is global to the page, so **the
- * first list rendered on a page is the live one**: it carries the
- * directives and sets the state; any further list (a block, a shortcode) on
- * the same page renders from the request only, with plain links and its own
- * form, and the filters update the first list alone.
+ * first list rendered on a page is the live one** (blocks render before
+ * shortcodes in the same content, whatever their order on the page): it
+ * carries the directives and sets the state; any further list (a block, a
+ * shortcode) on the same page renders from the request only, with plain
+ * links and its own form, and the filters update the first list alone.
  */
 final class Blocks {
 
@@ -103,6 +105,20 @@ final class Blocks {
 	public function register_hooks(): void {
 		add_action( 'init', [ $this, 'register' ], 20 );
 		add_action( 'init', [ $this, 'register_shortcodes' ] );
+		add_action( 'wp_head', [ self::class, 'reset_before_body' ], PHP_INT_MAX );
+	}
+
+	/**
+	 * `wp_head`, last: on a classic theme the head runs before the loop, so
+	 * a plugin rendering `the_content` in the head (an og:description or
+	 * reading-time builder) must not take the live slot from the page's own
+	 * list. A block theme renders its template before `wp_head()` prints,
+	 * so there the slot stays with the list already rendered.
+	 */
+	public static function reset_before_body(): void {
+		if ( ! function_exists( 'wp_is_block_theme' ) || ! wp_is_block_theme() ) {
+			self::reset();
+		}
 	}
 
 	/**
@@ -280,8 +296,9 @@ final class Blocks {
 	 * the Interactivity API region and sets the store; a later one renders
 	 * the same markup without directives, from the request alone. Fixed
 	 * filters (`filters`, code => slug) are applied on top of the request's
-	 * and their selects are left out of the form. A page past the last one
-	 * shows the last page.
+	 * and their selects are left out of the form. With pagination shown, a
+	 * page past the last one shows the last page (a page-1 query for the
+	 * count, then the last page: two extra queries, on a bad URL only).
 	 *
 	 * @param array{per_page: int, filters: array<string, string>, show_filters: bool, show_pagination: bool} $args    The list's settings.
 	 * @param string                                                                                          $context `block` or `shortcode`, for `bfrc_list_query_args`.
@@ -302,9 +319,15 @@ final class Blocks {
 		);
 		$query     = $this->query->run( $list, $context, $args['show_pagination'] );
 		$pages     = (int) $query->max_num_pages;
-		if ( $args['show_pagination'] && $pages > 0 && $list['page'] > $pages ) {
-			$list['page'] = $pages; // Past the end: the last page, not "no recipes match".
-			$query        = $this->query->run( $list, $context, true );
+		if ( $args['show_pagination'] && $list['page'] > 1 && [] === (array) $query->posts ) {
+			// Past the end: core counts nothing for an empty page (`set_found_posts()` bails), so the
+			// page count comes from page 1; the last page is shown, not "no recipes match".
+			$first = $this->query->run( [ 'page' => 1 ] + $list, $context, true );
+			$pages = (int) $first->max_num_pages;
+			if ( $pages > 0 ) {
+				$list['page'] = $pages;
+				$query        = 1 === $pages ? $first : $this->query->run( $list, $context, true );
+			}
 		}
 		$posts    = array_values( array_filter( is_array( $query->posts ) ? $query->posts : [], static fn( mixed $p ): bool => $p instanceof \WP_Post ) );
 		$base     = $this->base_url();
@@ -488,13 +511,14 @@ final class Blocks {
 	 * The URL the list's form posts to and its page links build on. On the
 	 * site: the page being viewed (its permalink), else the request's path
 	 * (`$wp->request`, home-relative, so a subdirectory install and a
-	 * percent-encoded path survive). Over REST: the post being edited
+	 * percent-encoded path survive) or, for a query-only request, the home
+	 * page with the request's public query vars. Over REST: the post being edited
 	 * (the editor preview's `post_id`) or rendered (a page's
 	 * `content.rendered`), else the home page; never the REST route.
 	 */
 	public function base_url(): string {
 		if ( function_exists( 'wp_is_serving_rest_request' ) && wp_is_serving_rest_request() ) {
-			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- the block-renderer route verified its own nonce; only the id is read.
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a cookie-authenticated REST request passed core's nonce check and the block-renderer route needs edit_posts; only the id is read.
 			$post_id = Templates::is_editor_preview() ? absint( wp_unslash( $_GET['post_id'] ?? 0 ) ) : 0;
 			$post    = $post_id > 0 ? get_post( $post_id ) : get_post();
 			$link    = $post instanceof \WP_Post && PostType::NAME !== $post->post_type ? get_permalink( $post ) : false;
@@ -508,8 +532,19 @@ final class Blocks {
 			}
 		}
 		global $wp;
-		$request = $wp instanceof \WP ? trim( (string) $wp->request, '/' ) : ''; // null before parse_request(); core's stubs type it string.
-		return esc_url_raw( home_url( '' === $request ? '/' : user_trailingslashit( '/' . $request ) ) );
+		$request = $wp instanceof \WP ? trim( (string) $wp->request, '/' ) : ''; // null on older cores before parse_request(), '' from 7.0.
+		if ( '' !== $request ) {
+			return esc_url_raw( home_url( user_trailingslashit( '/' . $request ) ) );
+		}
+		// A query-only request (`/?s=x`, `/?cat=1`, a plain-permalink archive): the request's own public
+		// query vars travel with the base (form_target() turns them into hidden fields).
+		$args = [];
+		foreach ( $wp instanceof \WP ? $wp->query_vars : [] as $key => $value ) {
+			if ( is_scalar( $value ) && '' !== (string) $value && ! in_array( (string) $key, [ Templates::SEARCH_VAR, Templates::FILTER_VAR, RecipeQuery::PAGE_VAR ], true ) ) {
+				$args[ (string) $key ] = rawurlencode( (string) $value );
+			}
+		}
+		return esc_url_raw( [] === $args ? home_url( '/' ) : add_query_arg( $args, home_url( '/' ) ) );
 	}
 
 	/**

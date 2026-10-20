@@ -47,6 +47,7 @@ async function harness( overrides ) {
 		clearTimeout: ( id ) => { if ( id ) { id.cleared = true; } },
 		history: { replaceState: ( a, b, url ) => calls.replaced.push( url ) },
 		abortController: () => { const c = new FakeAbort(); calls.controllers.push( c ); return c; },
+		hasList: () => ( overrides && overrides.hasList === false ? false : true ),
 	};
 	const def = createStore( api );
 	assert.deepEqual( Object.keys( def.state ), [], 'the definition sets no state value: store() would merge it over the server\'s' );
@@ -90,10 +91,10 @@ test( 'a select change, the Filter button, Reset and a page link, with focus pla
 	assert.equal( h.calls.replaced[ 0 ], 'https://example.com/cook/?bfrc_filter%5Bdiet%5D=vegan', 'but never put in the page URL' );
 	assert.equal( h.state.filtered, true );
 	assert.equal( h.state.status, '2 recipes shown.', 'plural' );
-	// A page link: delegated from the nav; the list is scrolled to only when its top is above the viewport; focus goes to the new current page.
+	// A page link: delegated from the nav; the list is scrolled to only when its top is above the viewport; focus goes to the new current page without scrolling.
 	let scrolled = 0;
 	let focused = null;
-	const current = { focus: () => { focused = 'current'; } };
+	const current = { focus: ( opts ) => { focused = 'current:' + JSON.stringify( opts ); } };
 	const list = { scrollIntoView: () => scrolled++, getBoundingClientRect: () => ( { top: 120 } ) };
 	const link = { getAttribute: () => '2', closest: ( sel ) => ( sel === '.bfrc-list' ? list : null ) };
 	await h.actions.paginate( { preventDefault: () => prevented++, target: { closest: ( sel ) => ( sel === 'a[data-bfrc-page]' ? link : null ) } } );
@@ -101,17 +102,24 @@ test( 'a select change, the Filter button, Reset and a page link, with focus pla
 	assert.equal( scrolled, 0, 'the list top is in view: no scroll' );
 	assert.equal( focused, null, 'not yet: the nav is about to be rebuilt' );
 	h.pagination.querySelector = ( sel ) => ( sel === '[aria-current="page"]' ? current : null );
+	h.pagination.closest = ( sel ) => ( sel === '.bfrc-list' ? list : null );
 	h.setElement( h.pagination );
 	h.callbacks.renderPagination();
-	assert.equal( focused, 'current', 'focus lands on the new current page once the nav is rebuilt' );
+	assert.equal( focused, 'current:{"preventScroll":true}', 'focus lands on the new current page once the nav is rebuilt, without scrolling the nav into view' );
 	focused = null;
+	const written = h.pagination.innerHTML;
+	h.pagination.innerHTML = 'untouched';
 	h.callbacks.renderPagination();
-	assert.equal( focused, null, 'and only once' );
+	assert.equal( h.pagination.innerHTML, 'untouched', 'the watcher re-running for the same answer writes nothing (the DOM write that would destroy the focused span)' );
+	assert.equal( focused, null, 'and focus is placed once' );
+	h.pagination.innerHTML = written;
 	assert.ok( h.calls.fetch[ 1 ].endsWith( '&page=2&per_page=4' ) );
 	assert.equal( h.calls.replaced[ 1 ], 'https://example.com/cook/?bfrc_filter%5Bdiet%5D=vegan&bfrc_page=2' );
 	list.getBoundingClientRect = () => ( { top: -40 } );
 	await h.actions.paginate( { preventDefault: () => prevented++, target: { closest: ( sel ) => ( sel === 'a[data-bfrc-page]' ? link : null ) } } );
-	assert.equal( scrolled, 1, 'the list top is above the viewport: scrolled into view' );
+	assert.equal( scrolled, 1, 'the list top is above the viewport: scrolled into view before the fetch' );
+	h.callbacks.renderPagination();
+	assert.equal( scrolled, 2, 'and again after the new cards are in, when the list top is still above the viewport (focus must not scroll to the nav instead)' );
 	await h.actions.paginate( { preventDefault: () => prevented++, target: { closest: () => null } } );
 	assert.equal( prevented, 3, 'a click elsewhere in the nav is not a page' );
 	// Reset: fields cleared, state cleared, loaded, focus on the search box.
@@ -148,6 +156,35 @@ test( 'callbacks write the grid and the pagination only after a load, as the PHP
 	assert.equal( empty.state.status, '0 recipes shown.' );
 } );
 
+test( 'a page request a keystroke supersedes never moves focus later', async () => {
+	let resolveSlow;
+	const slow = new Promise( ( r ) => { resolveSlow = r; } );
+	const h = await harness( { respond: ( url ) => ( url.includes( 'page=2' ) ? slow : response( [ { html: '<article>pie</article>' } ], 1, 1 ) ) } );
+	let focused = 0;
+	h.pagination.querySelector = () => ( { focus: () => focused++ } );
+	const link = { getAttribute: () => '2', closest: () => null };
+	const p2 = h.actions.paginate( { preventDefault() {}, target: { closest: () => link } } );
+	h.actions.keyword( { isComposing: false, target: { value: 'pie' } } );
+	await h.api.lastTimer.fn();
+	resolveSlow( response( [], 0, 0, false ) );
+	await p2;
+	h.setElement( h.pagination );
+	h.callbacks.renderPagination();
+	assert.equal( focused, 0, 'the keyword answer is rendered without stealing focus from the search box' );
+	const failed = await harness( { respond: () => response( [], 0, 0, false ) } );
+	await failed.actions.paginate( { preventDefault() {}, target: { closest: () => link } } );
+	assert.equal( failed.state.error, true );
+	failed.state.error = false; // The next keystroke's load (keyword ignores the error flag by design).
+	failed.actions.keyword( { isComposing: false, target: { value: 'x' } } );
+	failed.api.fetch = async () => response( [ { html: '<article>x</article>' } ], 1, 1 );
+	await failed.api.lastTimer.fn();
+	let focusedAfterFailure = 0;
+	failed.pagination.querySelector = () => ( { focus: () => focusedAfterFailure++ } );
+	failed.setElement( failed.pagination );
+	failed.callbacks.renderPagination();
+	assert.equal( focusedAfterFailure, 0, 'a failed page request leaves no focus request behind' );
+} );
+
 test( 'a late response for an earlier request is dropped and the request is aborted', async () => {
 	let resolveSlow;
 	const slow = new Promise( ( r ) => { resolveSlow = r; } );
@@ -180,6 +217,16 @@ test( 'a failed or malformed response leaves the page as it was and hands the fo
 	const bad = await harness( { respond: () => ( { ok: true, status: 200, headers: { get: () => '0' }, json: async () => ( { not: 'a list' } ) } ) } );
 	await bad.actions.submit( { preventDefault() {} } );
 	assert.equal( bad.state.error, true, 'a non-list body is an error, never rendered' );
+} );
+
+test( 'a Filters block with no live list on the page is left to the browser', async () => {
+	const h = await harness( { hasList: false } );
+	let prevented = 0;
+	h.actions.keyword( { isComposing: false, target: { value: 'pie' } } );
+	await h.actions.submit( { preventDefault: () => prevented++ } );
+	assert.equal( prevented, 0, 'the plain GET form posts to the page' );
+	assert.equal( h.calls.fetch.length, 0 );
+	assert.equal( h.calls.timers.length, 0 );
 } );
 
 test( 'without a store (no list seeded it) the form is left to the browser and nothing throws', async () => {

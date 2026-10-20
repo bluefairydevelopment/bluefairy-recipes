@@ -160,7 +160,10 @@ final class RecipesTest extends TestCase {
 	}
 
 	public function test_item_title_is_plain_text_without_entities_or_markup(): void {
-		$GLOBALS['bfrc_test_posts'][41]->post_title = 'Mom&#8217;s <b>Soup</b> &#038; Co';
-		$this->assertSame( 'Mom’s Soup & Co', $this->rest->item( get_post( 41 ), null )['title'], 'the_title filters texturise; the item does not' );
+		$GLOBALS['bfrc_test_posts'][41]->post_title   = 'Mom&#8217;s <b>Soup</b> &#038; Co';
+		$GLOBALS['bfrc_test_posts'][41]->post_excerpt = 'A &amp; B <b>bold</b>';
+		$item                                         = $this->rest->item( get_post( 41 ), null );
+		$this->assertSame( 'Mom’s Soup & Co', $item['title'], 'the_title filters texturise; the item does not' );
+		$this->assertSame( 'A & B bold', $item['excerpt'], 'the excerpt is plain text the same way' );
 	}
 }

@@ -155,7 +155,8 @@ final class Taxonomies {
 	 * @return list<string>
 	 */
 	public static function reserved_codes(): array {
-		$out = array_keys( self::SYSTEM );
+		$out   = array_keys( self::SYSTEM );
+		$out[] = 'constructor'; // The one Object.prototype name the code pattern admits: `state.fixed.constructor` is always truthy in the page script.
 		foreach ( array_merge( Slugs::FIXED, Settings::RESERVED_SLUGS ) as $slug ) {
 			$out[] = $slug;
 			$out[] = str_replace( '-', '_', $slug );

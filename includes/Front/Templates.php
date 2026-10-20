@@ -739,7 +739,7 @@ final class Templates {
 	 * body then shows a note, never another recipe's page or a grid.
 	 */
 	public static function is_post_editor_preview(): bool {
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- the block-renderer route verified its own nonce; only the presence of the id matters here.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a cookie-authenticated REST request passed core's nonce check and the block-renderer route needs edit_posts; only the presence of the id matters here.
 		return self::is_editor_preview() && absint( wp_unslash( $_GET['post_id'] ?? 0 ) ) > 0;
 	}
 

@@ -17,7 +17,7 @@ use BlueFairy\Recipes\Tests\TestCase;
 final class DistignoreTest extends TestCase {
 
 	public function test_the_distributable_ships_the_source_and_the_build_but_not_the_tooling(): void {
-		$lines = array_values( array_filter( array_map( 'trim', file( BFRC_DIR . '.distignore' ) ?: [] ), static fn( string $l ): bool => '' !== $l && '#' !== $l[0] ) );
+		$lines = array_values( array_filter( array_map( static fn( string $l ): string => '/' . trim( trim( $l ), '/' ), file( BFRC_DIR . '.distignore' ) ?: [] ), static fn( string $l ): bool => '/' !== $l && '/#' !== substr( $l, 0, 2 ) ) ); // Normalised: `src/` and `/src` mean the same entry.
 		$this->assertGreaterThan( 10, count( $lines ), 'the ignore list was read' );
 		foreach ( [ '/src', '/build', '/package.json', '/package-lock.json', '/webpack.config.js' ] as $shipped ) {
 			$this->assertNotContains( $shipped, $lines, "$shipped ships (README: the zip carries the source and the build command)" );

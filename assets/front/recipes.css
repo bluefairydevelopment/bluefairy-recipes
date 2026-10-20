@@ -65,11 +65,16 @@
 /* Recipe List block / [bfrc_recipes]: the list region, its live status line and the loading state. */
 .bfrc-list__status {
 	margin: 0.5rem 0;
+	min-height: 1.5em; /* Reserved even while empty: the loading text must not push the grid down and back on every fetch. */
 	font-size: 0.9em;
 }
 
-.bfrc-list__status:empty {
-	display: none;
+/* The script hides a fixed filter's select, the empty nav and the Reset link with the hidden attribute; a theme
+   without a [hidden] rule would let the display rules above show them (seen on Twenty Twenty-One). */
+.bfrc-filters__field[hidden],
+.bfrc-pagination[hidden],
+.bfrc-filters__reset[hidden] {
+	display: none !important;
 }
 
 .bfrc-list.is-loading .bfrc-list__results,
@@ -90,7 +95,10 @@
 	border: 1px dashed currentColor;
 	opacity: 0.75;
 }
+/* Plugin-owned controls never print, wherever the list is (the rules below are scoped to the recipe views' body class). */
 @media print {
+	.bfrc-filters, .bfrc-pagination, .bfrc-list__status { display: none !important; }
+
 	/* Scoped to the recipe views' body class: the stylesheet must never change how another page prints, wherever it loads. */
 	.bfrc-recipes .bfrc-filters, .bfrc-recipes .bfrc-share, .bfrc-recipes .bfrc-button--print, .bfrc-recipes .bfrc-pagination, .bfrc-recipes .bfrc-archive__writers-link, .bfrc-recipes .bfrc-recipe__video, .bfrc-recipes #wpadminbar, .bfrc-recipes .wp-block-template-part, body.bfrc-recipes > header, body.bfrc-recipes > footer, .bfrc-recipes .wp-site-blocks > header, .bfrc-recipes .wp-site-blocks > footer, .bfrc-recipes #masthead, .bfrc-recipes #colophon, .bfrc-recipes nav:not(.bfrc-share), .bfrc-recipes aside { display: none !important; }
 	.bfrc-recipes .bfrc-recipe__header, .bfrc-recipes .bfrc-recipe__footer { display: block !important; }

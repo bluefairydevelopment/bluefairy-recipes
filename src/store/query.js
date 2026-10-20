@@ -1,9 +1,10 @@
 /**
  * Pure helpers of the `bfrc/recipes` store: the request to the endpoint, the
- * page URL that mirrors it, and the grid and pagination markup, built as the
- * PHP side builds them (Renderer::grid(), Blocks::page_links(); the two
- * pagination fixtures are asserted equal by a test). No DOM, no runtime:
- * tested with node --test.
+ * page URL that mirrors it, and the grid and pagination markup (the same
+ * markup Renderer::grid() and Blocks::page_links() print, around hrefs that
+ * can differ from PHP's only in percent-encoding: URLSearchParams writes a
+ * space as `+`, rawurlencode() as `%20`; the two pagination fixtures are
+ * asserted equal by a test). No DOM, no runtime: tested with node --test.
  */
 
 export const DEBOUNCE = 600;
@@ -18,7 +19,7 @@ export function escapeHtml( text ) {
 		.replace( /'/g, '&#039;' );
 }
 
-/** An href as esc_url() prints it: `&` becomes `&#038;`, and nothing can close the attribute. */
+/** Keeps an href inside its attribute: `&` as `&#038;` like esc_url(); quotes and angle brackets percent-encoded (esc_url() strips them). */
 export function escapeUrl( url ) {
 	return String( url )
 		.replace( /&/g, '&#038;' )
@@ -65,6 +66,13 @@ export function buildParams( query, fixed, perPage, searchMax ) {
  * open): bfrc_s, bfrc_filter[code] for the user's filters (never a fixed
  * code: the page applies those itself, and a choice for one is ignored) and
  * bfrc_page above 1.
+ *
+ * @param {string} base      The page URL (state.baseUrl).
+ * @param {Object} query     { s, filter, page }.
+ * @param {Object} vars      The query-var names from the config ({ s, filter, page }).
+ * @param {Object} [fixed]   The list's fixed filters, code => slug.
+ * @param {number} [searchMax] Keyword length bound (config.searchMax).
+ * @return {string} The URL.
  */
 export function buildPageUrl( base, query, vars, fixed, searchMax ) {
 	const url = new URL( base, 'https://localhost/' );

@@ -13,6 +13,7 @@ const api = {
 	setTimeout: ( fn, ms ) => window.setTimeout( fn, ms ),
 	clearTimeout: ( id ) => window.clearTimeout( id ),
 	history: window.history,
+	hasList: () => !! document.querySelector( '[data-wp-watch="callbacks.renderResults"]' ),
 	abortController: () => ( typeof window.AbortController === 'function' ? new window.AbortController() : null ),
 };
 

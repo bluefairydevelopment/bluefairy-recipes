@@ -90,12 +90,16 @@ Administrators can always change settings.
 | Recipe Card | — | One recipe as a card, chosen by title in the block settings |
 | Recipe Writers (template) | `[bfrc_writers]` | The writers listing; on a page it is paged by `?bfrc_page=N` of that page |
 
-A shortcode renders exactly the markup of its block (less the block's wrapper element). The
-first list on a page (block or shortcode) is the one the filters update without a reload; a
-second list on the same page shows the page's address with a plain form and plain links. The
-browser's Back button does not step through filter changes (the address is updated in place).
-A list on page 2 or later of a post split with "Page break" is not supported. A
-password-protected recipe is a locked card (title, photo, writer) in every list.
+A shortcode renders exactly the markup of its block (less the block's wrapper element). One
+list per page is the one the filters update without a reload: the first rendered, which is a
+Recipe List block before any `[bfrc_recipes]` shortcode in the same content, whatever their
+order on the page; another list shows the page's address with a plain form and plain links. A
+Recipe Filters block placed above the list it drives hides a fixed filter's select only once
+the page scripts run; place it after the list, or use the list's own form, if visitors
+without JavaScript matter. The browser's Back button does not step through filter changes
+(the address is updated in place). A list on page 2 or later of a post split with "Page break"
+is not supported. A password-protected recipe is a locked card (title, photo, writer) in every
+list.
 
 ## REST API
 

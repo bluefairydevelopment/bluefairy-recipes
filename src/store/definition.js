@@ -4,7 +4,8 @@
  * runtime: `api.state()` is the store's state proxy (every value comes from
  * the server: this definition sets none, since store() would merge a default
  * over the page's), `api.getElement()` the directive's element,
- * `api.getConfig()` the server config, and `api.fetch`, `api.setTimeout`,
+ * `api.getConfig()` the server config, `api.hasList()` whether a live
+ * results region exists on the page, and `api.fetch`, `api.setTimeout`,
  * `api.clearTimeout`, `api.history`, `api.abortController` the browser's.
  */
 import { DEBOUNCE, buildParams, buildPageUrl, gridHtml, paginationHtml, statusText, isFiltered } from './query.js';
@@ -15,7 +16,8 @@ export function createStore( api ) {
 	let inflight = null;
 
 	function ready( state ) {
-		return !! ( state && state.restUrl ); // No list seeded the store (a form alone, before the page's state arrived): the plain form stands.
+		// No list seeded the store, or no live list is on the page (a Filters block alone): the plain form stands.
+		return !! ( state && state.restUrl ) && ( typeof api.hasList !== 'function' || api.hasList() );
 	}
 
 	function schedule() {
@@ -41,6 +43,8 @@ export function createStore( api ) {
 		const state = api.state();
 		const config = api.getConfig();
 		const mine = ++seq;
+		const wantFocus = focusCurrentPage; // Taken by this request alone: a request a keystroke supersedes must not move focus later.
+		focusCurrentPage = false;
 		if ( inflight && typeof inflight.abort === 'function' ) {
 			inflight.abort(); // The previous request's answer would be stale.
 		}
@@ -68,6 +72,9 @@ export function createStore( api ) {
 			state.hasPages = state.totalPages > 1;
 			state.status = statusText( config.foundOneText, config.foundText, state.cards.length );
 			state.version = ( state.version || 0 ) + 1;
+			if ( wantFocus ) {
+				focusVersion = state.version; // renderPagination() moves focus once it has written this version's nav.
+			}
 			api.history.replaceState( null, '', urlFor( state, state.query.page ) );
 		} catch ( e ) {
 			if ( mine !== seq ) {
@@ -84,11 +91,14 @@ export function createStore( api ) {
 
 	function focus( element ) {
 		if ( element && typeof element.focus === 'function' ) {
-			element.focus();
+			element.focus( { preventScroll: true } ); // The list, not the nav, is what was scrolled into view.
 		}
 	}
 
-	let focusCurrentPage = false; // Set by paginate(); honoured by renderPagination() once the new nav is in the DOM.
+	let focusCurrentPage = false; // Set by paginate(); taken by the next load().
+	let focusVersion = 0; // The answer whose nav should receive focus, once rendered.
+	let renderedResults = 0; // The version each callback last wrote: the watchers re-run on every state read they track (the page write before a fetch, the cards write), one DOM write per answer is enough.
+	let renderedPagination = 0;
 
 	return {
 		state: {},
@@ -158,33 +168,39 @@ export function createStore( api ) {
 				if ( list && typeof list.getBoundingClientRect === 'function' && list.getBoundingClientRect().top < 0 && typeof list.scrollIntoView === 'function' ) {
 					list.scrollIntoView( { block: 'start' } ); // Only when the list's top is above the viewport.
 				}
-				focusCurrentPage = true; // The nav is rebuilt by renderPagination() once the answer is in: focus moves there, not to the link about to be destroyed.
+				focusCurrentPage = true; // The nav is rebuilt once the answer is in: focus moves there, not to the link about to be destroyed.
 				return load();
 			},
 		},
 		callbacks: {
-			/** The results region follows the fetched cards. */
+			/** The results region follows the fetched cards: one write per answer. */
 			renderResults() {
 				const state = api.state();
 				const version = state.version;
-				if ( ! state.cards || ! version ) {
+				if ( ! state.cards || ! version || version === renderedResults ) {
 					return;
 				}
+				renderedResults = version;
 				api.getElement().ref.innerHTML = gridHtml( state.cards, api.getConfig().emptyText );
 			},
-			/** The pagination follows the fetched totals. */
+			/** The pagination follows the fetched totals: one write per answer, then focus for a page change. */
 			renderPagination() {
 				const state = api.state();
 				const version = state.version;
-				if ( ! state.cards || ! version ) {
+				if ( ! state.cards || ! version || version === renderedPagination ) {
 					return;
 				}
+				renderedPagination = version;
 				const config = api.getConfig();
 				const ref = api.getElement().ref;
 				ref.innerHTML = paginationHtml( state.query.page, state.totalPages, ( n ) => urlFor( state, n ), { prev: config.prevText, next: config.nextText } );
-				if ( focusCurrentPage ) {
-					focusCurrentPage = false;
+				if ( focusVersion === version ) {
+					focusVersion = 0;
 					focus( ref.querySelector ? ref.querySelector( '[aria-current="page"]' ) : null );
+					const list = ref.closest ? ref.closest( '.bfrc-list' ) : null;
+					if ( list && typeof list.getBoundingClientRect === 'function' && list.getBoundingClientRect().top < 0 && typeof list.scrollIntoView === 'function' ) {
+						list.scrollIntoView( { block: 'start' } ); // The new page's cards start above the viewport: bring the list top back.
+					}
 				}
 			},
 		},

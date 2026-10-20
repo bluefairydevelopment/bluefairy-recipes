@@ -149,6 +149,15 @@ test( 'Filter with every field empty goes to the plain archive URL instead of su
 	assert.ok( ! filled.jsdomErrors.some( ( m ) => /navigation/i.test( m ) ), 'with a value the form submits normally: ' + filled.jsdomErrors.join( ' | ' ) );
 } );
 
+test( 'the stylesheet pins the hidden attribute and reserves the status line', () => {
+	// A theme without a [hidden] rule (Twenty Twenty-One) let the display rules show a hidden select; the loading text shifted the grid.
+	const css = fs.readFileSync( path.join( __dirname, '../../assets/front/recipes.css' ), 'utf8' );
+	assert.match( css, /\.bfrc-filters__field\[hidden\],\s*\.bfrc-pagination\[hidden\],\s*\.bfrc-filters__reset\[hidden\]\s*\{\s*display:\s*none\s*!important;?\s*\}/ );
+	assert.match( css, /\.bfrc-list__status\s*\{[^}]*min-height:\s*1\.5em/ );
+	assert.doesNotMatch( css, /\.bfrc-list__status:empty/ );
+	assert.match( css, /@media print \{\s*(\/\*[^*]*\*\/\s*)?\.bfrc-filters, \.bfrc-pagination, \.bfrc-list__status \{ display: none !important; \}/, 'the plugin\'s own controls never print, unscoped' );
+} );
+
 test( 'the stylesheet is brace-balanced and keeps its print rules scoped', () => {
 	// No CSS linter runs here; a stray brace breaks the next stylesheet when an optimiser concatenates files.
 	const css = fs.readFileSync( path.join( __dirname, '../../assets/front/recipes.css' ), 'utf8' );
@@ -159,7 +168,8 @@ test( 'the stylesheet is brace-balanced and keeps its print rules scoped', () =>
 	assert.ok( selectors.length >= 6, 'print rules present: ' + selectors.length );
 	for ( const rule of selectors ) {
 		for ( const sel of rule.replace( /\{$/, '' ).split( ',' ) ) {
-			assert.ok( /bfrc-recipes/.test( sel ), 'print rule scoped to the recipe views: ' + sel.trim() );
+			// Scoped to the recipe views' body class, except the plugin's own controls, which never print wherever a list is.
+			assert.ok( /bfrc-recipes/.test( sel ) || /^\s*\.bfrc-(filters|pagination|list__status)\s*$/.test( sel ), 'print rule scoped to the recipe views or to a plugin-owned control: ' + sel.trim() );
 		}
 	}
 } );
