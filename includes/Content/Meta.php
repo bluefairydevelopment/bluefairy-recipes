@@ -414,7 +414,7 @@ final class Meta {
 		if ( $response instanceof \WP_Error ) {
 			return $response;
 		}
-		$data = $response instanceof \WP_REST_Response ? $response->get_data() : $response;
+		$data = $response instanceof \WP_HTTP_Response ? $response->get_data() : $response; // WP_REST_Response or a bare WP_HTTP_Response (core wraps that one too).
 		if ( self::lists_protected_recipe( $data ) ) {
 			self::$saw_protected = true; // A search naming a locked recipe: the request-level bypass must say so, not only the header.
 		}

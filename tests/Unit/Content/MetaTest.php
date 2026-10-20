@@ -109,7 +109,13 @@ final class MetaTest extends TestCase {
 		$this->assertSame( [ 'id' => 42 ], Meta::no_store_when_protected( [ 'id' => 42 ], $server, new \WP_REST_Request( 'GET', '/bfrc/v1/x' ) ), 'nothing to mark: the array passes through untouched' );
 		$err = new \WP_Error( 'x', 'y' );
 		$this->assertSame( $err, Meta::no_store_when_protected( $err, $server, new \WP_REST_Request() ) );
+		Meta::forget_protected( null, [], new \WP_REST_Request() );
+		$bare = Meta::no_store_when_protected( new \WP_HTTP_Response( [ [ 'id' => 41, 'type' => 'post', 'subtype' => 'bfrc_recipe' ] ] ), $server, new \WP_REST_Request( 'GET', '/bfrc/v1/x' ) );
+		$this->assertInstanceOf( \WP_REST_Response::class, $bare, 'a bare WP_HTTP_Response is read and wrapped as core does' );
+		$this->assertSame( 'no-store', $bare->get_headers()['Cache-Control'], 'its rows name a locked recipe' );
 		// The depth counter must balance on error responses too, or every later dispatch in the request keeps a stale flag.
+		$cookies_before = $_COOKIE;
+		$_COOKIE        = [];
 		Meta::forget_protected( null, [], new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' ) );
 		Meta::no_store_when_protected( new \WP_Error( 'rest_post_invalid_id', 'gone' ), $server, new \WP_REST_Request( 'GET', '/wp/v2/media/9' ) );
 		Meta::forget_protected( null, [], new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) );
@@ -117,6 +123,7 @@ final class MetaTest extends TestCase {
 		Meta::no_store_when_protected( new \WP_REST_Response( [] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) );
 		Meta::forget_protected( null, [], new \WP_REST_Request( 'GET', '/wp/v2/posts' ) );
 		$this->assertFalse( Meta::bypass_rest_cache( false, new \WP_REST_Request() ), 'after an error response the next outermost dispatch still starts clean' );
+		$_COOKIE = $cookies_before;
 		$this->assertSame( 'x', Meta::no_store_when_protected( 'x', $server, new \WP_REST_Request() ), 'not a response object: passed through' );
 		$search = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 41, 'type' => 'post', 'subtype' => 'bfrc_recipe' ], [ 'id' => 42, 'type' => 'post', 'subtype' => 'bfrc_recipe' ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/search' ) );
 		$this->assertSame( 'no-store', $search->get_headers()['Cache-Control'], 'a search listing a locked recipe: its items are embedded after the headers go out, so the ids decide' );

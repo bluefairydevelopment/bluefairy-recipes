@@ -53,9 +53,12 @@ final class WritersTest extends TestCase {
 		$this->assertStringContainsString( '/feed/(feed|rdf|rss|rss2|atom)/?$', $rules[2][0] );
 		$this->assertSame( [ 'feed', 'rdf', 'rss', 'rss2', 'atom' ], Writers::feed_formats() );
 		$GLOBALS['wp_rewrite']->feeds[]     = 'json';
+		$GLOBALS['wp_rewrite']->feeds[]     = 'a+b'; // add_feed() appends names unsanitised: quoted into the rule.
+		$GLOBALS['wp_rewrite']->feeds[]     = 7;     // not a string: dropped.
 		$GLOBALS['bfrc_test_rewrite_rules'] = [];
 		$this->writers->add_rewrite_rules();
-		$this->assertStringContainsString( '/feed/(feed|rdf|rss|rss2|atom|json)/?$', $GLOBALS['bfrc_test_rewrite_rules'][2][0], 'a format added with add_feed() is routed too, so the feed redirect and the routes agree' );
+		$this->assertStringContainsString( '/feed/(feed|rdf|rss|rss2|atom|json|a\\+b)/?$', $GLOBALS['bfrc_test_rewrite_rules'][2][0], 'a format added with add_feed() is routed too, quoted for the pattern, so the feed redirect and the routes agree' );
+		$this->assertSame( [ 'feed', 'rdf', 'rss', 'rss2', 'atom', 'json', 'a+b' ], Writers::feed_formats(), 'only strings' );
 		unset( $GLOBALS['wp_rewrite'] );
 		$this->assertSame( [ 'feed', 'rdf', 'rss', 'rss2', 'atom' ], Writers::feed_formats(), 'core\'s defaults before the rewrite object exists' );
 		$this->assertStringContainsString( 'author_name=$matches[1]&bfrc_writer=1&feed=$matches[2]', $rules[2][1], 'a writer\'s feed is the author feed of the recipe type' );

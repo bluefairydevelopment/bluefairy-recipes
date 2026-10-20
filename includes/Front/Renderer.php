@@ -301,7 +301,7 @@ final class Renderer {
 		}
 		$text      = html_entity_decode( wp_strip_all_tags( $html ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 		$collapsed = preg_replace( '/[\p{Z}\p{Cf}\s]+/u', '', $text ); // Every space, non-breaking or zero-width, numeric entity or literal.
-		return '' !== ( $collapsed ?? trim( $text ) ); // Invalid UTF-8 makes preg give up: judge the plain text rather than hide the body.
+		return '' !== ( $collapsed ?? $text ); // Invalid UTF-8 makes preg give up: the invalid byte is itself text to keep, never a reason to hide the body.
 	}
 
 	/**

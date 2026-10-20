@@ -132,6 +132,13 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_count_calls']      = [];
 	$GLOBALS['bfrc_test_dropdowns']        = [];
 	$GLOBALS['bfrc_test_user_queries']     = [];
+	if ( class_exists( BlueFairy\Recipes\Content\Meta::class, false ) ) {
+		// The REST cache flag and dispatch depth are per PHP request in production; per test here.
+		foreach ( [ 'saw_protected' => false, 'dispatch_depth' => 0 ] as $prop => $value ) {
+			$ref = new ReflectionProperty( BlueFairy\Recipes\Content\Meta::class, $prop );
+			$ref->setValue( null, $value );
+		}
+	}
 	$GLOBALS['bfrc_test_doing_filter']     = []; // doing_filter() answers true for these hook names.
 	$_COOKIE                               = [];
 	$_REQUEST                              = [];
@@ -1705,6 +1712,10 @@ class WP_REST_Request implements ArrayAccess {
 function rest_ensure_response( mixed $response ): WP_REST_Response|WP_Error {
 	if ( $response instanceof WP_Error || $response instanceof WP_REST_Response ) {
 		return $response;
+	}
+	if ( $response instanceof WP_HTTP_Response ) {
+		// As core: a bare HTTP response becomes a REST response with the same data, status and headers.
+		return new WP_REST_Response( $response->get_data(), $response->get_status(), $response->get_headers() );
 	}
 	return new WP_REST_Response( $response );
 }
