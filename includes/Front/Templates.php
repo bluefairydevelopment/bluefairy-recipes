@@ -154,7 +154,10 @@ final class Templates {
 		// whole site. The front end enqueues through enqueue_assets() when a view renders.
 		$block_args = [
 			'api_version'  => '3',
-			'supports'     => [ 'autoRegister' => true ],
+			'supports'     => [
+				'autoRegister' => true,
+				'inserter'     => false, // Template blocks: core's auto-registration would otherwise list them in the inserter under their raw names.
+			],
 			'editor_style' => self::STYLE,
 			'attributes'   => [
 				'view' => [

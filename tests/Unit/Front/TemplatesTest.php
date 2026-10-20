@@ -381,6 +381,7 @@ final class TemplatesTest extends TestCase {
 		foreach ( $GLOBALS['bfrc_test_blocks'] as $name => $args ) {
 			$this->assertTrue( is_callable( $args['render_callback'] ), $name );
 			$this->assertTrue( $args['supports']['autoRegister'], "$name: the Site Editor gets a server-rendered preview on WordPress 7.0+" );
+			$this->assertFalse( $args['supports']['inserter'], "$name: a template block, not an inserter tile named bfrc/…" );
 			$this->assertSame( '3', $args['api_version'], "$name: block API v3 (core documents the register arg as a string)" );
 			$this->assertArrayNotHasKey( 'style', $args, "$name: a block 'style' handle is enqueued on EVERY page of a classic theme; the front end enqueues when a view renders" );
 			$this->assertSame( 'bfrc-recipes', $args['editor_style'], "$name: styled in the Site Editor's canvas" );
