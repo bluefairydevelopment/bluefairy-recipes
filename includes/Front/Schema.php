@@ -25,16 +25,23 @@ if ( ! defined( 'ABSPATH' ) ) {
  * for a Recipe rich result, so a recipe without one gets no markup rather
  * than markup that fails validation). The data is built once per request,
  * passed through `bfrc_schema_data` (the Pro add-on adds `aggregateRating`)
- * and encoded with `JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP`,
- * so a `</script>` in a title cannot close the element.
+ * and encoded with `JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP |
+ * JSON_UNESCAPED_UNICODE`, so a `</script>` in a title cannot close the
+ * element. A filter returning `[]` prints nothing: the switch for a site
+ * whose SEO plugin prints its own Recipe.
  *
  * Properties, after Google's Recipe documentation: required `name` and
  * `image`; recommended `author`, `datePublished`, `description`,
  * `keywords`, `prepTime`/`cookTime`/`totalTime` (ISO 8601 durations),
- * `recipeCategory` (meal types), `recipeCuisine` (cuisines),
- * `recipeIngredient`, `recipeInstructions` (`HowToStep`), `recipeYield`,
- * `nutrition` (`NutritionInformation`), `video` (`VideoObject`) for a video
- * recipe, plus `suitableForDiet` for the diet terms schema.org names.
+ * `recipeCategory` (meal types), `recipeCuisine` (cuisines), `keywords`
+ * (the other filter types' terms: Google says not to repeat the category
+ * and cuisine there), `recipeIngredient`, `recipeInstructions` (`HowToStep`
+ * with a url to the step's own anchor on the page), `recipeYield`,
+ * `nutrition` (`NutritionInformation`, numbers in machine form whatever
+ * the site's locale), `video` (`VideoObject` with `embedUrl`; a watch-page
+ * URL is not a media file, so no `contentUrl`) for a video recipe, plus
+ * `suitableForDiet` for the diet terms schema.org names. A draft (no
+ * publish date) gets no `datePublished`.
  * `tests/fixtures/recipe-jsonld.schema.json` is the contract the unit test
  * and `bin/check-jsonld.php` validate against.
  */
@@ -138,17 +145,23 @@ final class Schema {
 		if ( [] === $images ) {
 			return [];
 		}
-		$data        = RecipeData::for_post( $post );
-		$terms       = $this->terms( $post );
-		$out         = [
-			'@context'      => 'https://schema.org',
-			'@type'         => 'Recipe',
-			'name'          => self::text( get_the_title( $post ) ),
-			'url'           => (string) get_permalink( $post ),
-			'image'         => $images,
-			'datePublished' => (string) get_post_time( 'c', true, $post ),
-			'dateModified'  => (string) get_post_modified_time( 'c', true, $post ),
+		$data      = RecipeData::for_post( $post );
+		$terms     = $this->terms( $post );
+		$out       = [
+			'@context' => 'https://schema.org',
+			'@type'    => 'Recipe',
+			'name'     => self::text( get_the_title( $post ) ),
+			'url'      => (string) get_permalink( $post ),
+			'image'    => $images,
 		];
+		$published = get_post_time( 'c', true, $post );
+		$modified  = get_post_modified_time( 'c', true, $post );
+		if ( is_string( $published ) && '' !== $published ) {
+			$out['datePublished'] = $published; // A draft has no date: the key is left out rather than empty.
+		}
+		if ( is_string( $modified ) && '' !== $modified ) {
+			$out['dateModified'] = $modified;
+		}
 		$description = has_excerpt( $post ) ? self::text( get_the_excerpt( $post ) ) : '';
 		if ( '' !== $description ) {
 			$out['description'] = $description;
@@ -176,7 +189,8 @@ final class Schema {
 		if ( [] !== ( $terms['cuisine'] ?? [] ) ) {
 			$out['recipeCuisine'] = array_values( $terms['cuisine'] );
 		}
-		$keywords = array_merge( ...array_values( array_map( 'array_values', $terms ) ) );
+		$others   = array_diff_key( $terms, array_flip( self::NOT_KEYWORDS ) ); // Google: not the category and cuisine again.
+		$keywords = array_merge( ...array_values( array_map( 'array_values', $others ) ) );
 		if ( [] !== $keywords ) {
 			$out['keywords'] = implode( ', ', array_unique( $keywords ) );
 		}
@@ -200,14 +214,15 @@ final class Schema {
 			$out['recipeIngredient'] = $ingredients;
 		}
 		$steps = [];
-		foreach ( $data->steps() as $i => $step ) {
+		foreach ( $data->steps() as $step ) {
 			$text = self::text( (string) ( $step['text'] ?? '' ) );
 			if ( '' !== $text ) {
+				$n       = count( $steps ) + 1; // The number Renderer::steps() gives the same step's `id`.
 				$steps[] = [
 					'@type'    => 'HowToStep',
-					'position' => count( $steps ) + 1,
+					'position' => $n,
 					'text'     => $text,
-					'url'      => (string) get_permalink( $post ) . '#bfrc-step-' . ( $i + 1 ),
+					'url'      => (string) get_permalink( $post ) . '#' . Renderer::step_anchor( $n ),
 				];
 			}
 		}
@@ -218,7 +233,7 @@ final class Schema {
 		foreach ( $data->nutrition_present() as $field => $value ) {
 			if ( isset( self::NUTRITION[ $field ] ) ) {
 				[ $property, $unit ]    = self::NUTRITION[ $field ];
-				$nutrition[ $property ] = Renderer::format_amount( $value ) . ' ' . $unit;
+				$nutrition[ $property ] = self::amount( $value ) . ' ' . $unit; // Machine form: a German site must not print "12,5 g".
 			}
 		}
 		if ( [] !== $nutrition ) {
@@ -230,9 +245,8 @@ final class Schema {
 				'name'         => $out['name'],
 				'description'  => '' !== $description ? $description : $out['name'],
 				'thumbnailUrl' => $images,
-				'uploadDate'   => $out['datePublished'],
+				'uploadDate'   => $out['datePublished'] ?? $out['dateModified'] ?? '', // The recipe's date stands in for the video's.
 				'embedUrl'     => $data->embed_url(),
-				'contentUrl'   => $data->video_url,
 			];
 		}
 		/**
@@ -312,6 +326,19 @@ final class Schema {
 			}
 		}
 		return $out;
+	}
+
+	/** Filter types already carried by `recipeCategory` and `recipeCuisine`, so not repeated in `keywords`. */
+	public const NOT_KEYWORDS = [ 'meal_type', 'cuisine' ];
+
+	/**
+	 * A nutrition amount for machines: a dot, no thousands separator, up to
+	 * two decimals with trailing zeros dropped.
+	 *
+	 * @param float $value The amount.
+	 */
+	public static function amount( float $value ): string {
+		return rtrim( rtrim( number_format( $value, 2, '.', '' ), '0' ), '.' );
 	}
 
 	/**

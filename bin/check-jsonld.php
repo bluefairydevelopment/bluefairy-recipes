@@ -34,7 +34,11 @@ if ( null === $url && null === $file ) {
 	fwrite( STDERR, "usage: check-jsonld.php <url> [--drop=property] | --file=<html>\n" );
 	exit( 2 );
 }
-$html = null !== $file ? file_get_contents( $file ) : (string) shell_exec( 'curl -sk ' . escapeshellarg( (string) $url ) );
+if ( null !== $url && ! preg_match( '#^https?://#i', $url ) ) {
+	fwrite( STDERR, "the url must start with http:// or https://\n" ); // Never a curl option, a file: or a bare host.
+	exit( 2 );
+}
+$html = null !== $file ? file_get_contents( $file ) : (string) shell_exec( 'curl -sk -- ' . escapeshellarg( (string) $url ) );
 if ( false === $html || '' === $html ) {
 	fwrite( STDERR, "no page\n" );
 	exit( 2 );

@@ -22,7 +22,10 @@ if ( ! function_exists( 'get_post_time' ) ) {
 		if ( ! $p instanceof WP_Post ) {
 			return false;
 		}
-		$ts = '' !== $p->post_date_gmt ? strtotime( $p->post_date_gmt . ' UTC' ) : 1700000000;
+		if ( '' === $p->post_date_gmt || str_starts_with( $p->post_date_gmt, '0000' ) ) {
+			return false; // Core: a draft's zero date is false, not the epoch.
+		}
+		$ts = strtotime( $p->post_date_gmt . ' UTC' );
 		return 'U' === $format ? (int) $ts : gmdate( $format, (int) $ts );
 	}
 }
@@ -32,7 +35,10 @@ if ( ! function_exists( 'get_post_modified_time' ) ) {
 		if ( ! $p instanceof WP_Post ) {
 			return false;
 		}
-		$ts = '' !== $p->post_modified_gmt ? strtotime( $p->post_modified_gmt . ' UTC' ) : 1700003600;
+		if ( '' === $p->post_modified_gmt || str_starts_with( $p->post_modified_gmt, '0000' ) ) {
+			return false;
+		}
+		$ts = strtotime( $p->post_modified_gmt . ' UTC' );
 		return 'U' === $format ? (int) $ts : gmdate( $format, (int) $ts );
 	}
 }
@@ -63,9 +69,22 @@ if ( ! function_exists( 'wp_insert_user' ) ) {
 }
 if ( ! function_exists( 'wp_delete_user' ) ) {
 	function wp_delete_user( int $id, ?int $reassign = null ): bool {
-		$GLOBALS['bfrc_test_deleted_users'][] = $id;
+		$GLOBALS['bfrc_test_deleted_users'][]         = $id;
+		$GLOBALS['bfrc_test_deleted_users_reassign'][] = [ $id, $reassign ];
 		unset( $GLOBALS['bfrc_test_users'][ $id ], $GLOBALS['bfrc_test_user_meta'][ $id ] );
 		return true;
+	}
+}
+if ( ! function_exists( 'wpmu_delete_user' ) ) {
+	function wpmu_delete_user( int $id ): bool {
+		$GLOBALS['bfrc_test_network_deleted_users'][] = $id;
+		return true;
+	}
+}
+if ( ! function_exists( 'get_blogs_of_user' ) ) {
+	/** Scripted: `$GLOBALS['bfrc_test_user_blogs'][$id]` (default: none). */
+	function get_blogs_of_user( int $id, bool $all = false ): array {
+		return $GLOBALS['bfrc_test_user_blogs'][ $id ] ?? [];
 	}
 }
 if ( ! function_exists( 'wp_insert_post' ) ) {

@@ -78,9 +78,22 @@ final class SettingsPage {
 	 */
 	public function register_hooks(): void {
 		add_action( 'admin_menu', [ $this, 'register_menu' ] );
+		add_filter( 'plugin_action_links_' . plugin_basename( BFRC_FILE ), [ $this, 'action_links' ], 9 ); // Before the upsell's link at 10.
 		add_action( 'admin_post_' . self::ACTION_SAVE, [ $this, 'save' ] );
 		add_action( 'admin_post_' . Samples::ACTION_INSTALL, [ $this, 'install_samples' ] );
 		add_action( 'admin_post_' . Samples::ACTION_REMOVE, [ $this, 'remove_samples' ] );
+	}
+
+	/**
+	 * `plugin_action_links_{basename}`: a Settings link first.
+	 *
+	 * @param mixed $links The row's links (core passes an array).
+	 * @return array<int|string, string>
+	 */
+	public function action_links( mixed $links ): array {
+		$links = is_array( $links ) ? $links : [];
+		array_unshift( $links, '<a href="' . esc_url( $this->url() ) . '">' . esc_html__( 'Settings', 'bluefairy-recipes' ) . '</a>' );
+		return $links;
 	}
 
 	/**
@@ -118,7 +131,8 @@ final class SettingsPage {
 		];
 		/**
 		 * The settings tabs. An add-on adds `id => [ 'label' => …, 'render' => callable ]`;
-		 * its callback prints the tab's content and handles its own saving.
+		 * its callback prints the tab's content and handles its own saving (a tab
+		 * without a callable `render` is dropped).
 		 *
 		 * @since 1.0.0
 		 *
@@ -127,9 +141,13 @@ final class SettingsPage {
 		$filtered = apply_filters( 'bfrc_settings_tabs', $tabs );
 		$out      = [];
 		foreach ( is_array( $filtered ) ? $filtered : $tabs as $id => $tab ) {
-			if ( is_string( $id ) && is_array( $tab ) && is_string( $tab['label'] ?? null ) ) {
-				$out[ sanitize_key( $id ) ] = $tab;
+			if ( ! is_string( $id ) || ! is_array( $tab ) || ! is_string( $tab['label'] ?? null ) ) {
+				continue;
 			}
+			if ( ! isset( self::TAB_KEYS[ $id ] ) && ! is_callable( $tab['render'] ?? null ) ) {
+				continue; // An add-on tab renders itself; without a callback it would print an empty base form whose Save could switch everything off.
+			}
+			$out[ sanitize_key( $id ) ] = $tab;
 		}
 		return [] === $out ? $tabs : $out;
 	}
@@ -182,7 +200,7 @@ final class SettingsPage {
 		echo '</nav>';
 		if ( isset( $tabs[ $current ]['render'] ) && is_callable( $tabs[ $current ]['render'] ) ) {
 			call_user_func( $tabs[ $current ]['render'] ); // An add-on's tab.
-		} else {
+		} elseif ( isset( self::TAB_KEYS[ $current ] ) ) {
 			$this->render_form( $current );
 		}
 		/**
@@ -201,13 +219,15 @@ final class SettingsPage {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a notice code chosen by the redirect, mapped to fixed text.
 		$code  = isset( $_GET[ self::NOTICE_VAR ] ) ? sanitize_key( wp_unslash( $_GET[ self::NOTICE_VAR ] ) ) : '';
 		$texts = [
-			'saved'            => [ 'success', __( 'Settings saved.', 'bluefairy-recipes' ) ],
-			'failed'           => [ 'error', __( 'The settings could not be saved. Try again.', 'bluefairy-recipes' ) ],
-			'samples_added'    => [ 'success', __( 'Sample recipes installed: three recipes by a sample writer, as drafts you can publish.', 'bluefairy-recipes' ) ],
-			'samples_removed'  => [ 'success', __( 'Sample recipes removed.', 'bluefairy-recipes' ) ],
-			'samples_present'  => [ 'warning', __( 'The sample recipes are already installed.', 'bluefairy-recipes' ) ],
-			'samples_failed'   => [ 'error', __( 'The sample recipes could not be installed. Nothing was kept.', 'bluefairy-recipes' ) ],
-			'samples_no_users' => [ 'error', __( 'Installing the samples creates a sample writer, which needs the right to create users.', 'bluefairy-recipes' ) ],
+			'saved'                   => [ 'success', __( 'Settings saved.', 'bluefairy-recipes' ) ],
+			'saved_adjusted'          => [ 'warning', __( 'Settings saved. A value was adjusted: the archive slug must not be a route WordPress owns, and recipes per page is 1 to 100. The stored values are shown.', 'bluefairy-recipes' ) ],
+			'failed'                  => [ 'error', __( 'The settings could not be saved. Try again.', 'bluefairy-recipes' ) ],
+			'samples_added'           => [ 'success', __( 'Sample recipes installed: three recipes by a sample writer, as drafts you can publish.', 'bluefairy-recipes' ) ],
+			'samples_removed'         => [ 'success', __( 'Sample recipes removed.', 'bluefairy-recipes' ) ],
+			'samples_present'         => [ 'warning', __( 'The sample recipes are already installed.', 'bluefairy-recipes' ) ],
+			'samples_failed'          => [ 'error', __( 'The sample recipes could not be installed. Nothing was kept.', 'bluefairy-recipes' ) ],
+			'samples_no_users'        => [ 'error', __( 'Installing the samples creates a sample writer, which needs the right to create users.', 'bluefairy-recipes' ) ],
+			'samples_no_delete_users' => [ 'error', __( 'Removing the samples deletes the sample writer account, which needs the right to delete users.', 'bluefairy-recipes' ) ],
 		];
 		if ( ! isset( $texts[ $code ] ) ) {
 			return;
@@ -243,7 +263,8 @@ final class SettingsPage {
 				$this->checkbox( 'share_pinterest', __( 'Pinterest', 'bluefairy-recipes' ), (bool) $s['share_pinterest'], '' );
 				break;
 			case 'writers':
-				$this->checkbox( 'writers_listing', __( 'Writer listing', 'bluefairy-recipes' ), (bool) $s['writers_listing'], __( 'The list of recipe writers at /recipes/chef/ (each writer can opt out on their profile).', 'bluefairy-recipes' ) );
+				/* translators: %s: the writers listing path, e.g. /recipes/chef/ */
+				$this->checkbox( 'writers_listing', __( 'Writer listing', 'bluefairy-recipes' ), (bool) $s['writers_listing'], sprintf( __( 'The list of recipe writers at %s (each writer can opt out on their profile).', 'bluefairy-recipes' ), '/' . (string) $s['archive_slug'] . '/' . \BlueFairy\Recipes\Front\Writers::SEGMENT . '/' ) );
 				$this->checkbox( 'grant_core_roles', __( 'Grant core roles', 'bluefairy-recipes' ), (bool) $s['grant_core_roles'], __( 'Authors can write recipes and Editors can manage them. Turning it off takes those capabilities back; Administrators can always do everything.', 'bluefairy-recipes' ) );
 				break;
 			case 'data':
@@ -265,18 +286,40 @@ final class SettingsPage {
 		$installed = $this->samples->installed();
 		echo '<h2>' . esc_html__( 'Sample recipes', 'bluefairy-recipes' ) . '</h2>';
 		if ( [] === $installed ) {
-			echo '<p>' . esc_html__( 'Install three sample recipes by a sample writer, with photos, to see the archive, the filters and a recipe page filled in. They are created as drafts; remove them from here when you are done.', 'bluefairy-recipes' ) . '</p>';
+			echo '<p>' . esc_html__( 'Install three sample recipes by a sample writer, with illustrative placeholder images, to see the archive, the filters and a recipe page filled in. They are created as drafts; remove them from here when you are done.', 'bluefairy-recipes' ) . '</p>';
 			echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="action" value="' . esc_attr( Samples::ACTION_INSTALL ) . '">';
 			wp_nonce_field( Samples::ACTION_INSTALL );
-			submit_button( __( 'Install sample recipes', 'bluefairy-recipes' ), 'secondary', 'submit', false );
+			if ( current_user_can( 'create_users' ) ) {
+				submit_button( __( 'Install sample recipes', 'bluefairy-recipes' ), 'secondary', 'submit', false );
+			} else {
+				submit_button(
+					__( 'Install sample recipes', 'bluefairy-recipes' ),
+					'secondary',
+					'submit',
+					false,
+					[
+						'disabled'         => 'disabled',
+						'aria-describedby' => 'bfrc-samples-why',
+					]
+				);
+				echo '<p class="description" id="bfrc-samples-why">' . esc_html__( 'Installing the samples creates a sample writer account, which needs the right to create users.', 'bluefairy-recipes' ) . '</p>';
+			}
 			echo '</form>';
 			return;
 		}
+		$recipes   = (array) ( $installed['recipes'] ?? [] );
+		$published = count( array_filter( $recipes, static fn( mixed $id ): bool => 'publish' === get_post_status( (int) $id ) ) );
 		/* translators: 1: number of recipes, 2: the sample writer's login */
-		echo '<p>' . esc_html( sprintf( __( 'The sample recipes are installed (%1$d recipes by the sample writer %2$s).', 'bluefairy-recipes' ), count( $installed['recipes'] ?? [] ), (string) ( $installed['writer_login'] ?? '' ) ) ) . '</p>';
+		echo '<p>' . esc_html( sprintf( _n( 'The sample recipes are installed (%1$d recipe by the sample writer %2$s).', 'The sample recipes are installed (%1$d recipes by the sample writer %2$s).', count( $recipes ), 'bluefairy-recipes' ), count( $recipes ), (string) ( $installed['writer_login'] ?? '' ) ) ) . '</p>';
+		echo '<p>' . esc_html__( 'Remove deletes the sample recipes permanently (not to the trash), even if you edited or published them, together with their photos and the sample writer account; a recipe the writer account wrote outside the samples is given to you. It cannot be undone.', 'bluefairy-recipes' );
+		if ( $published > 0 ) {
+			/* translators: %d: number of published sample recipes */
+			echo ' <strong>' . esc_html( sprintf( _n( '%d of them is published on your site.', '%d of them are published on your site.', $published, 'bluefairy-recipes' ), $published ) ) . '</strong>';
+		}
+		echo '</p>';
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="action" value="' . esc_attr( Samples::ACTION_REMOVE ) . '">';
 		wp_nonce_field( Samples::ACTION_REMOVE );
-		submit_button( __( 'Remove sample recipes', 'bluefairy-recipes' ), 'delete', 'submit', false );
+		submit_button( __( 'Remove sample recipes', 'bluefairy-recipes' ), 'delete button-link-delete', 'submit', false );
 		echo '</form>';
 	}
 
@@ -289,14 +332,16 @@ final class SettingsPage {
 			wp_die( esc_html__( 'You are not allowed to manage recipe settings.', 'bluefairy-recipes' ), '', [ 'response' => 403 ] );
 		}
 		check_admin_referer( self::ACTION_SAVE );
-		$tab = isset( $_POST['bfrc_tab'] ) ? sanitize_key( wp_unslash( $_POST['bfrc_tab'] ) ) : 'general';
-		$tab = isset( self::TAB_KEYS[ $tab ] ) ? $tab : 'general';
+		$tab = isset( $_POST['bfrc_tab'] ) ? sanitize_key( wp_unslash( $_POST['bfrc_tab'] ) ) : '';
+		if ( ! isset( self::TAB_KEYS[ $tab ] ) ) {
+			$this->redirect( 'general', 'failed' ); // Never save a tab this form did not render.
+		}
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- every value is typed and bounded by Settings::patch() (the sanitiser) below.
 		$raw    = isset( $_POST['bfrc'] ) && is_array( $_POST['bfrc'] ) ? wp_unslash( $_POST['bfrc'] ) : [];
 		$values = [];
 		foreach ( self::TAB_KEYS[ $tab ] as $key ) {
 			if ( in_array( $key, self::CHECKBOXES, true ) ) {
-				$values[ $key ] = isset( $raw[ $key ] ); // An absent checkbox is unticked.
+				$values[ $key ] = isset( $raw[ $key ] ) && Settings::to_bool( $raw[ $key ] ); // An absent checkbox is unticked; a posted 0 is too.
 			} elseif ( 'taxonomies' === $key ) {
 				$values[ $key ] = $this->taxonomy_values( is_array( $raw['taxonomies'] ?? null ) ? $raw['taxonomies'] : [] );
 			} elseif ( array_key_exists( $key, $raw ) && is_scalar( $raw[ $key ] ) ) {
@@ -313,7 +358,13 @@ final class SettingsPage {
 		 * @param array<string, mixed> $raw   The tab's raw, unslashed POST values.
 		 */
 		do_action( 'bfrc_settings_saved', $clean, $raw );
-		$this->redirect( $tab, $this->settings->last_update_succeeded() ? 'saved' : 'failed' );
+		if ( ! $this->settings->last_update_succeeded() ) {
+			$this->redirect( $tab, 'failed' );
+		}
+		// A value the sanitiser changed (a reserved archive slug, a page size outside 1..100) is said, not hidden behind "saved".
+		$adjusted = ( isset( $values['archive_slug'] ) && sanitize_title( (string) $values['archive_slug'] ) !== (string) $clean['archive_slug'] )
+			|| ( isset( $values['per_page'] ) && trim( (string) $values['per_page'] ) !== (string) $clean['per_page'] );
+		$this->redirect( $tab, $adjusted ? 'saved_adjusted' : 'saved' );
 	}
 
 	/**
@@ -342,7 +393,10 @@ final class SettingsPage {
 			wp_die( esc_html__( 'You are not allowed to manage recipe settings.', 'bluefairy-recipes' ), '', [ 'response' => 403 ] );
 		}
 		check_admin_referer( Samples::ACTION_REMOVE );
-		$this->samples->remove();
+		if ( ! current_user_can( 'delete_users' ) ) {
+			$this->redirect( 'data', 'samples_no_delete_users' ); // Removing deletes the writer account: the mirror of Install's create_users.
+		}
+		$this->samples->remove( (int) get_current_user_id() );
 		$this->redirect( 'data', 'samples_removed' );
 	}
 
@@ -387,9 +441,13 @@ final class SettingsPage {
 	 * @param string $description Help text ('' for none).
 	 */
 	private function checkbox( string $key, string $label, bool $checked, string $description ): void {
-		echo '<tr><th scope="row"><label for="bfrc-' . esc_attr( $key ) . '">' . esc_html( $label ) . '</label></th><td><input type="checkbox" id="bfrc-' . esc_attr( $key ) . '" name="bfrc[' . esc_attr( $key ) . ']" value="1"' . checked( $checked, true, false ) . '>';
+		echo '<tr><th scope="row"><label for="bfrc-' . esc_attr( $key ) . '">' . esc_html( $label ) . '</label></th><td><input type="checkbox" id="bfrc-' . esc_attr( $key ) . '" name="bfrc[' . esc_attr( $key ) . ']" value="1"' . checked( $checked, true, false );
 		if ( '' !== $description ) {
-			echo ' <span class="description">' . esc_html( $description ) . '</span>';
+			echo ' aria-describedby="bfrc-' . esc_attr( $key ) . '-description"';
+		}
+		echo '>';
+		if ( '' !== $description ) {
+			echo ' <span class="description" id="bfrc-' . esc_attr( $key ) . '-description">' . esc_html( $description ) . '</span>';
 		}
 		echo '</td></tr>';
 	}

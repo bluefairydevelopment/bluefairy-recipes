@@ -64,8 +64,9 @@ the filter-type pages are in the site's sitemap while the plugin is enabled.
 
 ## Settings
 
-Stored in one option, `bfrc_settings`. The settings screen arrives with a later milestone;
-until then the values below are the defaults the plugin installs.
+Stored in one option, `bfrc_settings`, edited at Recipes → Settings (General, Listing,
+Writers and Data tabs; the Pro add-on adds its own). The values below are the defaults the
+plugin installs.
 
 | Setting | Default | Notes |
 |---|---|---|
@@ -78,12 +79,13 @@ until then the values below are the defaults the plugin installs.
 | Writer listing | On | |
 | Grant core roles | On | Authors can write recipes and Editors can manage them; turning it off takes those capabilities back. Administrators can always do everything |
 | Delete all data on uninstall | Off | |
-| Sample recipes | not installed | The Data tab installs three sample recipes (drafts, with photos) by a sample writer, and removes them again. Installing creates the writer account, so it needs the right to create users |
+| Sample recipes | not installed | The Data tab installs three sample recipes (drafts, with illustrative placeholder images) by a sample writer, and removes them again. Installing creates the writer account, so it needs the right to create users; removing deletes it (unless you renamed or promoted it), so it needs the right to delete users, and it deletes the sample recipes permanently even if you edited or published them |
 
 The settings live at Recipes → Settings in four tabs (General, Listing, Writers, Data). Each
 tab saves on its own. The General tab also switches each filter type on or off and orders
-them. A "Get Pro" link in the plugins row and a note at the foot of the settings page name
-what BlueFairy Recipes Pro adds; both disappear when the add-on is active.
+them. The plugins row carries a Settings link and a "Get Pro" link; the Get Pro link and a
+note at the foot of the settings page name what BlueFairy Recipes Pro adds, and both
+disappear when the add-on is active.
 
 ## Roles
 

@@ -71,7 +71,13 @@ final class SchemaTest extends TestCase {
 		$this->assertSame( '2–4 servings', $data['recipeYield'] );
 		$this->assertSame( [ 'Dinner' ], $data['recipeCategory'] );
 		$this->assertSame( [ 'Italian' ], $data['recipeCuisine'] );
-		$this->assertSame( 'Dinner, Vegan, Gluten-Free, Italian', $data['keywords'], 'every enabled filter type, in filter order' );
+		$this->assertSame( 'Vegan, Gluten-Free', $data['keywords'], 'the filter types other than category and cuisine, which Google says not to repeat in keywords' );
+		$this->assertSame( [ 'Dinner' ], $data['recipeCategory'] );
+		$this->assertSame( [ 'Italian' ], $data['recipeCuisine'] );
+		$this->assertFalse( $this->validate( [ 'nutrition' => [ '@type' => 'NutritionInformation', 'proteinContent' => '12,5 g' ] ] + $data )->isValid(), 'a locale-formatted number must fail the fixture' );
+		foreach ( [ [ 250.0, '250' ], [ 12.5, '12.5' ], [ 0.25, '0.25' ], [ 1234.567, '1234.57' ] ] as [ $value, $text ] ) {
+			$this->assertSame( $text, Schema::amount( $value ), 'machine form, whatever the locale' );
+		}
 		$this->assertSame( [ 'https://schema.org/VeganDiet', 'https://schema.org/GlutenFreeDiet' ], $data['suitableForDiet'] );
 		$this->assertSame( [ '2 cups flour & co', 'salt' ], $data['recipeIngredient'] );
 		$this->assertSame( [ [ '@type' => 'HowToStep', 'position' => 1, 'text' => 'Mix well', 'url' => 'https://example.com/?p=41#bfrc-step-1' ], [ '@type' => 'HowToStep', 'position' => 2, 'text' => 'Bake', 'url' => 'https://example.com/?p=41#bfrc-step-2' ] ], $data['recipeInstructions'] );
@@ -100,7 +106,7 @@ final class SchemaTest extends TestCase {
 		}, 10, 2 );
 		$data = $this->schema->build( get_post( 41 ) );
 		$this->assertTrue( $this->validate( $data )->isValid(), wp_json_encode( $this->validate( $data )->getErrors() ) );
-		$this->assertSame( [ '@type' => 'VideoObject', 'name' => 'Tomato “Soup” x', 'description' => 'A warm bowl & more.', 'thumbnailUrl' => [ 'https://example.test/uploads/77.jpg' ], 'uploadDate' => '2026-10-01T12:00:00+00:00', 'embedUrl' => 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ', 'contentUrl' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' ], $data['video'] );
+		$this->assertSame( [ '@type' => 'VideoObject', 'name' => 'Tomato “Soup” x', 'description' => 'A warm bowl & more.', 'thumbnailUrl' => [ 'https://example.test/uploads/77.jpg' ], 'uploadDate' => '2026-10-01T12:00:00+00:00', 'embedUrl' => 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ' ], $data['video'], 'embedUrl only: a watch-page URL is not a media file, so no contentUrl' );
 		$this->assertSame( 12, $data['aggregateRating']['ratingCount'], 'the add-on\'s rating travels' );
 		$this->assertSame( 41, $data['x_post'] );
 		add_filter( 'bfrc_schema_data', '__return_false', 20 );
@@ -114,7 +120,7 @@ final class SchemaTest extends TestCase {
 		update_post_meta( 42, '_thumbnail_id', 77 );
 		$data = $this->schema->build( get_post( 42 ) );
 		$this->assertTrue( $this->validate( $data )->isValid(), wp_json_encode( $this->validate( $data )->getErrors() ) );
-		$this->assertSame( [ '@context', '@type', 'name', 'url', 'image', 'datePublished', 'dateModified' ], array_keys( $data ), 'nothing invented for an empty field; a deleted author is no author' );
+		$this->assertSame( [ '@context', '@type', 'name', 'url', 'image' ], array_keys( $data ), 'nothing invented for an empty field; a deleted author is no author; a post without dates (a draft) has no date keys rather than empty ones' );
 	}
 
 	public function test_head_markup_prints_on_a_recipe_page_only_when_enabled_rich_snippets_on_and_not_locked(): void {
@@ -147,7 +153,7 @@ final class SchemaTest extends TestCase {
 	public function test_register_hooks_author_terms_images_duration_and_text(): void {
 		$this->schema->register_hooks();
 		$this->assertSame( 10, has_action( 'wp_head', [ $this->schema, 'print_head' ] ) );
-		$this->assertSame( [ 'diet' => [ 'vegan' => 'Vegan', 'gluten-free' => 'Gluten-Free' ], 'meal_type' => [ 'dinner' => 'Dinner' ], 'cuisine' => [ 'italian' => 'Italian' ] ], array_map( null, $this->schema->terms( get_post( 41 ) ) ) === [] ? [] : [ 'diet' => $this->schema->terms( get_post( 41 ) )['diet'], 'meal_type' => $this->schema->terms( get_post( 41 ) )['meal_type'], 'cuisine' => $this->schema->terms( get_post( 41 ) )['cuisine'] ] );
+		$this->assertSame( [ 'meal_type' => [ 'dinner' => 'Dinner' ], 'diet' => [ 'vegan' => 'Vegan', 'gluten-free' => 'Gluten-Free' ], 'cuisine' => [ 'italian' => 'Italian' ] ], $this->schema->terms( get_post( 41 ) ), 'the enabled filter types with terms, in filter order, by code and slug' );
 		$this->assertSame( [ 'https://example.test/uploads/77.jpg' ], $this->schema->images( get_post( 41 ) ) );
 		$this->settings->update( [ 'enabled' => false ] + $this->settings->all() );
 		$this->assertSame( [ '@type' => 'Person', 'name' => 'Ann & Lee' ], $this->schema->author( get_post( 41 ) ), 'no writer page while disabled' );

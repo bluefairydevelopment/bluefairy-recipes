@@ -62,8 +62,8 @@ final class SettingsPageTest extends TestCase {
 
 	public function test_tabs_come_from_the_filter_and_the_current_tab_falls_back(): void {
 		$this->assertSame( [ 'general', 'listing', 'writers', 'data' ], array_keys( $this->page->tabs() ) );
-		add_filter( 'bfrc_settings_tabs', static fn( array $tabs ): array => $tabs + [ 'licence' => [ 'label' => 'Licence', 'render' => static function (): void { echo '<p>pro tab</p>'; } ], 9 => [ 'label' => 'bad' ], 'nolabel' => [] ] );
-		$this->assertSame( [ 'general', 'listing', 'writers', 'data', 'licence' ], array_keys( $this->page->tabs() ), 'a non-string id or a tab without a label is dropped' );
+		add_filter( 'bfrc_settings_tabs', static fn( array $tabs ): array => $tabs + [ 'licence' => [ 'label' => 'Licence', 'render' => static function (): void { echo '<p>pro tab</p>'; } ], 9 => [ 'label' => 'bad' ], 'nolabel' => [], 'norender' => [ 'label' => 'No callback' ] ] );
+		$this->assertSame( [ 'general', 'listing', 'writers', 'data', 'licence' ], array_keys( $this->page->tabs() ), 'a non-string id, a tab without a label or an add-on tab without a render callback is dropped' );
 		$_GET['tab'] = 'licence';
 		$this->assertSame( 'licence', $this->page->current_tab() );
 		$_GET['tab'] = 'nope';
@@ -86,7 +86,7 @@ final class SettingsPageTest extends TestCase {
 		$this->assertStringContainsString( 'href="https://example.com/wp-admin/edit.php?post_type=bfrc_recipe&#038;page=bfrc-settings&#038;tab=data">Data</a>', $html );
 		$this->assertStringContainsString( '<form method="post" action="https://example.com/wp-admin/admin-post.php"><input type="hidden" name="action" value="bfrc_save_settings"><input type="hidden" name="bfrc_tab" value="general">', $html );
 		$this->assertStringContainsString( 'name="_wpnonce"', $html );
-		$this->assertStringContainsString( '<input type="checkbox" id="bfrc-enabled" name="bfrc[enabled]" value="1" checked="checked">', $html );
+		$this->assertStringContainsString( '<input type="checkbox" id="bfrc-enabled" name="bfrc[enabled]" value="1" checked="checked" aria-describedby="bfrc-enabled-description"> <span class="description" id="bfrc-enabled-description">', $html, 'the help text is announced with the checkbox' );
 		$this->assertStringContainsString( 'name="bfrc[archive_slug]" value="recipes"', $html );
 		$this->assertStringContainsString( 'name="bfrc[taxonomies][diet][enabled]" value="1" checked="checked"', $html );
 		ob_start();
@@ -102,7 +102,10 @@ final class SettingsPageTest extends TestCase {
 		$this->assertStringContainsString( '<i data-seam="footer"></i></div>', $html, 'the footer seam fires after the form' );
 		$this->assertStringNotContainsString( 'bfrc[per_page]', $html, 'another tab\'s fields are not in this form' );
 		$this->assertStringContainsString( 'name="bfrc[per_page]" value="12" min="1" max="100"', $this->render( 'listing' ) );
-		$this->assertStringContainsString( 'bfrc[writers_listing]', $this->render( 'writers' ) );
+		$this->settings->update( [ 'archive_slug' => 'cookbook' ] + $this->settings->all() );
+		$writers = $this->render( 'writers' );
+		$this->assertStringContainsString( 'bfrc[writers_listing]', $writers );
+		$this->assertStringContainsString( 'at /cookbook/chef/ (each', $writers, 'the help text names the site\'s own path, not /recipes/chef/' );
 		$data = $this->render( 'data' );
 		$this->assertStringContainsString( 'bfrc[delete_data_on_uninstall]', $data );
 		$this->assertStringContainsString( 'value="bfrc_install_samples"', $data, 'nothing installed: the Install button' );
@@ -121,14 +124,26 @@ final class SettingsPageTest extends TestCase {
 		$seen = null;
 		add_action( 'bfrc_settings_saved', static function ( array $clean, array $raw ) use ( &$seen ): void { $seen = [ $clean['per_page'], $raw['per_page'] ?? null ]; }, 10, 2 );
 		$this->settings->update( [ 'share_enabled' => true, 'share_x' => true, 'writers_listing' => false ] + $this->settings->all() );
-		$_POST = [ 'bfrc_tab' => 'listing', 'bfrc' => [ 'per_page' => '250', 'share_facebook' => '1', 'extra' => 'ignored' ] ];
+		$_POST = [ 'bfrc_tab' => 'listing', 'bfrc' => [ 'per_page' => '250', 'share_facebook' => '1', 'share_pinterest' => '0', 'extra' => 'ignored' ] ];
 		$exit  = bfrc_test_catch_exit( fn() => $this->page->save() );
-		$this->assertSame( [ 'redirect', 'https://example.com/wp-admin/edit.php?post_type=bfrc_recipe&page=bfrc-settings&tab=listing&bfrc_notice=saved' ], [ $exit->kind, $exit->payload ] );
+		$this->assertSame( [ 'redirect', 'https://example.com/wp-admin/edit.php?post_type=bfrc_recipe&page=bfrc-settings&tab=listing&bfrc_notice=saved_adjusted' ], [ $exit->kind, $exit->payload ], 'a clamped value is said, not hidden behind "saved"' );
 		$all = ( new Settings() )->all();
-		$this->assertSame( [ 100, false, true, false, false ], [ $all['per_page'], $all['share_enabled'], $all['share_facebook'], $all['share_x'], $all['share_pinterest'] ], 'bounded; an absent checkbox of this tab is unticked' );
+		$this->assertSame( [ 100, false, true, false, false ], [ $all['per_page'], $all['share_enabled'], $all['share_facebook'], $all['share_x'], $all['share_pinterest'] ], 'bounded; an absent checkbox of this tab is unticked, and so is a posted 0' );
 		$this->assertFalse( $all['writers_listing'], 'another tab\'s value is untouched' );
 		$this->assertTrue( $all['enabled'] );
 		$this->assertSame( [ 100, '250' ], $seen, 'the seam sees the stored value and the raw post' );
+		$_POST = [ 'bfrc_tab' => 'listing', 'bfrc' => [ 'per_page' => '20' ] ];
+		$exit  = bfrc_test_catch_exit( fn() => $this->page->save() );
+		$this->assertStringEndsWith( 'tab=listing&bfrc_notice=saved', (string) $exit->payload, 'an in-range value is plainly saved' );
+		$this->assertSame( 20, ( new Settings() )->all()['per_page'] );
+		$_POST = [ 'bfrc_tab' => 'general', 'bfrc' => [ 'archive_slug' => 'feed', 'archive_title' => 'Recipes' ] ];
+		$exit  = bfrc_test_catch_exit( fn() => $this->page->save() );
+		$this->assertStringEndsWith( 'tab=general&bfrc_notice=saved_adjusted', (string) $exit->payload, 'a reserved slug is replaced and said' );
+		$_POST = [ 'bfrc_tab' => 'nope', 'bfrc' => [ 'enabled' => '1' ] ];
+		$exit  = bfrc_test_catch_exit( fn() => $this->page->save() );
+		$this->assertStringEndsWith( 'tab=general&bfrc_notice=failed', (string) $exit->payload, 'an unknown tab saves nothing: it would have switched every General checkbox off' );
+		$this->assertSame( 20, ( new Settings() )->all()['per_page'] );
+		$this->assertSame( 'recipes', ( new Settings() )->all()['archive_slug'] );
 		$_POST = [ 'bfrc_tab' => 'general', 'bfrc' => [ 'archive_slug' => 'cook book', 'archive_title' => ' Our Kitchen ', 'taxonomies' => [ 'diet' => [ 'sort_order' => '5' ], 'season' => [ 'enabled' => '1', 'sort_order' => '999' ] ] ] ];
 		bfrc_test_catch_exit( fn() => $this->page->save() );
 		$all = ( new Settings() )->all();
@@ -138,8 +153,8 @@ final class SettingsPageTest extends TestCase {
 		$this->assertSame( [ 'enabled' => false, 'sort_order' => 10 ], $all['taxonomies']['meal_type'], 'a row the form showed but did not tick' );
 		$_POST = [ 'bfrc_tab' => 'bogus', 'bfrc' => [ 'enabled' => '1', 'per_page' => '7' ] ];
 		$exit  = bfrc_test_catch_exit( fn() => $this->page->save() );
-		$this->assertStringContainsString( 'tab=general', (string) $exit->payload, 'an unknown tab saves as General' );
-		$this->assertSame( 100, ( new Settings() )->all()['per_page'], 'and touches no Listing key' );
+		$this->assertStringEndsWith( 'tab=general&bfrc_notice=failed', (string) $exit->payload, 'an unknown tab saves nothing' );
+		$this->assertSame( [ 20, false ], [ ( new Settings() )->all()['per_page'], ( new Settings() )->all()['enabled'] ], 'neither tab touched' );
 		$GLOBALS['bfrc_test_option_write_fails'] = [ 'bfrc_settings' ];
 		$_POST                                   = [ 'bfrc_tab' => 'writers', 'bfrc' => [ 'writers_listing' => '1' ] ];
 		$exit                                    = bfrc_test_catch_exit( fn() => $this->page->save() );
@@ -169,12 +184,21 @@ final class SettingsPageTest extends TestCase {
 		$data = $this->render( 'data' );
 		$this->assertStringContainsString( 'The sample recipes are installed (3 recipes by the sample writer bfrc_sample_writer).', $data );
 		$this->assertStringContainsString( 'value="bfrc_remove_samples"', $data );
+		$this->assertStringContainsString( 'Remove deletes the sample recipes permanently (not to the trash), even if you edited or published them', $data, 'the destructive wording' );
+		$this->assertStringNotContainsString( 'published on your site', $data, 'all drafts: no published warning' );
 		$this->assertStringNotContainsString( 'value="bfrc_install_samples"', $data );
+		$GLOBALS['bfrc_test_posts'][ $this->samples->installed()['recipes'][1] ]->post_status = 'publish';
+		$this->assertStringContainsString( '<strong>1 of them is published on your site.</strong>', $this->render( 'data' ) );
 		$exit = bfrc_test_catch_exit( fn() => $this->page->install_samples() );
 		$this->assertStringContainsString( 'bfrc_notice=samples_present', (string) $exit->payload );
 		$_REQUEST['_wpnonce'] = 'nonce-bfrc_remove_samples';
 		$exit                 = bfrc_test_catch_exit( fn() => $this->page->remove_samples() );
+		$this->assertStringContainsString( 'bfrc_notice=samples_no_delete_users', (string) $exit->payload, 'removing deletes a user account: delete_users is the mirror of create_users' );
+		$this->assertCount( 3, $this->samples->installed()['recipes'], 'nothing removed' );
+		bfrc_test_grant( 'delete_users' );
+		$exit = bfrc_test_catch_exit( fn() => $this->page->remove_samples() );
 		$this->assertStringContainsString( 'bfrc_notice=samples_removed', (string) $exit->payload );
+		$this->assertSame( [ [ 900, 1 ] ], $GLOBALS['bfrc_test_deleted_users_reassign'], 'the writer\'s other posts go to the remover' );
 		$_REQUEST['_wpnonce'] = 'nonce-bfrc_install_samples';
 		$this->assertSame( [], $this->samples->installed() );
 		$GLOBALS['bfrc_test_user_insert_fails'] = true;
@@ -186,11 +210,39 @@ final class SettingsPageTest extends TestCase {
 		$GLOBALS['bfrc_test_caps']['create_users'] = false; // The harness grants caps globally: take core's create_users away for the manager.
 		$exit = bfrc_test_catch_exit( fn() => $this->page->install_samples() );
 		$this->assertStringContainsString( 'bfrc_notice=samples_no_users', (string) $exit->payload, 'a manager without create_users cannot create the sample writer' );
+		$data = $this->render( 'data' );
+		$this->assertStringContainsString( 'disabled="disabled" aria-describedby="bfrc-samples-why"', $data, 'the Install button is disabled for them, with the reason' );
+		$this->assertStringContainsString( '<p class="description" id="bfrc-samples-why">Installing the samples creates a sample writer account, which needs the right to create users.</p>', $data );
 		wp_set_current_user( 5 );
 		$this->assertSame( 403, bfrc_test_catch_exit( fn() => $this->page->install_samples() )->status );
 		$this->assertSame( 403, bfrc_test_catch_exit( fn() => $this->page->remove_samples() )->status );
 		wp_set_current_user( 1 );
 		$_REQUEST['_wpnonce'] = 'nonce-bfrc_save_settings';
 		$this->assertSame( 'The link you followed has expired.', bfrc_test_catch_exit( fn() => $this->page->remove_samples() )->payload, 'the remove nonce is its own' );
+	}
+
+	public function test_the_plugins_row_gets_a_settings_link_before_the_upsells(): void {
+		$this->page->register_hooks();
+		( new \BlueFairy\Recipes\Admin\ProUpsell() )->register_hooks();
+		$links = apply_filters( 'plugin_action_links_' . plugin_basename( BFRC_FILE ), [ '<a href="d">Deactivate</a>' ] );
+		$this->assertCount( 3, $links );
+		$this->assertSame( '<a href="https://example.com/wp-admin/edit.php?post_type=bfrc_recipe&#038;page=bfrc-settings">Settings</a>', $links[0], 'Settings first, as core\'s own plugins do' );
+		$this->assertStringContainsString( 'Get Pro', $links[2] );
+		$this->assertSame( [ '<a href="https://example.com/wp-admin/edit.php?post_type=bfrc_recipe&#038;page=bfrc-settings">Settings</a>' ], $this->page->action_links( 'lost' ), 'a filter chain that lost the array still gets the link' );
+	}
+
+	public function test_every_setting_in_the_vocabulary_has_a_field_on_its_tab(): void {
+		$seen = [];
+		foreach ( SettingsPage::TAB_KEYS as $tab => $keys ) {
+			ob_start();
+			$this->page->render_form( $tab );
+			$html = (string) ob_get_clean();
+			foreach ( $keys as $key ) {
+				$this->assertStringContainsString( 'name="bfrc[' . $key . ']', $html, "$key on the $tab tab" );
+				$seen[] = $key;
+			}
+		}
+		$this->assertSame( [], array_diff( array_keys( Settings::DEFAULTS ), $seen ), 'a setting with no field could never be changed from the screen' );
+		$this->assertSame( [], array_diff( $seen, array_keys( Settings::DEFAULTS ) ), 'a field for a setting that does not exist is dropped on save' );
 	}
 }

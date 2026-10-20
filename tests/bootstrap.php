@@ -155,6 +155,9 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_inserted_users']   = [];
 	$GLOBALS['bfrc_test_inserted_posts']   = [];
 	$GLOBALS['bfrc_test_deleted_users']    = [];
+	$GLOBALS['bfrc_test_deleted_users_reassign'] = [];
+	$GLOBALS['bfrc_test_network_deleted_users']  = [];
+	$GLOBALS['bfrc_test_user_blogs']             = [];
 	$GLOBALS['bfrc_test_deleted_attachments'] = [];
 	$GLOBALS['bfrc_test_uploads']          = [];
 	$GLOBALS['bfrc_test_attachment_meta']  = [];
@@ -1541,7 +1544,13 @@ function submit_button( ?string $text = null, string $type = 'primary', string $
 	if ( is_array( $other_attributes ) && isset( $other_attributes['id'] ) ) {
 		$id = (string) $other_attributes['id'];
 	}
-	bfrc_test_echo( '<button type="submit" name="' . esc_attr( $name ) . '" id="' . esc_attr( $id ) . '">' . esc_html( $text ?? 'Save Changes' ) . '</button>' );
+	$extra = '';
+	foreach ( is_array( $other_attributes ) ? $other_attributes : [] as $attr => $value ) {
+		if ( 'id' !== $attr ) {
+			$extra .= ' ' . esc_attr( (string) $attr ) . '="' . esc_attr( (string) $value ) . '"'; // As core: every other attribute is printed.
+		}
+	}
+	bfrc_test_echo( '<button type="submit" name="' . esc_attr( $name ) . '" id="' . esc_attr( $id ) . '" class="button ' . esc_attr( $type ) . '"' . $extra . '>' . esc_html( $text ?? 'Save Changes' ) . '</button>' );
 }
 function selected( mixed $selected, mixed $current = true, bool $display = true ): string {
 	$out = (string) $selected === (string) $current ? ' selected="selected"' : '';

@@ -26,8 +26,12 @@ if ( ! defined( 'ABSPATH' ) ) {
  * account `bfrc_sample_writer` (random password, no e-mail delivery), with
  * terms from the starter sets where they exist. What was created is
  * recorded in the option `bfrc_samples` so Remove deletes exactly that,
- * recipes, photos and the writer; a second Install is refused while the
- * record (or the writer login) exists. Nothing here is a port of the
+ * recipes, photos and the writer (the writer only while the account is
+ * still the sample writer: the login and exactly the Writer role; posts
+ * of theirs outside the record are reassigned to the remover, never
+ * deleted). A second Install is refused while the record exists; a
+ * leftover `bfrc_sample_writer` account from an uninstall that kept
+ * content is adopted, not a dead end. Nothing here is a port of the
  * Magento module's sample content.
  */
 final class Samples {
@@ -40,8 +44,10 @@ final class Samples {
 	public const WRITER_LOGIN   = 'bfrc_sample_writer';
 
 	/**
-	 * The sample set. Terms are the starter terms' names (skipped when a
-	 * site renamed or removed them); photos live in `assets/samples/`.
+	 * The sample set. Terms are the starter terms' names, translated as the
+	 * starter terms are seeded (skipped when a site renamed or removed
+	 * them); measures with a unit are translatable too; photos live in
+	 * `assets/samples/`.
 	 *
 	 * @return list<array<string, mixed>>
 	 */
@@ -55,7 +61,7 @@ final class Samples {
 				'prep'        => 20,
 				'cook'        => 85,
 				'servings'    => [ 4, 6 ],
-				'ingredients' => [ [ '1', __( 'whole chicken, about 1.8 kg', 'bluefairy-recipes' ) ], [ '2', __( 'lemons, halved', 'bluefairy-recipes' ) ], [ '1 small bunch', __( 'thyme and rosemary', 'bluefairy-recipes' ) ], [ '4 cloves', __( 'garlic, crushed', 'bluefairy-recipes' ) ], [ '2 tbsp', __( 'olive oil', 'bluefairy-recipes' ) ], [ '1 tsp', __( 'flaky salt', 'bluefairy-recipes' ) ], [ '', __( 'black pepper', 'bluefairy-recipes' ) ] ],
+				'ingredients' => [ [ '1', __( 'whole chicken, about 1.8 kg', 'bluefairy-recipes' ) ], [ '2', __( 'lemons, halved', 'bluefairy-recipes' ) ], [ __( '1 small bunch', 'bluefairy-recipes' ), __( 'thyme and rosemary', 'bluefairy-recipes' ) ], [ __( '4 cloves', 'bluefairy-recipes' ), __( 'garlic, crushed', 'bluefairy-recipes' ) ], [ __( '2 tbsp', 'bluefairy-recipes' ), __( 'olive oil', 'bluefairy-recipes' ) ], [ __( '1 tsp', 'bluefairy-recipes' ), __( 'flaky salt', 'bluefairy-recipes' ) ], [ '', __( 'black pepper', 'bluefairy-recipes' ) ] ],
 				'steps'       => [ __( 'Heat the oven to 200 °C (390 °F). Pat the chicken dry and season inside and out.', 'bluefairy-recipes' ), __( 'Put the lemon halves, garlic and half the herbs in the cavity; rub the skin with oil and scatter the rest of the herbs over.', 'bluefairy-recipes' ), __( 'Roast for 75 to 85 minutes, until the juices run clear at the thigh. Rest for 15 minutes before carving.', 'bluefairy-recipes' ), __( 'Skim the pan juices, squeeze in the roasted lemon and spoon over the carved chicken.', 'bluefairy-recipes' ) ],
 				'nutrition'   => [
 					'calories'      => 520,
@@ -66,10 +72,10 @@ final class Samples {
 					'sodium'        => 640,
 				],
 				'terms'       => [
-					'meal_type' => 'Dinner',
-					'diet'      => 'Gluten-Free',
-					'season'    => 'Autumn',
-					'cuisine'   => 'American',
+					'meal_type' => __( 'Dinner', 'bluefairy-recipes' ),
+					'diet'      => __( 'Gluten-Free', 'bluefairy-recipes' ),
+					'season'    => __( 'Autumn', 'bluefairy-recipes' ),
+					'cuisine'   => __( 'American', 'bluefairy-recipes' ),
 				],
 			],
 			[
@@ -80,7 +86,7 @@ final class Samples {
 				'prep'        => 15,
 				'cook'        => 35,
 				'servings'    => [ 6, 6 ],
-				'ingredients' => [ [ '2 tbsp', __( 'olive oil', 'bluefairy-recipes' ) ], [ '2', __( 'leeks, sliced', 'bluefairy-recipes' ) ], [ '3', __( 'carrots, diced', 'bluefairy-recipes' ) ], [ '2', __( 'courgettes, diced', 'bluefairy-recipes' ) ], [ '1 can', __( 'cannellini beans, drained', 'bluefairy-recipes' ) ], [ '1 can', __( 'chopped tomatoes', 'bluefairy-recipes' ) ], [ '1.2 l', __( 'vegetable stock', 'bluefairy-recipes' ) ], [ '2 handfuls', __( 'spinach or chard', 'bluefairy-recipes' ) ] ],
+				'ingredients' => [ [ __( '2 tbsp', 'bluefairy-recipes' ), __( 'olive oil', 'bluefairy-recipes' ) ], [ '2', __( 'leeks, sliced', 'bluefairy-recipes' ) ], [ '3', __( 'carrots, diced', 'bluefairy-recipes' ) ], [ '2', __( 'courgettes, diced', 'bluefairy-recipes' ) ], [ __( '1 can', 'bluefairy-recipes' ), __( 'cannellini beans, drained', 'bluefairy-recipes' ) ], [ __( '1 can', 'bluefairy-recipes' ), __( 'chopped tomatoes', 'bluefairy-recipes' ) ], [ __( '1.2 l', 'bluefairy-recipes' ), __( 'vegetable stock', 'bluefairy-recipes' ) ], [ __( '2 handfuls', 'bluefairy-recipes' ), __( 'spinach or chard', 'bluefairy-recipes' ) ] ],
 				'steps'       => [ __( 'Soften the leeks and carrots in the oil over a low heat for 10 minutes.', 'bluefairy-recipes' ), __( 'Add the courgettes, beans, tomatoes and stock; simmer for 20 minutes.', 'bluefairy-recipes' ), __( 'Stir in the greens, season, and serve with bread.', 'bluefairy-recipes' ) ],
 				'nutrition'   => [
 					'calories'      => 210,
@@ -93,10 +99,10 @@ final class Samples {
 					'sodium'        => 480,
 				],
 				'terms'       => [
-					'meal_type' => 'Lunch',
-					'diet'      => 'Vegan',
-					'season'    => 'Summer',
-					'cuisine'   => 'Mediterranean',
+					'meal_type' => __( 'Lunch', 'bluefairy-recipes' ),
+					'diet'      => __( 'Vegan', 'bluefairy-recipes' ),
+					'season'    => __( 'Summer', 'bluefairy-recipes' ),
+					'cuisine'   => __( 'Mediterranean', 'bluefairy-recipes' ),
 				],
 			],
 			[
@@ -107,7 +113,7 @@ final class Samples {
 				'prep'        => 10,
 				'cook'        => 20,
 				'servings'    => [ 3, 4 ],
-				'ingredients' => [ [ '150 g', __( 'plain flour', 'bluefairy-recipes' ) ], [ '50 g', __( 'rolled oats', 'bluefairy-recipes' ) ], [ '2 tsp', __( 'baking powder', 'bluefairy-recipes' ) ], [ '1 tbsp', __( 'sugar', 'bluefairy-recipes' ) ], [ '1', __( 'egg', 'bluefairy-recipes' ) ], [ '250 ml', __( 'milk', 'bluefairy-recipes' ) ], [ '150 g', __( 'blueberries', 'bluefairy-recipes' ) ], [ '', __( 'butter, for the pan', 'bluefairy-recipes' ) ] ],
+				'ingredients' => [ [ __( '150 g', 'bluefairy-recipes' ), __( 'plain flour', 'bluefairy-recipes' ) ], [ __( '50 g', 'bluefairy-recipes' ), __( 'rolled oats', 'bluefairy-recipes' ) ], [ __( '2 tsp', 'bluefairy-recipes' ), __( 'baking powder', 'bluefairy-recipes' ) ], [ __( '1 tbsp', 'bluefairy-recipes' ), __( 'sugar', 'bluefairy-recipes' ) ], [ '1', __( 'egg', 'bluefairy-recipes' ) ], [ __( '250 ml', 'bluefairy-recipes' ), __( 'milk', 'bluefairy-recipes' ) ], [ __( '150 g', 'bluefairy-recipes' ), __( 'blueberries', 'bluefairy-recipes' ) ], [ '', __( 'butter, for the pan', 'bluefairy-recipes' ) ] ],
 				'steps'       => [ __( 'Mix the dry ingredients; whisk the egg into the milk and stir it in until just combined. Rest for 10 minutes.', 'bluefairy-recipes' ), __( 'Heat a knob of butter in a pan over a low heat. Ladle in the batter and drop a few blueberries onto each pancake.', 'bluefairy-recipes' ), __( 'Cook for 2 to 3 minutes a side, until golden. Keep warm while you finish the batch.', 'bluefairy-recipes' ) ],
 				'nutrition'   => [
 					'calories'      => 340,
@@ -120,10 +126,10 @@ final class Samples {
 					'sodium'        => 390,
 				],
 				'terms'       => [
-					'meal_type' => 'Breakfast',
-					'diet'      => 'Vegetarian',
-					'season'    => 'Spring',
-					'cuisine'   => 'American',
+					'meal_type' => __( 'Breakfast', 'bluefairy-recipes' ),
+					'diet'      => __( 'Vegetarian', 'bluefairy-recipes' ),
+					'season'    => __( 'Spring', 'bluefairy-recipes' ),
+					'cuisine'   => __( 'American', 'bluefairy-recipes' ),
 				],
 			],
 		];
@@ -148,40 +154,51 @@ final class Samples {
 	 * @return array<string, mixed>|\WP_Error The record, or why not.
 	 */
 	public function install(): array|\WP_Error {
-		if ( [] !== $this->installed() || false !== username_exists( self::WRITER_LOGIN ) ) {
+		if ( [] !== $this->installed() ) {
 			return new \WP_Error( 'exists', __( 'The sample recipes are already installed.', 'bluefairy-recipes' ) );
 		}
-		$record = [
+		$record   = [
 			'writer'       => 0,
 			'writer_login' => self::WRITER_LOGIN,
 			'recipes'      => [],
 			'attachments'  => [],
 			'installed_at' => (string) current_time( 'mysql', true ),
 		];
-		$writer = wp_insert_user(
-			[
-				'user_login'   => self::WRITER_LOGIN,
-				'user_pass'    => wp_generate_password( 32, true, true ),
-				'user_email'   => self::WRITER_LOGIN . '@example.invalid', // RFC 2606: never deliverable.
-				'display_name' => __( 'Sam Sample', 'bluefairy-recipes' ),
-				'role'         => Capabilities::ROLE_WRITER,
-			]
-		);
-		if ( is_wp_error( $writer ) ) {
-			return new \WP_Error( 'failed', $writer->get_error_message() );
+		$existing = username_exists( self::WRITER_LOGIN );
+		if ( false !== $existing ) {
+			// An uninstall that kept content removed the record and the role but not the account: adopt it.
+			$user = get_userdata( (int) $existing );
+			if ( ! $user instanceof \WP_User ) {
+				return new \WP_Error( 'failed', __( 'The sample writer account exists but could not be read.', 'bluefairy-recipes' ) );
+			}
+			$user->set_role( Capabilities::ROLE_WRITER );
+			$writer = (int) $existing;
+		} else {
+			$writer = wp_insert_user(
+				[
+					'user_login'   => self::WRITER_LOGIN,
+					'user_pass'    => wp_generate_password( 32, true, true ),
+					'user_email'   => self::WRITER_LOGIN . '@example.invalid', // RFC 2606: never deliverable.
+					'display_name' => __( 'Sam Sample', 'bluefairy-recipes' ),
+					'role'         => Capabilities::ROLE_WRITER,
+				]
+			);
+			if ( is_wp_error( $writer ) ) {
+				return new \WP_Error( 'failed', $writer->get_error_message() );
+			}
 		}
 		$record['writer'] = (int) $writer;
-		update_user_meta( (int) $writer, 'bfrc_about', __( 'The sample writer. Remove the sample recipes from Recipes → Settings → Data when you are done looking.', 'bluefairy-recipes' ) );
+		update_user_meta( (int) $writer, 'bfrc_about', __( 'Sam is the sample writer who comes with BlueFairy Recipes: three recipes that show what a recipe page, the archive and a writer page look like.', 'bluefairy-recipes' ) );
 		foreach ( self::recipes() as $recipe ) {
 			$post_id = wp_insert_post(
 				[
 					'post_type'    => PostType::NAME,
 					'post_status'  => 'draft',
 					'post_author'  => (int) $writer,
-					'post_title'   => $recipe['title'],
+					'post_title'   => sanitize_text_field( (string) $recipe['title'] ),
 					'post_name'    => $recipe['slug'],
-					'post_excerpt' => $recipe['excerpt'],
-					'post_content' => '<!-- wp:paragraph --><p>' . $recipe['content'] . '</p><!-- /wp:paragraph -->',
+					'post_excerpt' => sanitize_text_field( (string) $recipe['excerpt'] ),
+					'post_content' => '<!-- wp:paragraph --><p>' . wp_kses_post( (string) $recipe['content'] ) . '</p><!-- /wp:paragraph -->', // The strings are the plugin's own, but a translation catalogue is input too.
 				],
 				true
 			);
@@ -238,21 +255,39 @@ final class Samples {
 	/**
 	 * Remove what install() recorded (recipes, photos, the writer) and the
 	 * record. Safe to call when nothing is installed.
+	 *
+	 * @param int $reassign_to User id that inherits any other post of the writer's (0: the current user).
 	 */
-	public function remove(): void {
+	public function remove( int $reassign_to = 0 ): void {
 		$record = $this->installed();
 		if ( [] === $record ) {
 			return;
 		}
-		$this->delete_record( $record );
+		$this->delete_record( $record, $reassign_to );
 	}
 
 	/**
-	 * Delete everything a record names, then the record.
+	 * Is the account still the sample writer: the login and exactly the
+	 * Writer role? An account the owner renamed or promoted is theirs.
 	 *
-	 * @param array<string, mixed> $record The record (complete or partial).
+	 * @param int $user_id The recorded writer id.
 	 */
-	private function delete_record( array $record ): void {
+	public static function is_sample_writer( int $user_id ): bool {
+		$user = $user_id > 0 ? get_userdata( $user_id ) : false;
+		return $user instanceof \WP_User && self::WRITER_LOGIN === (string) $user->user_login && [ Capabilities::ROLE_WRITER ] === array_values( (array) $user->roles );
+	}
+
+	/**
+	 * Delete everything a record names, then the record. The writer goes
+	 * only while it is still the sample writer; a post of theirs outside
+	 * the record is reassigned, never deleted (on multisite the account is
+	 * deleted network-wide when it belongs to no other site, so a later
+	 * Install is not refused for ever).
+	 *
+	 * @param array<string, mixed> $record      The record (complete or partial).
+	 * @param int                  $reassign_to User id that inherits any other post of the writer's (0: the current user).
+	 */
+	private function delete_record( array $record, int $reassign_to = 0 ): void {
 		foreach ( (array) ( $record['recipes'] ?? [] ) as $id ) {
 			wp_delete_post( (int) $id, true );
 		}
@@ -260,11 +295,23 @@ final class Samples {
 			wp_delete_attachment( (int) $id, true );
 		}
 		$writer = (int) ( $record['writer'] ?? 0 );
-		if ( $writer > 0 ) {
+		if ( $writer > 0 && self::is_sample_writer( $writer ) ) {
+			$reassign = $reassign_to > 0 ? $reassign_to : (int) get_current_user_id();
+			$reassign = $reassign > 0 && $reassign !== $writer ? $reassign : null;
 			if ( ! function_exists( 'wp_delete_user' ) ) {
 				require_once ABSPATH . 'wp-admin/includes/user.php';
 			}
-			wp_delete_user( $writer );
+			if ( is_multisite() ) {
+				if ( ! function_exists( 'wpmu_delete_user' ) ) {
+					require_once ABSPATH . 'wp-admin/includes/ms.php';
+				}
+				wp_delete_user( $writer, $reassign ); // This site's posts reassigned, the account removed from the site.
+				if ( [] === get_blogs_of_user( $writer ) ) {
+					wpmu_delete_user( $writer ); // Nowhere else: the network row goes too, or username_exists() refuses every later Install.
+				}
+			} else {
+				wp_delete_user( $writer, $reassign );
+			}
 		}
 		delete_option( self::OPTION );
 	}

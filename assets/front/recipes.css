@@ -33,7 +33,7 @@
 .bfrc-recipe__ingredients, .bfrc-recipe__steps, .bfrc-recipe__nutrition { margin: 2rem 0; }
 .bfrc-ingredients { padding-left: 1.25rem; }
 .bfrc-ingredient__measure { font-weight: 600; }
-.bfrc-steps { padding-left: 1.5rem; }
+.bfrc-steps { padding-left: 1.5rem; list-style: decimal; } /* numbered whatever the theme resets ol to */
 .bfrc-step { margin-bottom: .75rem; }
 .bfrc-nutrition { border-collapse: collapse; max-width: 24rem; }
 .bfrc-nutrition th, .bfrc-nutrition td { padding: .35rem .5rem; border-bottom: 1px solid rgba(0,0,0,.1); text-align: left; }

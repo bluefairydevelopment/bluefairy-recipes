@@ -12,7 +12,7 @@
 /vendor
 /tests
 /bin
-/docs/screenshots
+/docs
 /FEATURES.md
 /coverage
 /composer.json
