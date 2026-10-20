@@ -41,6 +41,12 @@ final class Meta {
 	 * @var bool
 	 */
 	private static bool $saw_protected = false;
+	/**
+	 * How many REST dispatches are in flight (a route may call rest_do_request()).
+	 *
+	 * @var int
+	 */
+	private static int $dispatch_depth = 0;
 
 	public const MEDIA_TYPE   = '_bfrc_media_type';
 	public const VIDEO_URL    = '_bfrc_video_url';
@@ -414,7 +420,8 @@ final class Meta {
 				$response->header( 'Cache-Control', 'no-store' );
 			}
 		}
-		return $response; // The flag is kept until the next dispatch starts (forget_protected()): a REST cache deciding at rest_post_dispatch must still see it.
+		self::$dispatch_depth = max( 0, self::$dispatch_depth - 1 );
+		return $response; // The flag is kept until the next outermost dispatch starts (forget_protected()): a REST cache deciding at rest_post_dispatch must still see it.
 	}
 
 	/**
@@ -430,7 +437,10 @@ final class Meta {
 	 */
 	public static function forget_protected( mixed $response, mixed $handler, \WP_REST_Request $request ): mixed {
 		unset( $handler, $request );
-		self::$saw_protected = false;
+		if ( 0 === self::$dispatch_depth ) {
+			self::$saw_protected = false; // Only the outermost dispatch starts clean: a route composing items with rest_do_request() keeps what its inner dispatches prepared.
+		}
+		++self::$dispatch_depth;
 		return $response;
 	}
 

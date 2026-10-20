@@ -330,7 +330,7 @@ final class TemplatesTest extends TestCase {
 		} catch ( \BfrcTestExit $e ) {
 			$this->assertSame( 'https://example.com/recipes/chef/ann/feed/json/', $e->payload, 'a custom feed registered with add_feed() is a format the routes serve' );
 		}
-		foreach ( [ '../../wp-login.php', 'junk', 'rss2' ] as $bad ) {
+		foreach ( [ '../../wp-login.php', 'junk', 'rss2', 'feed' ] as $bad ) {
 			$f          = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann', 'feed' => $bad ], 'author' );
 			$f->is_feed = true;
 			$_GET       = [ 'author_name' => 'ann', 'feed' => $bad ];

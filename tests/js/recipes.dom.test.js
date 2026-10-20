@@ -154,6 +154,7 @@ test( 'the stylesheet is brace-balanced and keeps its print rules scoped', () =>
 	const css = fs.readFileSync( path.join( __dirname, '../../assets/front/recipes.css' ), 'utf8' );
 	assert.equal( ( css.match( /{/g ) || [] ).length, ( css.match( /}/g ) || [] ).length, 'every { has its }' );
 	const print = css.slice( css.indexOf( '@media print' ) ).replace( /\/\*[\s\S]*?\*\//g, '' );
+	assert.equal( ( print.match( /@/g ) || [] ).length, 1, 'no nested at-rule (@page, @font-face) inside the print block: those apply to every page, scoped or not' );
 	const selectors = print.match( /^[ \t]*([^{}@\s][^{]*)\{/gm ) || [];
 	assert.ok( selectors.length >= 6, 'print rules present: ' + selectors.length );
 	for ( const rule of selectors ) {

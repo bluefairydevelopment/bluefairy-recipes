@@ -122,8 +122,20 @@ final class MetaTest extends TestCase {
 		$with_cookie = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 42 ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' ) );
 		$this->assertSame( 'no-store', $with_cookie->get_headers()['Cache-Control'], 'an open recipe\'s item, but a cookie holder asked: not stored' );
 		$this->assertTrue( Meta::bypass_rest_cache( false, new \WP_REST_Request() ), 'and the gateway bypasses at request level' );
-		$_COOKIE = [ 'wordpress_test_cookie' => 'WP Cookie check' ];
-		$this->assertFalse( Meta::caller_has_unlock_cookie(), 'other cookies are not unlock cookies' );
+		$_COOKIE = [ 'wordpress_test_cookie' => 'WP Cookie check', 123 => 'a numeric cookie name arrives as an int key' ];
+		$this->assertFalse( Meta::caller_has_unlock_cookie(), 'other cookies are not unlock cookies, and an int key is not a TypeError' );
+		$_COOKIE = [];
+		$typeless = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 41 ] ] ), $server, new \WP_REST_Request( 'GET', '/bfrc/v1/x' ) );
+		$this->assertArrayNotHasKey( 'Cache-Control', $typeless->get_headers(), 'a row without type/subtype is not a search result naming a recipe' );
+		// A route that composes items through nested dispatches: the inner dispatch must not wipe what the outer prepared.
+		Meta::forget_protected( null, [], new \WP_REST_Request( 'GET', '/bfrc/v1/outer' ) );
+		Meta::hide_protected_meta( $make(), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) );
+		Meta::forget_protected( null, [], new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/42' ) ); // nested
+		Meta::no_store_when_protected( new \WP_REST_Response( [] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/42' ) );
+		$outer = Meta::no_store_when_protected( new \WP_REST_Response( [ 'composed' => true ] ), $server, new \WP_REST_Request( 'GET', '/bfrc/v1/outer' ) );
+		$this->assertSame( 'no-store', $outer->get_headers()['Cache-Control'], 'the outer response remembers the locked recipe its nested dispatch prepared' );
+		Meta::forget_protected( null, [], new \WP_REST_Request() );
+		$this->assertFalse( Meta::bypass_rest_cache( false, new \WP_REST_Request() ), 'the next outermost dispatch starts clean' );
 		$open = Meta::hide_protected_meta( $make(), get_post( 42 ), new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/42' ) );
 		$this->assertSame( $meta, $open->get_data()['meta'], 'no password, nothing to hide' );
 		$this->assertArrayNotHasKey( 'Cache-Control', $open->get_headers(), 'an open recipe caches as core decides' );

@@ -276,7 +276,17 @@ if ( ! function_exists( 'get_default_feed' ) ) {
 if ( ! class_exists( 'WP_Block_Type' ) ) {
 	/** Enough of a block type: its name and whether it renders on request. */
 	final class WP_Block_Type {
-		public function __construct( public string $name, public mixed $render_callback = null ) {}
+		public string $name;
+		public mixed $render_callback = null;
+		/**
+		 * As core: the name, then an args array (render_callback among them).
+		 *
+		 * @param array<string, mixed> $args Block type args.
+		 */
+		public function __construct( string $block_type, array $args = [] ) {
+			$this->name            = $block_type;
+			$this->render_callback = $args['render_callback'] ?? null;
+		}
 		public function is_dynamic(): bool {
 			return is_callable( $this->render_callback );
 		}

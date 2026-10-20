@@ -299,9 +299,9 @@ final class Renderer {
 		if ( 1 === preg_match( '/<(img|picture|video|audio|iframe|embed|object|svg)\b/i', $html ) ) {
 			return true; // A figure counts through what it holds: an empty figure is not media.
 		}
-		$text = html_entity_decode( wp_strip_all_tags( $html ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
-		$text = preg_replace( '/[\p{Z}\p{Cf}\s]+/u', '', $text ); // Every space, non-breaking or zero-width, numeric entity or literal.
-		return null !== $text && '' !== $text;
+		$text      = html_entity_decode( wp_strip_all_tags( $html ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+		$collapsed = preg_replace( '/[\p{Z}\p{Cf}\s]+/u', '', $text ); // Every space, non-breaking or zero-width, numeric entity or literal.
+		return '' !== ( $collapsed ?? trim( $text ) ); // Invalid UTF-8 makes preg give up: judge the plain text rather than hide the body.
 	}
 
 	/**

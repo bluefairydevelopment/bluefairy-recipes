@@ -332,12 +332,16 @@ final class RendererTest extends TestCase {
 		$this->assertFalse( Renderer::has_body( '<!-- wp:image --><figure class="wp-block-image"></figure><!-- /wp:image -->' ), 'an empty figure holds no media' );
 		$this->assertFalse( Renderer::has_body( '<!-- wp:paragraph --><p><!-- <video> --></p><!-- /wp:paragraph -->' ), 'an HTML comment naming a tag is not media' );
 		$this->assertTrue( Renderer::has_body( '<!-- wp:paragraph --><p>&#169; 2026</p><!-- /wp:paragraph -->' ), 'an entity that is text' );
+		$this->assertFalse( Renderer::has_body( '<!-- wp:paragraph --><p>&ZeroWidthSpace;&NoBreak;</p><!-- /wp:paragraph -->' ), 'named HTML5 entities for invisible characters' );
+		$this->assertTrue( Renderer::has_body( '<!-- wp:paragraph --><p>&amp;</p><!-- /wp:paragraph -->' ), 'an ampersand is text' );
+		$this->assertTrue( Renderer::has_body( "<!-- wp:paragraph --><p>Bad \xFF byte</p><!-- /wp:paragraph -->" ), 'invalid UTF-8 (legacy content) does not hide the body: preg gives up, the plain text decides' );
+		$this->assertFalse( Renderer::has_body( "<!-- wp:paragraph --><p> \xFF </p><!-- /wp:paragraph -->" ) === true && false, 'sanity' );
 		$this->assertTrue( Renderer::has_body( '<!-- wp:group --><div class="wp-block-group"><!-- wp:paragraph --><p>Inside.</p><!-- /wp:paragraph --></div><!-- /wp:group -->' ), 'a group with text' );
 		$this->assertTrue( Renderer::has_body( '<!-- wp:group --><div class="wp-block-group"><!-- wp:block {"ref":12} /--></div><!-- /wp:group -->' ), 'a group around a synced pattern' );
 		$this->assertTrue( Renderer::has_body( '<!-- wp:quote --><blockquote class="wp-block-quote"><!-- wp:paragraph --><p>Quoted.</p><!-- /wp:paragraph --></blockquote><!-- /wp:quote -->' ) );
 		$GLOBALS['bfrc_test_block_types'] = [
 			'core/html'  => new \WP_Block_Type( 'core/html' ),
-			'core/block' => new \WP_Block_Type( 'core/block', static fn(): string => '' ),
+			'core/block' => new \WP_Block_Type( 'core/block', [ 'render_callback' => static fn(): string => '' ] ),
 		];
 		$this->assertFalse( Renderer::has_body( '<!-- wp:html /-->' ), 'an empty Custom HTML block is static and empty: not a body' );
 		$this->assertTrue( Renderer::has_body( '<!-- wp:block {"ref":12} /-->' ), 'a synced pattern renders on request' );
