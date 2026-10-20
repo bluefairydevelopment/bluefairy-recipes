@@ -256,6 +256,16 @@ final class HarnessTest extends TestCase {
 	 * T7 / WPMAP-114: size_format() and human_time_diff() phrase as core
 	 * does, so a view test cannot pass only on stub text.
 	 */
+	public function test_reset_clears_the_rest_cache_flag_and_dispatch_depth(): void {
+		bfrc_test_add_post( [ 'ID' => 41, 'post_type' => 'bfrc_recipe', 'post_password' => 'x' ] );
+		\BlueFairy\Recipes\Content\Meta::forget_protected( null, [], new \WP_REST_Request() ); // depth 1
+		\BlueFairy\Recipes\Content\Meta::hide_protected_meta( new \WP_REST_Response( [ 'meta' => [] ] ), get_post( 41 ), new \WP_REST_Request() );
+		$this->assertTrue( \BlueFairy\Recipes\Content\Meta::bypass_rest_cache( false, new \WP_REST_Request() ), 'the flag is set through the public path' );
+		bfrc_test_reset();
+		$this->assertFalse( \BlueFairy\Recipes\Content\Meta::bypass_rest_cache( false, new \WP_REST_Request() ), 'the harness resets the flag per test' );
+		$this->assertSame( 0, ( new \ReflectionProperty( \BlueFairy\Recipes\Content\Meta::class, 'dispatch_depth' ) )->getValue(), 'and the depth, so a test\'s unbalanced calls cannot leak into the next' );
+	}
+
 	public function test_size_format_and_human_time_diff_phrase_as_core(): void {
 		$this->assertSame( '512 B', size_format( 512 ) );
 		$this->assertSame( '1 KB', size_format( 1024 ) );

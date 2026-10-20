@@ -19,6 +19,7 @@ if ( ! class_exists( 'WP_Term' ) ) {
 		public int $term_taxonomy_id = 0;
 		public int $count            = 0;
 		public int $parent           = 0;
+		public string $description   = '';
 		public function __construct( array $data = [] ) {
 			foreach ( $data as $k => $v ) {
 				$this->$k = $v;
@@ -122,6 +123,7 @@ if ( ! function_exists( 'wp_insert_term' ) ) {
 	}
 	/** Supports `taxonomy` (string or list), `hide_empty` (ignored: every stub term is "empty"), `fields => ids|names|all`, `number`. */
 	function get_terms( array $args = [] ): array|WP_Error {
+		$GLOBALS['bfrc_test_get_terms_calls'][] = $args;
 		$taxonomies = (array) ( $args['taxonomy'] ?? array_keys( $GLOBALS['bfrc_test_terms'] ) );
 		$out        = [];
 		foreach ( $taxonomies as $taxonomy ) {

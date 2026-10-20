@@ -35,6 +35,19 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class Meta {
 
+	/**
+	 * Did this request prepare a password-protected recipe's REST item? (see no_store_when_protected())
+	 *
+	 * @var bool
+	 */
+	private static bool $saw_protected = false;
+	/**
+	 * How many REST dispatches are in flight (a route may call rest_do_request()).
+	 *
+	 * @var int
+	 */
+	private static int $dispatch_depth = 0;
+
 	public const MEDIA_TYPE   = '_bfrc_media_type';
 	public const VIDEO_URL    = '_bfrc_video_url';
 	public const PREP_MINUTES = '_bfrc_prep_minutes';
@@ -90,10 +103,36 @@ final class Meta {
 	}
 
 	/**
-	 * Register on init, after the post type; keep servings consistent on every write path.
+	 * The registered default of every key (what REST returns for a recipe
+	 * that never had the key, and what a locked recipe's REST item shows).
+	 *
+	 * @return array<string, mixed>
+	 */
+	public static function defaults(): array {
+		return [
+			self::MEDIA_TYPE   => 'image',
+			self::VIDEO_URL    => '',
+			self::PREP_MINUTES => 0,
+			self::COOK_MINUTES => 0,
+			self::SERVINGS_MIN => 0,
+			self::SERVINGS_MAX => 0,
+			self::FEATURED     => false,
+			self::INGREDIENTS  => [],
+			self::STEPS        => [],
+			self::NUTRITION    => self::empty_nutrition(),
+		];
+	}
+
+	/**
+	 * Register on init, after the post type; keep servings consistent on every write path;
+	 * keep a password-protected recipe's fields out of its REST item.
 	 */
 	public function register_hooks(): void {
 		add_action( 'init', [ $this, 'register' ], 7 );
+		add_filter( 'rest_prepare_' . PostType::NAME, [ self::class, 'hide_protected_meta' ], 10, 3 );
+		add_filter( 'rest_request_before_callbacks', [ self::class, 'forget_protected' ], 10, 3 );
+		add_filter( 'rest_request_after_callbacks', [ self::class, 'no_store_when_protected' ], 10, 3 );
+		add_filter( 'bfag_cache_bypass', [ self::class, 'bypass_rest_cache' ], 10, 2 );
 		add_action( 'added_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
 		add_action( 'updated_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
 		add_action( 'added_post_meta', [ self::class, 'flush_featured_ids' ], 10, 3 );
@@ -352,6 +391,153 @@ final class Meta {
 				'auth_callback'     => $auth,
 			]
 		);
+	}
+
+	/**
+	 * `rest_request_after_callbacks`: a REST response that must not be
+	 * served to anyone else carries `Cache-Control: no-store`: one that
+	 * prepared a password-protected recipe (a collection keeps only an
+	 * embedded item's data, not its headers), one whose search results name
+	 * one, and **any response to a caller holding an unlock cookie**, since
+	 * what they see of a locked recipe can appear in another post's body
+	 * (a Query Loop with a Post Content block) with no protected item in the
+	 * response at all. This hook runs inside dispatch, before any
+	 * `rest_post_dispatch` consumer (the BlueFairy API Gateway stores there).
+	 *
+	 * @param mixed            $response The response the route produced.
+	 * @param mixed            $handler  The route handler (core passes an array).
+	 * @param \WP_REST_Request $request  The request.
+	 */
+	public static function no_store_when_protected( mixed $response, mixed $handler, \WP_REST_Request $request ): mixed {
+		unset( $handler, $request );
+		self::$dispatch_depth = max( 0, self::$dispatch_depth - 1 ); // Every before_callbacks has its after_callbacks, error responses included: balance first.
+		if ( $response instanceof \WP_Error ) {
+			return $response;
+		}
+		$data = $response instanceof \WP_HTTP_Response ? $response->get_data() : $response; // WP_REST_Response or a bare WP_HTTP_Response (core wraps that one too).
+		if ( self::lists_protected_recipe( $data ) ) {
+			self::$saw_protected = true; // A search naming a locked recipe: the request-level bypass must say so, not only the header.
+		}
+		if ( self::$saw_protected || self::caller_has_unlock_cookie() ) {
+			$response = rest_ensure_response( $response ); // A route may return a plain array; core wraps it two lines later, so this is the same object core serves.
+			if ( $response instanceof \WP_REST_Response ) {
+				$response->header( 'Cache-Control', 'no-store' );
+			}
+		}
+		return $response; // The flag is kept until the next outermost dispatch starts (forget_protected()): a REST cache deciding at rest_post_dispatch must still see it.
+	}
+
+	/**
+	 * `rest_request_before_callbacks`: a fresh dispatch, a fresh answer to
+	 * "did this request prepare a locked recipe?". Reset here rather than
+	 * after the callbacks so that a cache consulting the flag at
+	 * `rest_post_dispatch` (see bypass_rest_cache()) still sees it, and so
+	 * that a nested dispatch inside a route cannot wipe the outer one's.
+	 *
+	 * @param mixed            $response Core's pre-callback value (null, or a short-circuit).
+	 * @param mixed            $handler  The route handler.
+	 * @param \WP_REST_Request $request  The request.
+	 */
+	public static function forget_protected( mixed $response, mixed $handler, \WP_REST_Request $request ): mixed {
+		unset( $handler, $request );
+		if ( 0 === self::$dispatch_depth ) {
+			self::$saw_protected = false; // Only the outermost dispatch starts clean: a route composing items with rest_do_request() keeps what its inner dispatches prepared.
+		}
+		++self::$dispatch_depth;
+		return $response;
+	}
+
+	/**
+	 * `bfag_cache_bypass` (the BlueFairy API Gateway's REST cache): never
+	 * store or serve a stored response for a request that prepared a locked
+	 * recipe or comes from a caller holding an unlock cookie. The header
+	 * says the same, but a gateway cache rule may set its own
+	 * `Cache-Control` over it before the gateway reads it; a request-level
+	 * answer cannot be overwritten by a header.
+	 *
+	 * @param mixed $bypass The decision so far.
+	 * @param mixed $request The request.
+	 */
+	public static function bypass_rest_cache( mixed $bypass, mixed $request ): bool {
+		unset( $request );
+		return (bool) $bypass || self::$saw_protected || self::caller_has_unlock_cookie();
+	}
+
+	/**
+	 * Does the caller hold a `wp-postpass_*` cookie? Then any recipe they
+	 * read may be unlocked for them alone.
+	 */
+	public static function caller_has_unlock_cookie(): bool {
+		foreach ( array_keys( $_COOKIE ) as $name ) {
+			if ( is_string( $name ) && str_starts_with( $name, 'wp-postpass_' ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Does a search result list a password-protected recipe? `/wp/v2/search`
+	 * embeds the items only while serving, after the headers went out, so
+	 * the decision is taken from the ids it returns.
+	 *
+	 * @param mixed $data The response data.
+	 */
+	private static function lists_protected_recipe( mixed $data ): bool {
+		if ( ! is_array( $data ) ) {
+			return false;
+		}
+		foreach ( $data as $row ) {
+			if ( is_array( $row ) && 'post' === ( $row['type'] ?? '' ) && PostType::NAME === ( $row['subtype'] ?? '' ) ) {
+				$post = get_post( (int) ( $row['id'] ?? 0 ) );
+				if ( $post instanceof \WP_Post && '' !== (string) $post->post_password ) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * `rest_prepare_bfrc_recipe`: a password-protected recipe's REST item
+	 * shows every field at its default until the caller may read the post:
+	 * the recipe is unlocked for them (`post_password_required()`, which
+	 * honours the unlock cookie; core's controller has removed its own
+	 * password filter by the time this runs), they may edit it, or they sent
+	 * the right `password` parameter, as core does for `content`. The page
+	 * shows the password form and nothing else; the API must not hand out
+	 * what the page withholds.
+	 *
+	 * @param \WP_REST_Response $response The item.
+	 * @param \WP_Post          $post     The recipe.
+	 * @param \WP_REST_Request  $request  The request.
+	 */
+	public static function hide_protected_meta( \WP_REST_Response $response, \WP_Post $post, \WP_REST_Request $request ): \WP_REST_Response {
+		if ( '' !== (string) $post->post_password ) {
+			// Whether this item comes out locked or unlocked depends on the caller's cookie or password:
+			// no shared cache may store it for the next caller. Core drops an item's headers when it
+			// embeds the item in a collection, so the flag carries the header to the final response.
+			$response->header( 'Cache-Control', 'no-store' );
+			self::$saw_protected = true;
+		}
+		if ( ! post_password_required( $post ) || current_user_can( 'edit_post', $post->ID ) ) {
+			return $response;
+		}
+		$password = $request['password'] ?? null;
+		if ( is_string( $password ) && '' !== $password && hash_equals( (string) $post->post_password, $password ) ) {
+			return $response;
+		}
+		$data = $response->get_data();
+		if ( ! is_array( $data ) || ! isset( $data['meta'] ) || ! is_array( $data['meta'] ) ) {
+			return $response;
+		}
+		foreach ( self::defaults() as $key => $fallback ) {
+			if ( array_key_exists( $key, $data['meta'] ) ) {
+				$data['meta'][ $key ] = $fallback;
+			}
+		}
+		$response->set_data( $data );
+		return $response;
 	}
 
 	/**

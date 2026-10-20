@@ -43,10 +43,139 @@ final class MetaTest extends TestCase {
 		$this->assertSame( Meta::empty_nutrition(), $registered[ Meta::NUTRITION ]['default'] );
 	}
 
+	public function test_defaults_are_the_registered_defaults(): void {
+		( new Meta() )->register();
+		$registered = $GLOBALS['bfrc_test_registered_meta']['bfrc_recipe'];
+		$this->assertSame( Meta::keys(), array_keys( Meta::defaults() ) );
+		foreach ( Meta::defaults() as $key => $fallback ) {
+			$this->assertSame( $fallback, $registered[ $key ]['default'], "$key: defaults() drifted from register()" );
+		}
+	}
+
+	public function test_a_password_protected_recipes_rest_item_shows_every_field_at_its_default_until_unlocked(): void {
+		bfrc_test_add_post( [ 'ID' => 41, 'post_type' => 'bfrc_recipe', 'post_password' => 'hunter2' ] );
+		$meta = [
+			Meta::PREP_MINUTES => 20,
+			Meta::INGREDIENTS  => [ [ 'measure' => '1', 'label' => 'secret spice', 'type' => 'plain' ] ],
+			Meta::STEPS        => [ [ 'text' => 'Stir' ] ],
+			Meta::NUTRITION    => [ 'calories' => 250.0 ] + Meta::empty_nutrition(),
+			'other_plugin_key' => 'kept',
+		];
+		$make = static fn(): \WP_REST_Response => new \WP_REST_Response( [ 'id' => 41, 'title' => [ 'rendered' => 'Protected: Soup' ], 'meta' => $meta ] );
+		$post = get_post( 41 );
+
+		$locked_response = Meta::hide_protected_meta( $make(), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) );
+		$this->assertSame( 'no-store', $locked_response->get_headers()['Cache-Control'], 'a shared cache must not serve one caller\'s locked or unlocked item to the next' );
+		$locked          = $locked_response->get_data();
+		$this->assertSame( 0, $locked['meta'][ Meta::PREP_MINUTES ] );
+		$this->assertSame( [], $locked['meta'][ Meta::INGREDIENTS ] );
+		$this->assertSame( [], $locked['meta'][ Meta::STEPS ] );
+		$this->assertSame( Meta::empty_nutrition(), $locked['meta'][ Meta::NUTRITION ] );
+		$this->assertSame( 'kept', $locked['meta']['other_plugin_key'], 'only our keys are blanked' );
+		$this->assertSame( 'Protected: Soup', $locked['title']['rendered'], 'the rest of the item is core\'s business' );
+		$this->assertStringNotContainsString( 'secret spice', wp_json_encode( $locked ) );
+
+		$wrong = new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' );
+		$wrong->set_param( 'password', 'hunter3' );
+		$this->assertSame( [], Meta::hide_protected_meta( $make(), $post, $wrong )->get_data()['meta'][ Meta::INGREDIENTS ], 'a wrong password unlocks nothing' );
+		$right = new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' );
+		$right->set_param( 'password', 'hunter2' );
+		$unlocked = Meta::hide_protected_meta( $make(), $post, $right );
+		$this->assertSame( $meta, $unlocked->get_data()['meta'], 'core\'s own rule: the right ?password= reads the item' );
+		$this->assertSame( 'no-store', $unlocked->get_headers()['Cache-Control'], 'the unlocked item even more so' );
+
+		$GLOBALS['bfrc_test_caps']['edit_post'] = static fn( array $args ): bool => 41 === ( $args[0] ?? 0 );
+		$this->assertSame( $meta, Meta::hide_protected_meta( $make(), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) )->get_data()['meta'], 'the recipe\'s editor sees it (the block editor needs it)' );
+		$GLOBALS['bfrc_test_caps'] = [];
+
+		bfrc_test_add_post( [ 'ID' => 42, 'post_type' => 'bfrc_recipe' ] );
+		// A collection: core keeps the items' data only, so the collection response gets the header at dispatch.
+		$server     = new \WP_REST_Server();
+		$collection = Meta::no_store_when_protected( new \WP_REST_Response( [ $locked, [ 'id' => 42 ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' ) );
+		$this->assertSame( 'no-store', $collection->get_headers()['Cache-Control'], 'a collection that carried a locked recipe is not cached' );
+		$still = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 42 ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' ) );
+		$this->assertSame( 'no-store', $still->get_headers()['Cache-Control'], 'the flag outlives the after-callbacks hook: a cache deciding at rest_post_dispatch must still see it' );
+		$this->assertTrue( Meta::bypass_rest_cache( false, new \WP_REST_Request() ), 'the gateway bypass answers from the same flag' );
+		$this->assertNull( Meta::forget_protected( null, [], new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' ) ), 'the next dispatch starts clean and the pre-callback value passes through' );
+		$this->assertFalse( Meta::bypass_rest_cache( false, new \WP_REST_Request() ) );
+		$this->assertTrue( Meta::bypass_rest_cache( true, new \WP_REST_Request() ), 'a bypass someone else decided stands' );
+		$next = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 42 ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' ) );
+		$this->assertArrayNotHasKey( 'Cache-Control', $next->get_headers(), 'the flag is per request: the next response is untouched' );
+		Meta::hide_protected_meta( $make(), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) );
+		$wrapped = Meta::no_store_when_protected( [ 'id' => 41, 'plain' => 'array' ], $server, new \WP_REST_Request( 'GET', '/bfrc/v1/x' ) );
+		$this->assertInstanceOf( \WP_REST_Response::class, $wrapped, 'a route returning a plain array is wrapped as core would, so it can carry the header' );
+		$this->assertSame( 'no-store', $wrapped->get_headers()['Cache-Control'] );
+		Meta::forget_protected( null, [], new \WP_REST_Request() );
+		$this->assertSame( [ 'id' => 42 ], Meta::no_store_when_protected( [ 'id' => 42 ], $server, new \WP_REST_Request( 'GET', '/bfrc/v1/x' ) ), 'nothing to mark: the array passes through untouched' );
+		$err = new \WP_Error( 'x', 'y' );
+		$this->assertSame( $err, Meta::no_store_when_protected( $err, $server, new \WP_REST_Request() ) );
+		Meta::forget_protected( null, [], new \WP_REST_Request() );
+		$bare = Meta::no_store_when_protected( new \WP_HTTP_Response( [ [ 'id' => 41, 'type' => 'post', 'subtype' => 'bfrc_recipe' ] ], 201, [ 'X-Bare' => '1' ] ), $server, new \WP_REST_Request( 'GET', '/bfrc/v1/x' ) );
+		$this->assertInstanceOf( \WP_REST_Response::class, $bare, 'a bare WP_HTTP_Response is read and wrapped as core does' );
+		$this->assertSame( 'no-store', $bare->get_headers()['Cache-Control'], 'its rows name a locked recipe' );
+		$this->assertSame( 201, $bare->get_status(), 'wrapping keeps the route\'s own status' );
+		$this->assertSame( '1', $bare->get_headers()['X-Bare'], 'and its headers, as core does' );
+		// The depth counter must balance on error responses too, or every later dispatch in the request keeps a stale flag.
+		$cookies_before = $_COOKIE;
+		$_COOKIE        = [];
+		Meta::forget_protected( null, [], new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' ) );
+		Meta::no_store_when_protected( new \WP_Error( 'rest_post_invalid_id', 'gone' ), $server, new \WP_REST_Request( 'GET', '/wp/v2/media/9' ) );
+		Meta::forget_protected( null, [], new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) );
+		Meta::hide_protected_meta( $make(), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) );
+		Meta::no_store_when_protected( new \WP_REST_Response( [] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) );
+		Meta::forget_protected( null, [], new \WP_REST_Request( 'GET', '/wp/v2/posts' ) );
+		$this->assertFalse( Meta::bypass_rest_cache( false, new \WP_REST_Request() ), 'after an error response the next outermost dispatch still starts clean' );
+		$_COOKIE = $cookies_before;
+		$this->assertSame( 'x', Meta::no_store_when_protected( 'x', $server, new \WP_REST_Request() ), 'not a response object: passed through' );
+		$search = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 41, 'type' => 'post', 'subtype' => 'bfrc_recipe' ], [ 'id' => 42, 'type' => 'post', 'subtype' => 'bfrc_recipe' ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/search' ) );
+		$this->assertSame( 'no-store', $search->get_headers()['Cache-Control'], 'a search listing a locked recipe: its items are embedded after the headers go out, so the ids decide' );
+		$this->assertTrue( Meta::bypass_rest_cache( false, new \WP_REST_Request() ), 'and the request-level bypass says so too, not only the header' );
+		Meta::forget_protected( null, [], new \WP_REST_Request() );
+		$open_search = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 42, 'type' => 'post', 'subtype' => 'bfrc_recipe' ], [ 'id' => 41, 'type' => 'post', 'subtype' => 'page' ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/search' ) );
+		$this->assertArrayNotHasKey( 'Cache-Control', $open_search->get_headers(), 'only a locked recipe counts; a page with the same id does not' );
+		// A caller with an unlock cookie: whatever they read may be unlocked for them alone (a Query Loop in
+		// another recipe renders the locked body), so none of their responses may be stored.
+		$this->assertFalse( Meta::caller_has_unlock_cookie() );
+		$_COOKIE['wp-postpass_abc123'] = 'hash';
+		$this->assertTrue( Meta::caller_has_unlock_cookie() );
+		$with_cookie = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 42 ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' ) );
+		$this->assertSame( 'no-store', $with_cookie->get_headers()['Cache-Control'], 'an open recipe\'s item, but a cookie holder asked: not stored' );
+		$this->assertTrue( Meta::bypass_rest_cache( false, new \WP_REST_Request() ), 'and the gateway bypasses at request level' );
+		$_COOKIE = [ 'wordpress_test_cookie' => 'WP Cookie check', 123 => 'a numeric cookie name arrives as an int key' ];
+		$this->assertFalse( Meta::caller_has_unlock_cookie(), 'other cookies are not unlock cookies, and an int key is not a TypeError' );
+		$_COOKIE = [];
+		$typeless = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 41 ] ] ), $server, new \WP_REST_Request( 'GET', '/bfrc/v1/x' ) );
+		$this->assertArrayNotHasKey( 'Cache-Control', $typeless->get_headers(), 'a row without type/subtype is not a search result naming a recipe' );
+		// A route that composes items through nested dispatches: the inner dispatch must not wipe what the outer prepared.
+		Meta::forget_protected( null, [], new \WP_REST_Request( 'GET', '/bfrc/v1/outer' ) );
+		Meta::hide_protected_meta( $make(), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) );
+		Meta::forget_protected( null, [], new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/42' ) ); // nested
+		Meta::no_store_when_protected( new \WP_REST_Response( [] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/42' ) );
+		$outer = Meta::no_store_when_protected( new \WP_REST_Response( [ 'composed' => true ] ), $server, new \WP_REST_Request( 'GET', '/bfrc/v1/outer' ) );
+		$this->assertSame( 'no-store', $outer->get_headers()['Cache-Control'], 'the outer response remembers the locked recipe its nested dispatch prepared' );
+		Meta::forget_protected( null, [], new \WP_REST_Request() );
+		$this->assertFalse( Meta::bypass_rest_cache( false, new \WP_REST_Request() ), 'the next outermost dispatch starts clean' );
+		$open = Meta::hide_protected_meta( $make(), get_post( 42 ), new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/42' ) );
+		$this->assertSame( $meta, $open->get_data()['meta'], 'no password, nothing to hide' );
+		$this->assertArrayNotHasKey( 'Cache-Control', $open->get_headers(), 'an open recipe caches as core decides' );
+		$GLOBALS['bfrc_test_password_unlocked'][41] = true;
+		$this->assertSame( $meta, Meta::hide_protected_meta( $make(), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) )->get_data()['meta'], 'the unlock cookie counts, as it does for content' );
+		$GLOBALS['bfrc_test_password_unlocked'] = [];
+		$other = Meta::hide_protected_meta( new \WP_REST_Response( [ 'id' => 41, 'meta' => [ 'other_plugin_key' => 'kept' ] ] ), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) )->get_data();
+		$this->assertSame( [ 'other_plugin_key' => 'kept' ], $other['meta'], 'keys absent from the item (a _fields selection) are not added' );
+		$bare = Meta::hide_protected_meta( new \WP_REST_Response( [ 'id' => 41 ] ), $post, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/41' ) );
+		$this->assertSame( [ 'id' => 41 ], $bare->get_data(), 'an item without meta (a context that omits it) passes through' );
+	}
+
 	public function test_register_hooks_registers_on_init_after_the_post_type(): void {
 		$m = new Meta();
 		$m->register_hooks();
 		$this->assertSame( 7, has_action( 'init', [ $m, 'register' ] ) );
+		$this->assertSame( 10, has_filter( 'rest_prepare_bfrc_recipe', [ Meta::class, 'hide_protected_meta' ] ), 'a locked recipe\'s REST item carries no field values' );
+		$this->assertSame( 10, has_filter( 'rest_request_after_callbacks', [ Meta::class, 'no_store_when_protected' ] ), 'inside dispatch, before any rest_post_dispatch consumer (a REST cache stores there)' );
+		$this->assertFalse( has_filter( 'rest_post_dispatch', [ Meta::class, 'no_store_when_protected' ] ), 'not on rest_post_dispatch: the API Gateway stores at that hook and priority before a later registrant runs' );
+		$this->assertSame( 10, has_filter( 'rest_request_before_callbacks', [ Meta::class, 'forget_protected' ] ), 'the flag resets when the next dispatch starts, not after the callbacks' );
+		$this->assertSame( 10, has_filter( 'bfag_cache_bypass', [ Meta::class, 'bypass_rest_cache' ] ), 'the gateway asks at request level too: a rule header cannot overwrite that' );
 		foreach ( [ 'added_post_meta', 'updated_post_meta', 'deleted_post_meta' ] as $hook ) {
 			$this->assertSame( 10, has_action( $hook, [ Meta::class, 'flush_featured_ids' ] ), $hook );
 		}

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace BlueFairy\Recipes\Tests\Unit;
 
+use BlueFairy\Recipes\Capabilities;
 use BlueFairy\Recipes\Installer;
 use BlueFairy\Recipes\Plugin;
 use BlueFairy\Recipes\Settings;
@@ -56,6 +57,9 @@ final class PluginTest extends TestCase {
 		$this->assertSame( 5, has_action( 'init', [ Plugin::service( 'content.taxonomies' ), 'register' ] ) );
 		$this->assertSame( 6, has_action( 'init', [ Plugin::service( 'content.post_type' ), 'register' ] ) );
 		$this->assertSame( 7, has_action( 'init', [ Plugin::service( 'content.meta' ), 'register' ] ) );
+		$this->assertSame( 10, has_filter( 'woocommerce_prevent_admin_access', [ Capabilities::class, 'allow_writer_admin_access' ] ), 'writers may enter wp-admin on a shop' );
+		$this->assertSame( 10, has_filter( 'woocommerce_disable_admin_bar', [ Capabilities::class, 'allow_writer_admin_access' ] ) );
+		$this->assertSame( 10, has_action( 'pre_user_query', [ Plugin::service( 'front.writers' ), 'exclude_opted_out' ] ), 'Writers registers its own hooks' );
 		$this->assertSame( 10, has_filter( 'wp_unique_post_slug', [ Plugin::service( 'content.slugs' ), 'filter_unique_slug' ] ) );
 		do_action( 'init' );
 		$this->assertArrayHasKey( 'bfrc_recipe', $GLOBALS['bfrc_test_post_types'] );

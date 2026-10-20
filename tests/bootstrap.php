@@ -131,7 +131,36 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_attachments']      = []; // id => url, or id => [ 'mime', 'url' ].
 	$GLOBALS['bfrc_test_count_calls']      = [];
 	$GLOBALS['bfrc_test_dropdowns']        = [];
+	$GLOBALS['bfrc_test_user_queries']     = [];
+	if ( class_exists( BlueFairy\Recipes\Content\Meta::class, false ) ) {
+		// The REST cache flag and dispatch depth are per PHP request in production; per test here.
+		foreach ( [ 'saw_protected' => false, 'dispatch_depth' => 0 ] as $prop => $value ) {
+			$ref = new ReflectionProperty( BlueFairy\Recipes\Content\Meta::class, $prop );
+			$ref->setValue( null, $value );
+		}
+	}
+	$GLOBALS['bfrc_test_doing_filter']     = []; // doing_filter() answers true for these hook names.
+	$_COOKIE                               = [];
+	$_REQUEST                              = [];
+	$GLOBALS['bfrc_test_user_query_where'] = [];
+	$GLOBALS['bfrc_test_get_terms_calls']  = [];
+	$GLOBALS['bfrc_test_password_unlocked'] = [];
+	$GLOBALS['bfrc_test_rewrite_rules']    = [];
+	$GLOBALS['bfrc_test_blocks']           = [];
+	$GLOBALS['bfrc_test_block_types']      = []; // name => WP_Block_Type, for WP_Block_Type_Registry::get_registered().
+	$GLOBALS['bfrc_test_block_templates']  = [];
+	$GLOBALS['bfrc_test_block_theme']      = false;
+	$GLOBALS['bfrc_test_theme_files']      = [];
+	$GLOBALS['bfrc_test_status_headers']   = [];
+	$GLOBALS['bfrc_test_nocache']          = false;
+	$GLOBALS['bfrc_test_cached_users']     = [];
+	$GLOBALS['bfrc_test_paginate_calls']   = [];
+	$GLOBALS['bfrc_test_archive_slugs']    = [];
+	unset( $GLOBALS['wp_query'] );
+	$GLOBALS['wp_rewrite'] = class_exists( 'WP_Rewrite' ) ? new WP_Rewrite() : null; // Pretty permalinks, `page`, unless a test says otherwise.
+	$GLOBALS['wp']         = class_exists( 'WP' ) ? new WP() : null;
 	$GLOBALS['bfrc_test_primed']           = [];
+	$GLOBALS['bfrc_test_prime_args']       = [];
 	$GLOBALS['bfrc_test_thumbnail_cache_calls'] = [];
 	$GLOBALS['bfrc_test_get_posts_calls']  = [];
 	unset( $GLOBALS['post'] );
@@ -146,6 +175,7 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_db_delta_errors'] = [];
 	$GLOBALS['bfrc_test_admin_pages']   = [];
 	$GLOBALS['bfrc_test_enqueued']      = [];
+	$GLOBALS['bfrc_test_registered']    = [];
 	$GLOBALS['bfrc_test_output']        = [];
 	$GLOBALS['bfrc_test_screen']        = null;
 	$GLOBALS['bfrc_test_user_meta']     = [];
@@ -441,7 +471,12 @@ function did_action( string $hook_name ): int {
 	return (int) ( $GLOBALS['bfrc_test_fired'][ $hook_name ] ?? 0 );
 }
 function doing_action( ?string $hook_name = null ): bool {
-	return false;
+	return doing_filter( $hook_name );
+}
+/** A test sets $GLOBALS['bfrc_test_doing_filter'] to the hook names that are "running". */
+function doing_filter( ?string $hook_name = null ): bool {
+	$running = $GLOBALS['bfrc_test_doing_filter'] ?? [];
+	return null === $hook_name ? [] !== $running : in_array( $hook_name, $running, true );
 }
 
 // ------------------------------------------------------------------
@@ -750,6 +785,7 @@ class WP_User {
 	public string $user_login = '';
 	public string $user_email = '';
 	public string $display_name = '';
+	public string $user_nicename = '';
 	/** @var list<string> */
 	public array $roles = [];
 	public function __construct( int $id = 0 ) {
@@ -760,6 +796,7 @@ class WP_User {
 			$this->user_login   = $known->user_login;
 			$this->user_email   = $known->user_email;
 			$this->display_name = $known->display_name;
+			$this->user_nicename = $known->user_nicename;
 		}
 	}
 	public function exists(): bool {
@@ -878,7 +915,17 @@ function get_userdata( int $user_id ): WP_User|false {
 	return $registry[ $user_id ] ?? false;
 }
 function get_user_by( string $field, mixed $value ): WP_User|false {
-	return 'id' === $field ? get_userdata( (int) $value ) : false;
+	if ( 'id' === $field ) {
+		return get_userdata( (int) $value );
+	}
+	if ( 'slug' === $field ) {
+		foreach ( $GLOBALS['bfrc_test_users'] ?? [] as $user ) {
+			if ( $user instanceof WP_User && $user->user_nicename === (string) $value ) {
+				return new WP_User( $user->ID );
+			}
+		}
+	}
+	return false;
 }
 function is_admin(): bool {
 	return (bool) $GLOBALS['bfrc_test_is_admin'];
@@ -1315,6 +1362,8 @@ class WP_Post {
 	public string $post_date_gmt = '';
 	public string $post_modified_gmt = '';
 	public string $post_content = '';
+	public string $post_excerpt = '';
+	public string $post_password = '';
 	public function __construct( array $data = [] ) {
 		foreach ( $data as $key => $value ) {
 			$this->$key = $value;
@@ -1386,10 +1435,27 @@ function wp_enqueue_script( string $handle, string $src = '', array $deps = [], 
 	$GLOBALS['bfrc_test_enqueued']['deps'][ $handle ] = $deps;
 }
 function wp_register_script( string $handle, mixed $src, array $deps = [], mixed $ver = false, mixed $args = [] ): bool {
+	$GLOBALS['bfrc_test_registered']['script'][ $handle ] = $src;
 	return true;
 }
 function wp_register_style( string $handle, mixed $src, array $deps = [], mixed $ver = false, string $media = 'all' ): bool {
+	$GLOBALS['bfrc_test_registered']['style'][ $handle ] = $src;
 	return true;
+}
+function map_deep( mixed $value, callable $callback ): mixed {
+	if ( is_array( $value ) ) {
+		foreach ( $value as $k => $v ) {
+			$value[ $k ] = map_deep( $v, $callback );
+		}
+		return $value;
+	}
+	if ( is_object( $value ) ) {
+		foreach ( get_object_vars( $value ) as $k => $v ) {
+			$value->$k = map_deep( $v, $callback );
+		}
+		return $value;
+	}
+	return $callback( $value );
 }
 function wp_localize_script( string $handle, string $object_name, array $l10n ): bool {
 	foreach ( $l10n as $k => $v ) {
@@ -1646,6 +1712,10 @@ class WP_REST_Request implements ArrayAccess {
 function rest_ensure_response( mixed $response ): WP_REST_Response|WP_Error {
 	if ( $response instanceof WP_Error || $response instanceof WP_REST_Response ) {
 		return $response;
+	}
+	if ( $response instanceof WP_HTTP_Response ) {
+		// As core: a bare HTTP response becomes a REST response with the same data, status and headers.
+		return new WP_REST_Response( $response->get_data(), $response->get_status(), $response->get_headers() );
 	}
 	return new WP_REST_Response( $response );
 }

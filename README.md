@@ -9,7 +9,7 @@ release tag.
 - WordPress 6.7 or newer, with pretty permalinks
 - PHP 8.1 or newer
 
-## What is in the tree today (milestones A1–A3)
+## What is in the tree today (milestones A1–A4)
 
 - Plugin bootstrap, settings model, roles and capabilities, activation, deactivation and
   uninstall.
@@ -17,7 +17,10 @@ release tag.
   terms, the registered recipe fields, reserved recipe slugs.
 - Admin editing: the recipe edit screen (five panels, repeatable rows, block and classic
   editors), the Recipes list (columns, filters, bulk featured) and the writer profile fields.
-  No front end yet.
+- The public pages: the recipe archive with filters, title search and pagination, the
+  filter-type pages, recipe pages (photo or video, ingredients, method, nutrition, share and
+  print), the writers listing and writer pages; block and classic theme templates.
+  Blocks, shortcodes, the REST endpoint and JSON-LD follow in A5 and A6.
 
 ## Notes for site owners
 
@@ -31,6 +34,11 @@ release tag.
   same choices and picks up where it stopped).
 - After an uninstall and reinstall, recipes and writer profiles are intact, but users must
   be given the Recipe Writer role again (uninstall removes the plugin's roles).
+- **WooCommerce sites:** WooCommerce keeps users without blog-editing rights out of the
+  dashboard; the plugin lets Recipe Writers through so they can write recipes and fill their
+  profile. They still see nothing of the shop's admin.
+- **Plain permalinks** (no permalink structure) are not recommended: the writer pages then
+  live at query-string addresses such as `/?post_type=bfrc_recipe&bfrc_writers=1`.
 - **Very long recipes** post many form fields. PHP's `max_input_vars` (usually 1000) allows a
   recipe of 200 ingredients and 200 steps; the editor warns before a recipe outgrows the limit,
   and a panel that was cut off keeps its previous values rather than being emptied.

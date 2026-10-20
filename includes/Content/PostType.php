@@ -48,7 +48,7 @@ final class PostType {
 	public function register_hooks(): void {
 		add_action( 'init', [ $this, 'register' ], 6 );
 		add_filter( 'wp_sitemaps_post_types', [ $this, 'filter_sitemap_post_types' ] );
-		add_filter( 'rest_pre_dispatch', [ $this, 'gate_rest_when_disabled' ], 10, 3 );
+		add_filter( 'rest_pre_dispatch', [ $this, 'gate_rest_when_disabled' ], 9, 3 ); // Before a REST cache serves at 10 (the BlueFairy API Gateway): a stored recipe response must not outlive the switch.
 		add_filter( 'rest_post_search_query', [ $this, 'filter_rest_search_when_disabled' ], 10, 2 );
 	}
 

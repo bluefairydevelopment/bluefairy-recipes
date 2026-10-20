@@ -98,7 +98,7 @@ final class PostTypeTest extends TestCase {
 		$pt->register_hooks();
 		$this->assertSame( 6, has_action( 'init', [ $pt, 'register' ] ) );
 		$this->assertSame( 10, has_filter( 'wp_sitemaps_post_types', [ $pt, 'filter_sitemap_post_types' ] ) );
-		$this->assertSame( 10, has_filter( 'rest_pre_dispatch', [ $pt, 'gate_rest_when_disabled' ] ) );
+		$this->assertSame( 9, has_filter( 'rest_pre_dispatch', [ $pt, 'gate_rest_when_disabled' ] ), 'ahead of a REST cache serving stored responses at 10, so a stored recipe item does not outlive the disabled switch' );
 		$this->assertSame( 10, has_filter( 'rest_post_search_query', [ $pt, 'filter_rest_search_when_disabled' ] ) );
 	}
 

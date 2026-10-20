@@ -92,6 +92,17 @@ final class CapabilitiesTest extends TestCase {
 		$this->assertTrue( get_role( 'editor' )->has_cap( 'read' ) );
 	}
 
+	public function test_a_recipe_writer_keeps_wp_admin_and_the_admin_bar_on_a_woocommerce_site(): void {
+		Capabilities::add_roles();
+		$this->assertFalse( Capabilities::allow_writer_admin_access( false ), 'WooCommerce lets them in anyway: nothing to do' );
+		bfrc_test_add_user( 5, [ 'roles' => [ 'subscriber' ] ] );
+		wp_set_current_user( 5 );
+		$this->assertTrue( Capabilities::allow_writer_admin_access( true ), 'a subscriber is still sent to My Account' );
+		bfrc_test_add_user( 6, [ 'roles' => [ 'bfrc_writer' ] ] );
+		wp_set_current_user( 6 );
+		$this->assertFalse( Capabilities::allow_writer_admin_access( true ), 'a Recipe Writer has no edit_posts, so WooCommerce would lock them out of their own recipes and profile' );
+	}
+
 	public function test_current_user_can_manage_reads_the_manage_capability_through_the_users_roles(): void {
 		$this->assertFalse( Capabilities::current_user_can_manage() );
 		Capabilities::add_roles();
