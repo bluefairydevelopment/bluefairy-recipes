@@ -335,7 +335,7 @@ final class RendererTest extends TestCase {
 		$this->assertFalse( Renderer::has_body( '<!-- wp:paragraph --><p>&ZeroWidthSpace;&NoBreak;</p><!-- /wp:paragraph -->' ), 'named HTML5 entities for invisible characters' );
 		$this->assertTrue( Renderer::has_body( '<!-- wp:paragraph --><p>&amp;</p><!-- /wp:paragraph -->' ), 'an ampersand is text' );
 		$this->assertTrue( Renderer::has_body( "<!-- wp:paragraph --><p>Bad \xFF byte</p><!-- /wp:paragraph -->" ), 'invalid UTF-8 (legacy content) does not hide the body: preg gives up, the plain text decides' );
-		$this->assertFalse( Renderer::has_body( "<!-- wp:paragraph --><p> \xFF </p><!-- /wp:paragraph -->" ) === true && false, 'sanity' );
+		$this->assertTrue( Renderer::has_body( "<!-- wp:paragraph --><p> \xFF </p><!-- /wp:paragraph -->" ), 'an invalid byte alone is still text to keep, not whitespace to drop' );
 		$this->assertTrue( Renderer::has_body( '<!-- wp:group --><div class="wp-block-group"><!-- wp:paragraph --><p>Inside.</p><!-- /wp:paragraph --></div><!-- /wp:group -->' ), 'a group with text' );
 		$this->assertTrue( Renderer::has_body( '<!-- wp:group --><div class="wp-block-group"><!-- wp:block {"ref":12} /--></div><!-- /wp:group -->' ), 'a group around a synced pattern' );
 		$this->assertTrue( Renderer::has_body( '<!-- wp:quote --><blockquote class="wp-block-quote"><!-- wp:paragraph --><p>Quoted.</p><!-- /wp:paragraph --></blockquote><!-- /wp:quote -->' ) );
