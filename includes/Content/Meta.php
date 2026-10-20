@@ -35,6 +35,13 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class Meta {
 
+	/**
+	 * Did this request prepare a password-protected recipe's REST item? (see no_store_when_protected())
+	 *
+	 * @var bool
+	 */
+	private static bool $saw_protected = false;
+
 	public const MEDIA_TYPE   = '_bfrc_media_type';
 	public const VIDEO_URL    = '_bfrc_video_url';
 	public const PREP_MINUTES = '_bfrc_prep_minutes';
@@ -117,6 +124,7 @@ final class Meta {
 	public function register_hooks(): void {
 		add_action( 'init', [ $this, 'register' ], 7 );
 		add_filter( 'rest_prepare_' . PostType::NAME, [ self::class, 'hide_protected_meta' ], 10, 3 );
+		add_filter( 'rest_post_dispatch', [ self::class, 'no_store_when_protected' ], 10, 3 );
 		add_action( 'added_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
 		add_action( 'updated_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
 		add_action( 'added_post_meta', [ self::class, 'flush_featured_ids' ], 10, 3 );
@@ -378,6 +386,25 @@ final class Meta {
 	}
 
 	/**
+	 * `rest_post_dispatch`: the final response of any REST request that
+	 * prepared a password-protected recipe (a collection, a search with
+	 * `_embed`) carries `Cache-Control: no-store`, since core keeps only an
+	 * embedded item's data, not its headers.
+	 *
+	 * @param mixed            $response The response about to be served.
+	 * @param \WP_REST_Server  $server   The server.
+	 * @param \WP_REST_Request $request  The request.
+	 */
+	public static function no_store_when_protected( mixed $response, \WP_REST_Server $server, \WP_REST_Request $request ): mixed {
+		unset( $server, $request );
+		if ( self::$saw_protected && $response instanceof \WP_REST_Response ) {
+			$response->header( 'Cache-Control', 'no-store' );
+		}
+		self::$saw_protected = false;
+		return $response;
+	}
+
+	/**
 	 * `rest_prepare_bfrc_recipe`: a password-protected recipe's REST item
 	 * shows every field at its default until the caller may read the post:
 	 * the recipe is unlocked for them (`post_password_required()`, which
@@ -394,8 +421,10 @@ final class Meta {
 	public static function hide_protected_meta( \WP_REST_Response $response, \WP_Post $post, \WP_REST_Request $request ): \WP_REST_Response {
 		if ( '' !== (string) $post->post_password ) {
 			// Whether this item comes out locked or unlocked depends on the caller's cookie or password:
-			// no shared cache may store it for the next caller.
+			// no shared cache may store it for the next caller. Core drops an item's headers when it
+			// embeds the item in a collection, so the flag carries the header to the final response.
 			$response->header( 'Cache-Control', 'no-store' );
+			self::$saw_protected = true;
 		}
 		if ( ! post_password_required( $post ) || current_user_can( 'edit_post', $post->ID ) ) {
 			return $response;

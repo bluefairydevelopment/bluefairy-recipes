@@ -137,6 +137,7 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_password_unlocked'] = [];
 	$GLOBALS['bfrc_test_rewrite_rules']    = [];
 	$GLOBALS['bfrc_test_blocks']           = [];
+	$GLOBALS['bfrc_test_block_types']      = []; // name => WP_Block_Type, for WP_Block_Type_Registry::get_registered().
 	$GLOBALS['bfrc_test_block_templates']  = [];
 	$GLOBALS['bfrc_test_block_theme']      = false;
 	$GLOBALS['bfrc_test_theme_files']      = [];

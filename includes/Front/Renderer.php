@@ -267,10 +267,26 @@ final class Renderer {
 			}
 		}
 		$html = (string) ( $block['innerHTML'] ?? '' );
-		if ( null !== ( $block['blockName'] ?? null ) && [] === $children && '' === trim( $html ) ) {
-			return true; // Dynamic: rendered on request, so the comment alone is the body.
+		$name = $block['blockName'] ?? null;
+		if ( is_string( $name ) && [] === $children && '' === trim( $html ) ) {
+			return self::block_is_dynamic( $name ); // Rendered on request, so the comment alone is the body; an empty static block (a Custom HTML block) is not.
 		}
 		return self::has_text_or_media( $html );
+	}
+
+	/**
+	 * Does this block render on request? Core's registry answers for the
+	 * blocks it knows; a block registered elsewhere (an add-on's, on
+	 * another site) is taken as dynamic, the safer answer for a body.
+	 *
+	 * @param string $name Block name.
+	 */
+	private static function block_is_dynamic( string $name ): bool {
+		if ( ! class_exists( '\\WP_Block_Type_Registry' ) ) {
+			return true;
+		}
+		$type = \WP_Block_Type_Registry::get_instance()->get_registered( $name );
+		return ! $type instanceof \WP_Block_Type || $type->is_dynamic();
 	}
 
 	/**

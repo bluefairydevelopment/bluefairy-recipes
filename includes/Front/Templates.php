@@ -410,8 +410,15 @@ final class Templates {
 			// A feed's URL is core's, so a pretty feed is never redirected; but `?author_name=` on a
 			// writer's feed URL would serve another writer's items there, so that override goes to
 			// the resolved writer's own feed.
-			if ( (bool) $query->get( Writers::QUERY_VAR ) && ( isset( $_GET['author_name'] ) || isset( $_POST['author_name'] ) ) ) {
-				wp_safe_redirect( trailingslashit( $url ) . 'feed/', 301, 'BlueFairy Recipes' );
+			$writer = (bool) $query->get( Writers::QUERY_VAR ) && ( isset( $_GET['author_name'] ) || isset( $_POST['author_name'] ) )
+				? $this->writers->public_writer( (string) $query->get( 'author_name' ) )
+				: null;
+			if ( null !== $writer ) {
+				// The writer's feed URL as the rules serve it: no page segment (core paginates feeds by
+				// query argument), the requested format kept when it is not the default.
+				$feed   = (string) $query->get( 'feed' );
+				$suffix = 'feed/' . ( '' !== $feed && 'feed' !== $feed && get_default_feed() !== $feed ? $feed . '/' : '' );
+				wp_safe_redirect( trailingslashit( $this->writers->url( $writer ) ) . $suffix, 301, 'BlueFairy Recipes' );
 				exit;
 			}
 			return;
@@ -582,7 +589,9 @@ final class Templates {
 		if ( ! $wp_query instanceof \WP_Query || $wp_query->is_feed() || ( function_exists( 'wp_is_serving_rest_request' ) && wp_is_serving_rest_request() ) ) {
 			return false;
 		}
-		return $single ? $wp_query->is_singular( PostType::NAME ) && $wp_query->is_main_query() : $this->is_recipe_query( $wp_query );
+		return $single
+			? $wp_query->is_singular( PostType::NAME ) && $wp_query->is_main_query()
+			: ! $wp_query->is_singular() && $this->is_recipe_query( $wp_query ); // The archive block belongs to list views; on a recipe page it would be a one-card grid of that recipe.
 	}
 
 	/**

@@ -263,6 +263,36 @@ if ( ! function_exists( 'parse_blocks' ) ) {
 		return $blocks;
 	}
 }
+if ( ! function_exists( 'get_default_feed' ) ) {
+	function get_default_feed(): string {
+		return 'rss2';
+	}
+}
+if ( ! class_exists( 'WP_Block_Type' ) ) {
+	/** Enough of a block type: its name and whether it renders on request. */
+	final class WP_Block_Type {
+		public function __construct( public string $name, public mixed $render_callback = null ) {}
+		public function is_dynamic(): bool {
+			return is_callable( $this->render_callback );
+		}
+	}
+}
+if ( ! class_exists( 'WP_Block_Type_Registry' ) ) {
+	/** Answers from `$GLOBALS['bfrc_test_block_types']` (name => WP_Block_Type); unknown names are null, as core. */
+	final class WP_Block_Type_Registry {
+		private static ?self $instance = null;
+		public static function get_instance(): self {
+			if ( null === self::$instance ) {
+				self::$instance = new self();
+			}
+			return self::$instance;
+		}
+		public function get_registered( string $name ): ?WP_Block_Type {
+			$type = $GLOBALS['bfrc_test_block_types'][ $name ] ?? null;
+			return $type instanceof WP_Block_Type ? $type : null;
+		}
+	}
+}
 if ( ! function_exists( 'add_rewrite_rule' ) ) {
 	function add_rewrite_rule( string $regex, mixed $query, string $after = 'bottom' ): void {
 		$GLOBALS['bfrc_test_rewrite_rules'][] = [ $regex, $query, $after ];

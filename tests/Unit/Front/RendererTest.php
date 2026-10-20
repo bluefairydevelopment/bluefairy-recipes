@@ -329,6 +329,14 @@ final class RendererTest extends TestCase {
 		$this->assertTrue( Renderer::has_body( '<!-- wp:group --><div class="wp-block-group"><!-- wp:paragraph --><p>Inside.</p><!-- /wp:paragraph --></div><!-- /wp:group -->' ), 'a group with text' );
 		$this->assertTrue( Renderer::has_body( '<!-- wp:group --><div class="wp-block-group"><!-- wp:block {"ref":12} /--></div><!-- /wp:group -->' ), 'a group around a synced pattern' );
 		$this->assertTrue( Renderer::has_body( '<!-- wp:quote --><blockquote class="wp-block-quote"><!-- wp:paragraph --><p>Quoted.</p><!-- /wp:paragraph --></blockquote><!-- /wp:quote -->' ) );
+		$GLOBALS['bfrc_test_block_types'] = [
+			'core/html'  => new \WP_Block_Type( 'core/html' ),
+			'core/block' => new \WP_Block_Type( 'core/block', static fn(): string => '' ),
+		];
+		$this->assertFalse( Renderer::has_body( '<!-- wp:html /-->' ), 'an empty Custom HTML block is static and empty: not a body' );
+		$this->assertTrue( Renderer::has_body( '<!-- wp:block {"ref":12} /-->' ), 'a synced pattern renders on request' );
+		$this->assertTrue( Renderer::has_body( '<!-- wp:bfrcp/reviews /-->' ), 'a block this site did not register (an add-on\'s) is taken as dynamic');
+		$GLOBALS['bfrc_test_block_types'] = [];
 		$this->assertSame( [ 'core/group' ], array_column( parse_blocks( '<!-- wp:group --><div class="wp-block-group"><!-- wp:paragraph --><p>x</p><!-- /wp:paragraph --></div><!-- /wp:group -->' ), 'blockName' ), 'the harness parser nests children like core' );
 		$this->assertSame( 'core/paragraph', parse_blocks( '<!-- wp:group --><div class="wp-block-group"><!-- wp:paragraph --><p>x</p><!-- /wp:paragraph --></div><!-- /wp:group -->' )[0]['innerBlocks'][0]['blockName'] );
 		// Classic (non-block) content.

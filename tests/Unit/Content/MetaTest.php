@@ -89,6 +89,13 @@ final class MetaTest extends TestCase {
 		$GLOBALS['bfrc_test_caps'] = [];
 
 		bfrc_test_add_post( [ 'ID' => 42, 'post_type' => 'bfrc_recipe' ] );
+		// A collection: core keeps the items' data only, so the collection response gets the header at dispatch.
+		$server     = new \WP_REST_Server();
+		$collection = Meta::no_store_when_protected( new \WP_REST_Response( [ $locked, [ 'id' => 42 ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' ) );
+		$this->assertSame( 'no-store', $collection->get_headers()['Cache-Control'], 'a collection that carried a locked recipe is not cached' );
+		$next = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 42 ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' ) );
+		$this->assertArrayNotHasKey( 'Cache-Control', $next->get_headers(), 'the flag is per request: the next response is untouched' );
+		$this->assertSame( 'x', Meta::no_store_when_protected( 'x', $server, new \WP_REST_Request() ), 'not a response object: passed through' );
 		$open = Meta::hide_protected_meta( $make(), get_post( 42 ), new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/42' ) );
 		$this->assertSame( $meta, $open->get_data()['meta'], 'no password, nothing to hide' );
 		$this->assertArrayNotHasKey( 'Cache-Control', $open->get_headers(), 'an open recipe caches as core decides' );
@@ -106,6 +113,7 @@ final class MetaTest extends TestCase {
 		$m->register_hooks();
 		$this->assertSame( 7, has_action( 'init', [ $m, 'register' ] ) );
 		$this->assertSame( 10, has_filter( 'rest_prepare_bfrc_recipe', [ Meta::class, 'hide_protected_meta' ] ), 'a locked recipe\'s REST item carries no field values' );
+		$this->assertSame( 10, has_filter( 'rest_post_dispatch', [ Meta::class, 'no_store_when_protected' ] ), 'and the response that embeds one is never cached' );
 		foreach ( [ 'added_post_meta', 'updated_post_meta', 'deleted_post_meta' ] as $hook ) {
 			$this->assertSame( 10, has_action( $hook, [ Meta::class, 'flush_featured_ids' ] ), $hook );
 		}

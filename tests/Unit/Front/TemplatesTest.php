@@ -311,6 +311,15 @@ final class TemplatesTest extends TestCase {
 		} catch ( \BfrcTestExit $e ) {
 			$this->assertSame( 'https://example.com/recipes/chef/ann/feed/', $e->payload, 'the override goes to the resolved writer\'s own feed' );
 		}
+		$atom          = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann', 'feed' => 'atom', 'paged' => 2 ], 'author' );
+		$atom->is_feed = true;
+		$_GET          = [ 'author_name' => 'ann', 'paged' => '2' ];
+		try {
+			$this->templates->guard();
+			$this->fail( 'expected a redirect' );
+		} catch ( \BfrcTestExit $e ) {
+			$this->assertSame( 'https://example.com/recipes/chef/ann/feed/atom/', $e->payload, 'the format is kept, the page segment is not (no feed rule serves /page/N/, core paginates feeds by query argument)' );
+		}
 		$GLOBALS['wp_rewrite']->permalink_structure = '';
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
 		$_GET = [ 'bfrc_writer' => '1', 'author_name' => 'ann' ];
@@ -602,6 +611,12 @@ final class TemplatesTest extends TestCase {
 		$this->assertSame( '', $t->render_single_block(), 'a feed item never carries a whole recipe page' );
 		$feed->posts = [ get_post( 41 ) ];
 		$this->assertSame( '', $t->render_archive_block(), 'nor a grid' );
+		$recipe_page                 = bfrc_test_front_query( [], 'single' );
+		$recipe_page->queried_object = get_post( 41 );
+		$recipe_page->posts          = [ get_post( 41 ) ];
+		$this->assertSame( '', $t->render_archive_block(), 'the archive block belongs to list views: on a recipe page it would be a one-card grid of that recipe' );
+		$recipe_page->main = false;
+		$this->assertSame( '', $t->render_single_block(), 'a secondary query is not the page: the single block renders from the main query only' );
 		$page                 = bfrc_test_front_query( [], 'single' );
 		$page->queried_object = bfrc_test_add_post( [ 'ID' => 51, 'post_type' => 'page', 'post_title' => 'About' ] );
 		$page->posts          = [ get_post( 51 ) ];
