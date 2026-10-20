@@ -22,7 +22,7 @@ final class DistignoreTest extends TestCase {
 		foreach ( [ '/src', '/build', '/package.json', '/package-lock.json', '/webpack.config.js' ] as $shipped ) {
 			$this->assertNotContains( $shipped, $lines, "$shipped ships (README: the zip carries the source and the build command)" );
 		}
-		foreach ( [ '/node_modules', '/vendor', '/tests', '/bin', '/.git' ] as $excluded ) {
+		foreach ( [ '/node_modules', '/vendor', '/tests', '/bin', '/.git', '/FEATURES.md' ] as $excluded ) { // FEATURES.md is the repository's feature list; Plugin Check flags a stray markdown file in a shipped plugin.
 			$this->assertContains( $excluded, $lines, "$excluded never ships" );
 		}
 		$this->assertFileExists( BFRC_DIR . 'webpack.config.js' );

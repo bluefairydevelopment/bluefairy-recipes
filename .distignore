@@ -13,6 +13,7 @@
 /tests
 /bin
 /docs/screenshots
+/FEATURES.md
 /coverage
 /composer.json
 /composer.lock

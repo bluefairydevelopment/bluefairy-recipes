@@ -39,3 +39,13 @@
   recipe's page or a grid.
 - Every cached recipe list carries a change counter: a saved recipe, field, term or term
   rename is seen at once.
+- Recipe JSON-LD on every recipe page with a photo (Google's Recipe properties; video
+  recipes carry a VideoObject); off with Rich snippets or for a password-protected recipe.
+- Recipes → Settings: General, Listing, Writers and Data tabs; filter types can be switched
+  off and ordered.
+- Sample recipes: install three draft recipes with photos by a sample writer from the Data
+  tab, and remove them again.
+- A "Get Pro" link and a note on the settings page name what the Pro add-on adds; both go
+  when it is active.
+- readme.txt names the two video services (YouTube, Vimeo) and what they load; a POT file
+  ships in `languages/`.

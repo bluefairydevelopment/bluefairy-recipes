@@ -68,6 +68,9 @@ final class PluginTest extends TestCase {
 		$this->assertSame( 20, has_action( 'init', [ Plugin::service( 'front.blocks' ), 'register' ] ), 'blocks after the content model' );
 		$this->assertSame( 10, has_action( 'init', [ Plugin::service( 'front.blocks' ), 'register_shortcodes' ] ) );
 		$this->assertSame( 10, has_action( 'rest_api_init', [ Plugin::service( 'rest.recipes' ), 'register_routes' ] ) );
+		$this->assertInstanceOf( \BlueFairy\Recipes\Front\Schema::class, Plugin::service( 'front.schema' ) );
+		$this->assertSame( 10, has_action( 'wp_head', [ Plugin::service( 'front.schema' ), 'print_head' ] ), 'the JSON-LD' );
+		$this->assertNull( Plugin::service( 'admin.settings_page' ), 'front end: no settings page' );
 		do_action( 'init' );
 		$this->assertArrayHasKey( 'bfrc_recipe', $GLOBALS['bfrc_test_post_types'] );
 		$this->assertSame( [ 'bfrc_meal_type', 'bfrc_diet', 'bfrc_season', 'bfrc_cuisine' ], array_keys( $GLOBALS['bfrc_test_taxonomies'] ) );

@@ -47,6 +47,7 @@ $bfrc_option_keys = [
 	'bfrc_db_version',
 	'bfrc_version',
 	'bfrc_flush_rewrite',
+	'bfrc_samples',
 ];
 
 /** Capabilities::ROLE_WRITER, ROLE_MANAGER. */

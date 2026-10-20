@@ -98,11 +98,14 @@ final class Plugin {
 		$query  = new Front\RecipeQuery( $settings, $taxonomies );
 		$blocks = new Front\Blocks( $settings, $taxonomies, $renderer, $query, $templates );
 		$rest   = new Rest\Recipes( $settings, $taxonomies, $query, $renderer );
+		$schema = new Front\Schema( $settings, $taxonomies, $writers );
 		$blocks->register_hooks();
 		$rest->register_hooks();
+		$schema->register_hooks();
 		self::set( 'front.query', $query );
 		self::set( 'front.blocks', $blocks );
 		self::set( 'rest.recipes', $rest );
+		self::set( 'front.schema', $schema );
 
 		if ( is_admin() ) {
 			$editor = new Admin\RecipeEditor();
@@ -114,6 +117,14 @@ final class Plugin {
 			$profile = new Admin\WriterProfile();
 			$profile->register_hooks();
 			self::set( 'admin.writer_profile', $profile );
+			$samples = new Admin\Samples();
+			$page    = new Admin\SettingsPage( $settings, $taxonomies, $samples );
+			$upsell  = new Admin\ProUpsell();
+			$page->register_hooks();
+			$upsell->register_hooks();
+			self::set( 'admin.samples', $samples );
+			self::set( 'admin.settings_page', $page );
+			self::set( 'admin.upsell', $upsell );
 		}
 
 		/**

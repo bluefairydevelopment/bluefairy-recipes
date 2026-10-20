@@ -150,6 +150,18 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_query_resolver']   = null;
 	$GLOBALS['bfrc_test_last_changed_seq'] = 0;
 	$GLOBALS['bfrc_test_unique_id']        = 0;
+	$GLOBALS['bfrc_test_next_user_id']     = 900;
+	$GLOBALS['bfrc_test_next_post_id']     = 9000;
+	$GLOBALS['bfrc_test_inserted_users']   = [];
+	$GLOBALS['bfrc_test_inserted_posts']   = [];
+	$GLOBALS['bfrc_test_deleted_users']    = [];
+	$GLOBALS['bfrc_test_deleted_attachments'] = [];
+	$GLOBALS['bfrc_test_uploads']          = [];
+	$GLOBALS['bfrc_test_attachment_meta']  = [];
+	$GLOBALS['bfrc_test_attachment_parents'] = [];
+	$GLOBALS['bfrc_test_user_insert_fails'] = false;
+	$GLOBALS['bfrc_test_post_insert_fails'] = false;
+	$GLOBALS['bfrc_test_upload_fails']     = false;
 	BlueFairy\Recipes\Front\Blocks::reset();
 	$_COOKIE                               = [];
 	$_REQUEST                              = [];

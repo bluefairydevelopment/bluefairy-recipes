@@ -54,6 +54,14 @@ Recipes are browsed by four filter types, each a taxonomy under the recipe archi
 
 Each can be switched off and reordered in Settings. A switched-off filter type keeps its terms and its admin screen but has no public archive and no public REST route. The Recipe Manager role manages terms; writers assign them. A filter type's name may not be a route under the archive (`chef`, `page`, a feed name).
 
+## SEO
+
+Every recipe page with a photo carries Recipe JSON-LD for Google (name, image, writer, dates,
+description, times, servings, meal types, cuisines, keywords, diets, ingredients, steps,
+nutrition, and the video for a video recipe), unless Rich snippets is off or the recipe is
+password-protected. A recipe without a photo gets none: Google requires an image. Recipes and
+the filter-type pages are in the site's sitemap while the plugin is enabled.
+
 ## Settings
 
 Stored in one option, `bfrc_settings`. The settings screen arrives with a later milestone;
@@ -70,6 +78,12 @@ until then the values below are the defaults the plugin installs.
 | Writer listing | On | |
 | Grant core roles | On | Authors can write recipes and Editors can manage them; turning it off takes those capabilities back. Administrators can always do everything |
 | Delete all data on uninstall | Off | |
+| Sample recipes | not installed | The Data tab installs three sample recipes (drafts, with photos) by a sample writer, and removes them again. Installing creates the writer account, so it needs the right to create users |
+
+The settings live at Recipes → Settings in four tabs (General, Listing, Writers, Data). Each
+tab saves on its own. The General tab also switches each filter type on or off and orders
+them. A "Get Pro" link in the plugins row and a note at the foot of the settings page name
+what BlueFairy Recipes Pro adds; both disappear when the add-on is active.
 
 ## Roles
 
@@ -125,6 +139,11 @@ responses may be cached for 60 seconds. While the plugin is disabled the list is
 | `bfrc_ingredient_type_labels` | filter | Name your ingredient row types in the editor |
 | `bfrc_ingredient_row_field_labels` | filter | Label the extra fields of an ingredient row type |
 | `bfrc_recipe_saved` | action | The recipe form was saved; receives the post id and every value written |
+| `bfrc_schema_data` | filter | The Recipe JSON-LD before it is printed (add `aggregateRating`, say) |
+| `bfrc_settings_tabs` | filter | Add a settings tab (label and a render callback) |
+| `bfrc_settings_page_footer` | action | Print below the settings form, on every tab |
+| `bfrc_settings_saved` | action | A settings tab was saved; receives the stored settings and the raw form values |
+| `bfrc_admin_menu_items` | filter | Add submenus under Recipes |
 | `bfrc_archive_query` | action | The public recipe list query, after per-page, search and filters are applied |
 | `bfrc_list_query_args` | filter | The query arguments of a list that is not the archive page: the REST endpoint, the Recipe List block, `[bfrc_recipes]` (receives the arguments, the normalised request and the context) |
 | `bfrc_ingredient_label_html` | filter | The label markup of one ingredient row on the recipe page |
