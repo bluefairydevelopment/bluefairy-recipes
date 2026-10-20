@@ -134,6 +134,7 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_user_queries']     = [];
 	$GLOBALS['bfrc_test_doing_filter']     = []; // doing_filter() answers true for these hook names.
 	$_COOKIE                               = [];
+	$_REQUEST                              = [];
 	$GLOBALS['bfrc_test_user_query_where'] = [];
 	$GLOBALS['bfrc_test_get_terms_calls']  = [];
 	$GLOBALS['bfrc_test_password_unlocked'] = [];

@@ -392,6 +392,8 @@ final class TemplatesTest extends TestCase {
 			$this->assertTrue( is_callable( $args['render_callback'] ), $name );
 			$this->assertTrue( $args['supports']['autoRegister'], "$name: the Site Editor gets a server-rendered preview on WordPress 7.0+" );
 			$this->assertFalse( $args['supports']['inserter'], "$name: a template block, not an inserter tile named bfrc/…" );
+			$this->assertSame( 'theme', $args['category'], $name );
+			$this->assertNotSame( '', $args['title'], "$name: the Site Editor labels the block by its title, not its raw name" );
 			$this->assertSame( '3', $args['api_version'], "$name: block API v3 (core documents the register arg as a string)" );
 			$this->assertArrayNotHasKey( 'style', $args, "$name: a block 'style' handle is enqueued on EVERY page of a classic theme; the front end enqueues when a view renders" );
 			$this->assertSame( 'bfrc-recipes', $args['editor_style'], "$name: styled in the Site Editor's canvas" );
@@ -670,6 +672,13 @@ final class TemplatesTest extends TestCase {
 		$GLOBALS['wp']->query_vars['rest_route'] = '/wp/v2/pages/5';
 		$GLOBALS['wp']->query_vars['rest_route'] = '/wp/v2/block-renderer/bfrc/recipe-single';
 		$this->assertTrue( Templates::is_editor_preview(), 'the block-renderer route is the Site Editor asking' );
+		$this->assertFalse( Templates::is_post_editor_preview() );
+		$_REQUEST['post_id'] = '41';
+		$this->assertTrue( Templates::is_post_editor_preview(), 'the post editor sends the post being edited' );
+		$this->assertStringContainsString( 'bfrc-block-note', $t->render_single_block(), 'inside a post being edited the block is a note, never another recipe\'s page' );
+		$this->assertStringContainsString( 'bfrc-block-note', $t->render_archive_block(), 'nor a grid' );
+		$this->assertStringNotContainsString( 'bfrc-grid', $t->render_archive_block() );
+		unset( $_REQUEST['post_id'] );
 		$this->assertStringContainsString( 'class="bfrc-recipe__title">Soup<', $t->render_single_block(), 'the Site Editor\'s block-renderer request has no recipe in context: preview the newest published one' );
 		$this->assertSame( 'publish', $GLOBALS['bfrc_test_get_posts_calls'][0]['post_status'] );
 		$this->assertSame( 1, $GLOBALS['bfrc_test_get_posts_calls'][0]['numberposts'] );

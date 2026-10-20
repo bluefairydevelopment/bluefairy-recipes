@@ -166,8 +166,24 @@ final class Templates {
 				],
 			],
 		];
-		register_block_type( self::BLOCK_SINGLE, $block_args + [ 'render_callback' => [ $this, 'render_single_block' ] ] );
-		register_block_type( self::BLOCK_LIST, $block_args + [ 'render_callback' => [ $this, 'render_archive_block' ] ] );
+		register_block_type(
+			self::BLOCK_SINGLE,
+			$block_args + [
+				'title'           => __( 'Single Recipe', 'bluefairy-recipes' ),
+				'description'     => __( 'The recipe the template is showing.', 'bluefairy-recipes' ),
+				'category'        => 'theme',
+				'render_callback' => [ $this, 'render_single_block' ],
+			]
+		);
+		register_block_type(
+			self::BLOCK_LIST,
+			$block_args + [
+				'title'           => __( 'Recipes Archive', 'bluefairy-recipes' ),
+				'description'     => __( 'The recipe grid with filters, a filter type, a writer, or the writers list.', 'bluefairy-recipes' ),
+				'category'        => 'theme',
+				'render_callback' => [ $this, 'render_archive_block' ],
+			]
+		);
 		if ( function_exists( 'register_block_template' ) ) {
 			register_block_template(
 				'bluefairy-recipes//single-' . PostType::NAME,
@@ -645,6 +661,9 @@ final class Templates {
 		if ( ! $this->view_block_allowed( $wp_query instanceof \WP_Query ? $wp_query : null, true ) ) {
 			return '';
 		}
+		if ( self::is_post_editor_preview() ) {
+			return self::body_note();
+		}
 		$post = get_post(); // Inside a recipe's own body Renderer::single() returns '' (its re-entrancy guard).
 		if ( ! $post instanceof \WP_Post || PostType::NAME !== $post->post_type ) {
 			if ( ! self::is_editor_preview() ) {
@@ -673,6 +692,24 @@ final class Templates {
 	}
 
 	/**
+	 * Is the editor preview for a post being edited (the post editor's
+	 * block-renderer request carries `post_id`; the Site Editor's template
+	 * preview does not)? A view block pasted into a body then shows a note,
+	 * never another recipe's page or a grid inside the body.
+	 */
+	public static function is_post_editor_preview(): bool {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- the block-renderer route verified its own nonce; only the presence of the id matters here.
+		return self::is_editor_preview() && absint( wp_unslash( $_REQUEST['post_id'] ?? 0 ) ) > 0;
+	}
+
+	/**
+	 * The note a view block shows inside a post being edited.
+	 */
+	private static function body_note(): string {
+		return '<p class="bfrc-block-note">' . esc_html__( 'This block renders from the recipe template on the site; inside a recipe\'s own text it shows nothing.', 'bluefairy-recipes' ) . '</p>';
+	}
+
+	/**
 	 * Is this the block editor asking for a server-rendered preview (the
 	 * block-renderer REST route), rather than a visitor's page or any other
 	 * REST request that renders content (a page's `content.rendered`, a
@@ -698,6 +735,9 @@ final class Templates {
 		global $wp_query;
 		if ( ! $wp_query instanceof \WP_Query || Renderer::is_rendering_single() || ! $this->view_block_allowed( $wp_query, false ) ) {
 			return '';
+		}
+		if ( self::is_post_editor_preview() ) {
+			return self::body_note();
 		}
 		if ( self::is_editor_preview() && is_array( $attributes ) && 'writers' === ( $attributes['view'] ?? '' ) ) {
 			self::enqueue_assets();
