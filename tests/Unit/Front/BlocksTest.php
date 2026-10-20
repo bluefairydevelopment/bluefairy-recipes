@@ -392,9 +392,9 @@ final class BlocksTest extends TestCase {
 		$this->assertSame( 'https://example.com/recettes-%C3%A9t%C3%A9/page/2/', $this->blocks->base_url(), 'a percent-encoded path survives' );
 		$GLOBALS['wp']->request = '';
 		$this->assertSame( 'https://example.com/', $this->blocks->base_url(), 'the front page' );
-		$GLOBALS['wp']->query_vars = [ 's' => 'a b', 'cat' => '1', 'bfrc_s' => 'pie', 'bfrc_filter' => [ 'diet' => 'vegan' ], 'bfrc_page' => '2', 'empty' => '' ];
-		$this->assertSame( 'https://example.com/?s=a%20b&cat=1', $this->blocks->base_url(), 'a query-only request keeps its own public query vars (encoded), not the list\'s' );
-		$this->assertSame( [ 'action' => 'https://example.com/', 'hidden' => '<input type="hidden" name="s" value="a b"><input type="hidden" name="cat" value="1">' ], Blocks::form_target( $this->blocks->base_url() ), 'and the form carries them as hidden fields' );
+		$GLOBALS['wp']->query_vars = [ 's' => "O\\'Brien b", 'cat' => '1', 'bfrc_s' => 'pie', 'bfrc_filter' => [ 'diet' => 'vegan' ], 'bfrc_page' => '2', 'empty' => '' ]; // Core stores query vars slashed.
+		$this->assertSame( 'https://example.com/?s=O%27Brien%20b&cat=1', $this->blocks->base_url(), 'a query-only request keeps its own public query vars (unslashed, encoded), not the list\'s' );
+		$this->assertSame( [ 'action' => 'https://example.com/', 'hidden' => '<input type="hidden" name="s" value="O&#039;Brien b"><input type="hidden" name="cat" value="1">' ], Blocks::form_target( $this->blocks->base_url() ), 'and the form carries them as hidden fields, unslashed (a re-submit must not grow a backslash)' );
 		$GLOBALS['wp']->query_vars = [];
 		$q                    = bfrc_test_front_query( [], 'single' );
 		$q->queried_object_id = 9;

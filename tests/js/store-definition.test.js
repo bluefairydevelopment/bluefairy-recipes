@@ -83,6 +83,9 @@ test( 'a select change, the Filter button, Reset and a page link, with focus pla
 	assert.equal( h.calls.timers.length, 1 );
 	h.actions.filter( { target: { getAttribute: () => null, value: 'x' } } );
 	assert.equal( h.calls.timers.length, 1, 'a select without a code is ignored' );
+	h.actions.filter( { target: { getAttribute: () => 'meal_type', value: 'lunch' } } );
+	assert.equal( h.calls.timers.length, 1, 'a change on a fixed code\'s (hidden) select is ignored too' );
+	assert.equal( h.state.query.filter.meal_type, undefined );
 	let prevented = 0;
 	await h.actions.submit( { preventDefault: () => prevented++ } );
 	assert.equal( prevented, 1, 'the Filter button loads at once, no navigation' );
@@ -145,6 +148,9 @@ test( 'callbacks write the grid and the pagination only after a load, as the PHP
 	h.setElement( h.results );
 	h.callbacks.renderResults();
 	assert.equal( h.results.innerHTML, '<ul class="bfrc-grid"><li class="bfrc-grid__item"><article>a</article></li><li class="bfrc-grid__item"><article>b</article></li></ul>' );
+	h.results.innerHTML = 'untouched';
+	h.callbacks.renderResults();
+	assert.equal( h.results.innerHTML, 'untouched', 'the results watcher re-running for the same answer writes nothing' );
 	h.setElement( h.pagination );
 	h.callbacks.renderPagination();
 	assert.equal( h.pagination.innerHTML, '<ul class="page-numbers"><li><a class="prev page-numbers" href="https://example.com/cook/?bfrc_s=pie" data-bfrc-page="1">&laquo; Previous</a></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=pie" data-bfrc-page="1">1</a></li><li><span aria-current="page" class="page-numbers current" tabindex="-1">2</span></li><li><a class="page-numbers" href="https://example.com/cook/?bfrc_s=pie&#038;bfrc_page=3" data-bfrc-page="3">3</a></li><li><a class="next page-numbers" href="https://example.com/cook/?bfrc_s=pie&#038;bfrc_page=3" data-bfrc-page="3">Next &raquo;</a></li></ul>' );

@@ -297,8 +297,10 @@ final class Blocks {
 	 * the same markup without directives, from the request alone. Fixed
 	 * filters (`filters`, code => slug) are applied on top of the request's
 	 * and their selects are left out of the form. With pagination shown, a
-	 * page past the last one shows the last page (a page-1 query for the
-	 * count, then the last page: two extra queries, on a bad URL only).
+	 * page past the last one shows the last page: a page-1 run for the count
+	 * (fetched in full, so a one-page list needs nothing more), then the last
+	 * page: up to two extra `WP_Query` runs (about five statements), on a bad
+	 * URL only.
 	 *
 	 * @param array{per_page: int, filters: array<string, string>, show_filters: bool, show_pagination: bool} $args    The list's settings.
 	 * @param string                                                                                          $context `block` or `shortcode`, for `bfrc_list_query_args`.
@@ -532,7 +534,7 @@ final class Blocks {
 			}
 		}
 		global $wp;
-		$request = $wp instanceof \WP ? trim( (string) $wp->request, '/' ) : ''; // null on older cores before parse_request(), '' from 7.0.
+		$request = $wp instanceof \WP ? trim( (string) $wp->request, '/' ) : ''; // A string on every supported core (6.7 declares `public $request = ''`); the cast guards an older one.
 		if ( '' !== $request ) {
 			return esc_url_raw( home_url( user_trailingslashit( '/' . $request ) ) );
 		}
@@ -541,7 +543,7 @@ final class Blocks {
 		$args = [];
 		foreach ( $wp instanceof \WP ? $wp->query_vars : [] as $key => $value ) {
 			if ( is_scalar( $value ) && '' !== (string) $value && ! in_array( (string) $key, [ Templates::SEARCH_VAR, Templates::FILTER_VAR, RecipeQuery::PAGE_VAR ], true ) ) {
-				$args[ (string) $key ] = rawurlencode( (string) $value );
+				$args[ (string) $key ] = rawurlencode( wp_unslash( (string) $value ) ); // Core stores query vars slashed; its own readers unslash (get_search_query()).
 			}
 		}
 		return esc_url_raw( [] === $args ? home_url( '/' ) : add_query_arg( $args, home_url( '/' ) ) );

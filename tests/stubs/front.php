@@ -211,7 +211,7 @@ if ( ! class_exists( 'WP' ) ) {
 	final class WP {
 		/** @var array<string, mixed> */
 		public array $query_vars = [];
-		public ?string $request  = null; // The matched request path, home-relative, no slashes at the ends; null on older cores before parse_request(), '' from 7.0.
+		public ?string $request  = null; // The matched request path, home-relative, no slashes at the ends; '' on every supported core (6.7+), null modelled for an older one.
 	}
 }
 if ( ! function_exists( 'parse_blocks' ) ) {

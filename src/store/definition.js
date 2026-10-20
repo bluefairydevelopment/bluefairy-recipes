@@ -117,8 +117,8 @@ export function createStore( api ) {
 			filter( event ) {
 				const state = api.state();
 				const code = event.target.getAttribute( 'data-bfrc-code' );
-				if ( ! code || ! ready( state ) ) {
-					return;
+				if ( ! code || ! ready( state ) || ( state.fixed && state.fixed[ code ] ) ) {
+					return; // A fixed code's select is hidden; a change on it (forced) would only repeat the same request.
 				}
 				state.query.filter[ code ] = String( event.target.value || '' );
 				state.query.page = 1;
