@@ -23,3 +23,19 @@
   filter control that was used; pagination lays out as a row; filters fill the width on phones;
   the stylesheet loads on recipe views only; the recipe blocks render only on recipe pages,
   never inside feeds or API items; a password-protected recipe's API item is never cached.
+- Blocks: Recipe List (per page, fixed filters, filter form and pagination switches), Recipe
+  Filters, Featured Recipes (featured or newest, 1–12) and Recipe Card; shortcodes
+  `[bfrc_recipes]`, `[bfrc_featured]` and `[bfrc_writers]` with the same markup.
+- Filtering a Recipe List updates it without a reload (600 ms after the last change); the
+  page address follows so a reload or a shared link opens the same list; plain links and a
+  plain form without JavaScript; a slow answer never overwrites a newer one; focus stays in
+  the form, or moves to the new current page after a page change; the first list rendered on
+  a page is the live one.
+- Inside the editor the blocks' previews are inert: a click in the preview's form cannot
+  navigate the editor.
+- Public REST endpoint `GET /bfrc/v1/recipes` (keyword, filters, page, per page; bounded;
+  cards included; a locked recipe is its locked card for every caller; empty while disabled).
+- A view block pasted into a post's text shows a note in the editor instead of another
+  recipe's page or a grid.
+- Every cached recipe list carries a change counter: a saved recipe, field, term or term
+  rename is seen at once.

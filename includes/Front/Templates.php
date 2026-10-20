@@ -48,6 +48,13 @@ final class Templates {
 	public const WRITERS_TEMPLATE = 'bfrc-writers';
 
 	/**
+	 * The view blocks' editor script (built from `src/view-blocks.js`): it
+	 * registers their `edit` as a server-side render, whose request carries
+	 * `post_id` in the post editor and not in the Site Editor.
+	 */
+	public const VIEW_BLOCKS_SCRIPT = 'bfrc-view-blocks';
+
+	/**
 	 * Wire the dependencies.
 	 *
 	 * @param Settings   $settings   The settings service.
@@ -140,6 +147,30 @@ final class Templates {
 	public static function register_assets(): void {
 		wp_register_style( self::STYLE, BFRC_URL . 'assets/front/recipes.css', [], BFRC_VERSION );
 		wp_register_script( self::SCRIPT, BFRC_URL . 'assets/front/recipes.js', [], BFRC_VERSION, true );
+		self::register_view_blocks_script();
+	}
+
+	/**
+	 * Register the view blocks' editor script from its built asset file (on
+	 * `enqueue_block_assets`, with the other assets: never at `init`); false
+	 * when the build is absent (a source checkout), in which case the handle
+	 * the blocks name stays unregistered and they keep core's auto-registered
+	 * preview.
+	 */
+	public static function register_view_blocks_script(): bool {
+		$asset_file = BFRC_DIR . 'build/view-blocks.asset.php';
+		if ( ! is_readable( $asset_file ) ) {
+			return false;
+		}
+		$asset = include $asset_file;
+		$asset = is_array( $asset ) ? $asset : [];
+		return (bool) wp_register_script(
+			self::VIEW_BLOCKS_SCRIPT,
+			BFRC_URL . 'build/view-blocks.js',
+			is_array( $asset['dependencies'] ?? null ) ? $asset['dependencies'] : [],
+			is_string( $asset['version'] ?? null ) ? $asset['version'] : BFRC_VERSION,
+			true
+		);
 	}
 
 	/**
@@ -153,13 +184,14 @@ final class Templates {
 		// (block themes load block assets on demand), which would have put the print rules on the
 		// whole site. The front end enqueues through enqueue_assets() when a view renders.
 		$block_args = [
-			'api_version'  => '3',
-			'supports'     => [
+			'api_version'           => '3',
+			'supports'              => [
 				'autoRegister' => true,
 				'inserter'     => false, // Template blocks: core's auto-registration would otherwise list them in the inserter under their raw names.
 			],
-			'editor_style' => self::STYLE,
-			'attributes'   => [
+			'editor_style'          => self::STYLE,
+			'editor_script_handles' => [ self::VIEW_BLOCKS_SCRIPT ], // Registered in register_assets(); core enqueues it in the editors.
+			'attributes'            => [
 				'view' => [
 					'type'    => 'string',
 					'default' => '',
@@ -447,7 +479,7 @@ final class Templates {
 			if ( in_array( (string) $key, $consumed, true ) ) {
 				continue;
 			}
-			$keep[ sanitize_key( (string) $key ) ] = map_deep( wp_unslash( $value ), 'sanitize_text_field' );
+			$keep[ sanitize_key( (string) $key ) ] = map_deep( wp_unslash( $value ), static fn( mixed $v ): string => rawurlencode( sanitize_text_field( is_scalar( $v ) ? (string) $v : '' ) ) ); // add_query_arg() does not encode values.
 		}
 		// phpcs:enable
 		unset( $keep[''] );
@@ -577,8 +609,16 @@ final class Templates {
 	public static function enqueue_assets(): void {
 		// The src is repeated so the classic templates work even if register() has not run (a theme
 		// calling the Renderer before init 20).
-		wp_enqueue_style( self::STYLE, BFRC_URL . 'assets/front/recipes.css', [], BFRC_VERSION );
+		self::enqueue_style();
 		wp_enqueue_script( self::SCRIPT, BFRC_URL . 'assets/front/recipes.js', [], BFRC_VERSION, true );
+	}
+
+	/**
+	 * The stylesheet alone: blocks and shortcodes need no archive script
+	 * (it binds the archive's form and the recipe page's print button).
+	 */
+	public static function enqueue_style(): void {
+		wp_enqueue_style( self::STYLE, BFRC_URL . 'assets/front/recipes.css', [], BFRC_VERSION );
 	}
 
 	/**
@@ -661,6 +701,9 @@ final class Templates {
 		if ( ! $this->view_block_allowed( $wp_query instanceof \WP_Query ? $wp_query : null, true ) ) {
 			return '';
 		}
+		if ( self::is_post_editor_preview() ) {
+			return self::body_note();
+		}
 		$post = get_post(); // Inside a recipe's own body Renderer::single() returns '' (its re-entrancy guard).
 		if ( ! $post instanceof \WP_Post || PostType::NAME !== $post->post_type ) {
 			if ( ! self::is_editor_preview() ) {
@@ -689,6 +732,25 @@ final class Templates {
 	}
 
 	/**
+	 * Is the editor preview for a post being edited? The view blocks' editor
+	 * script renders them through `ServerSideRender`, whose request carries
+	 * `post_id` in the post editor (a numeric current post) and not in the
+	 * Site Editor (templates have string ids). A view block pasted into a
+	 * body then shows a note, never another recipe's page or a grid.
+	 */
+	public static function is_post_editor_preview(): bool {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a cookie-authenticated REST request passed core's nonce check and the block-renderer route needs edit_posts; only the presence of the id matters here.
+		return self::is_editor_preview() && absint( wp_unslash( $_GET['post_id'] ?? 0 ) ) > 0;
+	}
+
+	/**
+	 * The note a view block shows inside a post being edited.
+	 */
+	public static function body_note(): string {
+		return '<p class="bfrc-block-note">' . esc_html__( 'This block renders from the recipe template on the site; inside a post\'s own text it shows nothing. Use the Recipe List, Featured Recipes or Recipe Card block here.', 'bluefairy-recipes' ) . '</p>';
+	}
+
+	/**
 	 * Is this the block editor asking for a server-rendered preview (the
 	 * block-renderer REST route), rather than a visitor's page or any other
 	 * REST request that renders content (a page's `content.rendered`, a
@@ -714,6 +776,9 @@ final class Templates {
 		global $wp_query;
 		if ( ! $wp_query instanceof \WP_Query || Renderer::is_rendering_single() || ! $this->view_block_allowed( $wp_query, false ) ) {
 			return '';
+		}
+		if ( self::is_post_editor_preview() ) {
+			return self::body_note();
 		}
 		if ( self::is_editor_preview() && is_array( $attributes ) && 'writers' === ( $attributes['view'] ?? '' ) ) {
 			self::enqueue_assets();

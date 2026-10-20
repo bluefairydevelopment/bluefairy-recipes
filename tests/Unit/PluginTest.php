@@ -61,6 +61,13 @@ final class PluginTest extends TestCase {
 		$this->assertSame( 10, has_filter( 'woocommerce_disable_admin_bar', [ Capabilities::class, 'allow_writer_admin_access' ] ) );
 		$this->assertSame( 10, has_action( 'pre_user_query', [ Plugin::service( 'front.writers' ), 'exclude_opted_out' ] ), 'Writers registers its own hooks' );
 		$this->assertSame( 10, has_filter( 'wp_unique_post_slug', [ Plugin::service( 'content.slugs' ), 'filter_unique_slug' ] ) );
+		foreach ( [ 'content.cache' => \BlueFairy\Recipes\Content\Cache::class, 'front.query' => \BlueFairy\Recipes\Front\RecipeQuery::class, 'front.blocks' => \BlueFairy\Recipes\Front\Blocks::class, 'rest.recipes' => \BlueFairy\Recipes\Rest\Recipes::class ] as $id => $class ) {
+			$this->assertInstanceOf( $class, Plugin::service( $id ), $id );
+		}
+		$this->assertSame( 10, has_action( 'clean_post_cache', [ \BlueFairy\Recipes\Content\Cache::class, 'on_post_cache' ] ), 'the cache incrementor listens' );
+		$this->assertSame( 20, has_action( 'init', [ Plugin::service( 'front.blocks' ), 'register' ] ), 'blocks after the content model' );
+		$this->assertSame( 10, has_action( 'init', [ Plugin::service( 'front.blocks' ), 'register_shortcodes' ] ) );
+		$this->assertSame( 10, has_action( 'rest_api_init', [ Plugin::service( 'rest.recipes' ), 'register_routes' ] ) );
 		do_action( 'init' );
 		$this->assertArrayHasKey( 'bfrc_recipe', $GLOBALS['bfrc_test_post_types'] );
 		$this->assertSame( [ 'bfrc_meal_type', 'bfrc_diet', 'bfrc_season', 'bfrc_cuisine' ], array_keys( $GLOBALS['bfrc_test_taxonomies'] ) );

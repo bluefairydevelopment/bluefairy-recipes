@@ -1,11 +1,14 @@
 {
   "name": "bluefairy-recipes-dev",
   "private": true,
-  "description": "Development dependencies for the BlueFairy Recipes JavaScript tests (not shipped).",
+  "description": "Development dependencies for the BlueFairy Recipes blocks and JavaScript tests (not shipped); `build/` is committed.",
   "scripts": {
+    "build": "wp-scripts build --experimental-modules",
+    "start": "wp-scripts start --experimental-modules",
     "test": "node --test tests/js/*.test.js"
   },
   "devDependencies": {
+    "@wordpress/scripts": "^30.27.0",
     "jsdom": "^26.1.0"
   }
 }

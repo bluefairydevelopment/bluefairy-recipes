@@ -40,6 +40,13 @@ if ( ! class_exists( 'WP_Query' ) ) {
 		public function __construct( array $vars = [], bool $main = true ) {
 			$this->query_vars = $vars;
 			$this->main       = $main;
+			$GLOBALS['bfrc_test_queries'][] = $vars;
+			$resolver = $GLOBALS['bfrc_test_query_resolver'] ?? null;
+			if ( [] !== $vars && is_callable( $resolver ) ) {
+				[ $this->posts, $this->found_posts, $this->max_num_pages ] = $resolver( $vars );
+				$this->post_count = count( (array) $this->posts );
+				$this->main       = false; // A query built by a block or the REST endpoint is never the main query.
+			}
 		}
 		public function get( string $var, mixed $default_value = '' ): mixed {
 			return $this->query_vars[ $var ] ?? $default_value;
@@ -204,6 +211,7 @@ if ( ! class_exists( 'WP' ) ) {
 	final class WP {
 		/** @var array<string, mixed> */
 		public array $query_vars = [];
+		public ?string $request  = null; // The matched request path, home-relative, no slashes at the ends; '' on every supported core (6.7+), null modelled for an older one.
 	}
 }
 if ( ! function_exists( 'parse_blocks' ) ) {

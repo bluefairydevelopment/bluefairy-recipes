@@ -48,6 +48,11 @@ final class Meta {
 	 */
 	private static int $dispatch_depth = 0;
 
+	/**
+	 * Every recipe field key starts with this.
+	 */
+	public const PREFIX = '_bfrc_';
+
 	public const MEDIA_TYPE   = '_bfrc_media_type';
 	public const VIDEO_URL    = '_bfrc_video_url';
 	public const PREP_MINUTES = '_bfrc_prep_minutes';

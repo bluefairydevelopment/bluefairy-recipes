@@ -80,6 +80,36 @@ until then the values below are the defaults the plugin installs.
 
 Administrators can always change settings.
 
+## Blocks and shortcodes
+
+| Block | Shortcode | What it shows |
+|---|---|---|
+| Recipe List | `[bfrc_recipes per_page="12" show_filters="1" show_pagination="1" diet="vegan"]` | A page of recipes with the filter form and pagination. Recipes per page 0 (or absent) uses the setting. A fixed filter (one attribute per filter type: `meal_type`, `diet`, `season`, `cuisine`, …) narrows the list and removes that select from the form. Changing a filter, or pausing while typing, updates the list without a reload (600 ms); the page's address follows, so a reload or a shared link opens the same list. Without JavaScript the form and the page links work as plain links |
+| Recipe Filters | — | The filter form alone, for a Recipe List block placed elsewhere on the page (set that list's "Show the filter form" off). A select for a filter type that list fixes hides itself once the page scripts run |
+| Featured Recipes | `[bfrc_featured title="Featured recipes" mode="featured" count="4"]` | The featured recipes, or with `mode="recent"` the newest ones, 1 to 12 cards. Shows nothing when there is nothing to show |
+| Recipe Card | — | One recipe as a card, chosen by title in the block settings |
+| Recipe Writers (template) | `[bfrc_writers]` | The writers listing; on a page it is paged by `?bfrc_page=N` of that page |
+
+A shortcode renders exactly the markup of its block (less the block's wrapper element). One
+list per page is the one the filters update without a reload: the first rendered, which is a
+Recipe List block before any `[bfrc_recipes]` shortcode in the same content, whatever their
+order on the page; another list shows the page's address with a plain form and plain links. A
+Recipe Filters block placed above the list it drives hides a fixed filter's select only once
+the page scripts run; place it after the list, or use the list's own form, if visitors
+without JavaScript matter. The browser's Back button does not step through filter changes
+(the address is updated in place). A list on page 2 or later of a post split with "Page break"
+is not supported. A password-protected recipe is a locked card (title, photo, writer) in every
+list.
+
+## REST API
+
+`GET /wp-json/bfrc/v1/recipes` is public and read-only. Arguments: `s` (title keyword, up to
+100 characters), `page` (1–1000), `per_page` (1–100; 101 is refused), `filter[diet]=vegan`
+(one term slug per filter type; any other key under `filter`, such as `filter[page]`, is
+refused). Each item carries `id`, `title`, `url`, `thumb`, `writer`, `times`, `excerpt` and
+`html` (the card). Totals are in the `X-WP-Total` and `X-WP-TotalPages` headers. Anonymous
+responses may be cached for 60 seconds. While the plugin is disabled the list is empty.
+
 ## Extending
 
 | Hook | Kind | Purpose |
@@ -96,6 +126,7 @@ Administrators can always change settings.
 | `bfrc_ingredient_row_field_labels` | filter | Label the extra fields of an ingredient row type |
 | `bfrc_recipe_saved` | action | The recipe form was saved; receives the post id and every value written |
 | `bfrc_archive_query` | action | The public recipe list query, after per-page, search and filters are applied |
+| `bfrc_list_query_args` | filter | The query arguments of a list that is not the archive page: the REST endpoint, the Recipe List block, `[bfrc_recipes]` (receives the arguments, the normalised request and the context) |
 | `bfrc_ingredient_label_html` | filter | The label markup of one ingredient row on the recipe page |
 | `bfrc_render_ingredient_actions` | action | After the ingredient list on the recipe page |
 | `bfrc_single_after_steps` | action | After the method (also when a recipe has no steps) |

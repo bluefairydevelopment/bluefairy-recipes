@@ -111,7 +111,7 @@ final class TaxonomiesTest extends TestCase {
 		add_filter(
 			'bfrc_filter_taxonomies',
 			static function ( array $defs ): array {
-				foreach ( [ 'chef', 'submit', 'page', 'feed', 'wp_admin', 'rss2' ] as $route ) {
+				foreach ( [ 'chef', 'submit', 'page', 'feed', 'wp_admin', 'rss2', 'constructor' ] as $route ) {
 					$defs[ $route ] = [ 'label' => 'Route' ];
 				}
 				$defs['arrlabel'] = [ 'label' => [ 'x' ] ];
@@ -123,7 +123,8 @@ final class TaxonomiesTest extends TestCase {
 			}
 		);
 		$defs = $this->taxonomies()->definitions();
-		foreach ( [ 'chef', 'submit', 'page', 'feed', 'wp_admin', 'rss2', 'arrlabel', 'objlabel' ] as $code ) {
+		$this->assertContains( 'constructor', Taxonomies::reserved_codes(), 'the one Object.prototype name the code pattern admits: state.fixed.constructor would always be truthy in the page script' );
+		foreach ( [ 'chef', 'submit', 'page', 'feed', 'wp_admin', 'rss2', 'arrlabel', 'objlabel', 'constructor' ] as $code ) {
 			$this->assertArrayNotHasKey( $code, $defs, $code );
 		}
 		$this->assertCount( 4 + Settings::MAX_CUSTOM_TAXONOMIES, $defs, 'four system plus the cap' );
