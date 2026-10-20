@@ -88,6 +88,8 @@ export function createStore( api ) {
 		}
 	}
 
+	let focusCurrentPage = false; // Set by paginate(); honoured by renderPagination() once the new nav is in the DOM.
+
 	return {
 		state: {},
 		actions: {
@@ -153,12 +155,11 @@ export function createStore( api ) {
 				cancel();
 				state.query.page = Math.max( 1, Number( link.getAttribute( 'data-bfrc-page' ) ) || 1 );
 				const list = link.closest( '.bfrc-list' );
-				const nav = link.closest( 'nav' );
 				if ( list && typeof list.getBoundingClientRect === 'function' && list.getBoundingClientRect().top < 0 && typeof list.scrollIntoView === 'function' ) {
 					list.scrollIntoView( { block: 'start' } ); // Only when the list's top is above the viewport.
 				}
-				await load();
-				focus( nav ? nav.querySelector( '[aria-current="page"]' ) : null );
+				focusCurrentPage = true; // The nav is rebuilt by renderPagination() once the answer is in: focus moves there, not to the link about to be destroyed.
+				return load();
 			},
 		},
 		callbacks: {
@@ -179,7 +180,12 @@ export function createStore( api ) {
 					return;
 				}
 				const config = api.getConfig();
-				api.getElement().ref.innerHTML = paginationHtml( state.query.page, state.totalPages, ( n ) => urlFor( state, n ), { prev: config.prevText, next: config.nextText } );
+				const ref = api.getElement().ref;
+				ref.innerHTML = paginationHtml( state.query.page, state.totalPages, ( n ) => urlFor( state, n ), { prev: config.prevText, next: config.nextText } );
+				if ( focusCurrentPage ) {
+					focusCurrentPage = false;
+					focus( ref.querySelector ? ref.querySelector( '[aria-current="page"]' ) : null );
+				}
 			},
 		},
 	};
