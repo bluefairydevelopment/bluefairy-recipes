@@ -110,9 +110,11 @@ final class MetaTest extends TestCase {
 		$err = new \WP_Error( 'x', 'y' );
 		$this->assertSame( $err, Meta::no_store_when_protected( $err, $server, new \WP_REST_Request() ) );
 		Meta::forget_protected( null, [], new \WP_REST_Request() );
-		$bare = Meta::no_store_when_protected( new \WP_HTTP_Response( [ [ 'id' => 41, 'type' => 'post', 'subtype' => 'bfrc_recipe' ] ] ), $server, new \WP_REST_Request( 'GET', '/bfrc/v1/x' ) );
+		$bare = Meta::no_store_when_protected( new \WP_HTTP_Response( [ [ 'id' => 41, 'type' => 'post', 'subtype' => 'bfrc_recipe' ] ], 201, [ 'X-Bare' => '1' ] ), $server, new \WP_REST_Request( 'GET', '/bfrc/v1/x' ) );
 		$this->assertInstanceOf( \WP_REST_Response::class, $bare, 'a bare WP_HTTP_Response is read and wrapped as core does' );
 		$this->assertSame( 'no-store', $bare->get_headers()['Cache-Control'], 'its rows name a locked recipe' );
+		$this->assertSame( 201, $bare->get_status(), 'wrapping keeps the route\'s own status' );
+		$this->assertSame( '1', $bare->get_headers()['X-Bare'], 'and its headers, as core does' );
 		// The depth counter must balance on error responses too, or every later dispatch in the request keeps a stale flag.
 		$cookies_before = $_COOKIE;
 		$_COOKIE        = [];
