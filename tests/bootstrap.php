@@ -132,6 +132,8 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_count_calls']      = [];
 	$GLOBALS['bfrc_test_dropdowns']        = [];
 	$GLOBALS['bfrc_test_user_queries']     = [];
+	$GLOBALS['bfrc_test_doing_filter']     = []; // doing_filter() answers true for these hook names.
+	$_COOKIE                               = [];
 	$GLOBALS['bfrc_test_user_query_where'] = [];
 	$GLOBALS['bfrc_test_get_terms_calls']  = [];
 	$GLOBALS['bfrc_test_password_unlocked'] = [];
@@ -461,7 +463,12 @@ function did_action( string $hook_name ): int {
 	return (int) ( $GLOBALS['bfrc_test_fired'][ $hook_name ] ?? 0 );
 }
 function doing_action( ?string $hook_name = null ): bool {
-	return false;
+	return doing_filter( $hook_name );
+}
+/** A test sets $GLOBALS['bfrc_test_doing_filter'] to the hook names that are "running". */
+function doing_filter( ?string $hook_name = null ): bool {
+	$running = $GLOBALS['bfrc_test_doing_filter'] ?? [];
+	return null === $hook_name ? [] !== $running : in_array( $hook_name, $running, true );
 }
 
 // ------------------------------------------------------------------

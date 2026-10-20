@@ -192,6 +192,8 @@ if ( ! class_exists( 'WP_Rewrite' ) ) {
 	final class WP_Rewrite {
 		public string $permalink_structure = '/%postname%/';
 		public string $pagination_base     = 'page';
+		/** @var list<string> */
+		public array $feeds = [ 'feed', 'rdf', 'rss', 'rss2', 'atom' ];
 		public function using_permalinks(): bool {
 			return '' !== $this->permalink_structure;
 		}

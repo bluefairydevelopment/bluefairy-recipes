@@ -320,6 +320,17 @@ final class TemplatesTest extends TestCase {
 		} catch ( \BfrcTestExit $e ) {
 			$this->assertSame( 'https://example.com/recipes/chef/ann/feed/atom/', $e->payload, 'the format is kept, the page segment is not (no feed rule serves /page/N/, core paginates feeds by query argument)' );
 		}
+		foreach ( [ '../../wp-login.php', 'junk', 'rss2' ] as $bad ) {
+			$f          = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann', 'feed' => $bad ], 'author' );
+			$f->is_feed = true;
+			$_GET       = [ 'author_name' => 'ann', 'feed' => $bad ];
+			try {
+				$this->templates->guard();
+				$this->fail( 'expected a redirect' );
+			} catch ( \BfrcTestExit $e ) {
+				$this->assertSame( 'https://example.com/recipes/chef/ann/feed/', $e->payload, "feed=$bad: only a format core serves goes into the Location; the default and anything else mean the plain feed" );
+			}
+		}
 		$GLOBALS['wp_rewrite']->permalink_structure = '';
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
 		$_GET = [ 'bfrc_writer' => '1', 'author_name' => 'ann' ];
@@ -616,6 +627,12 @@ final class TemplatesTest extends TestCase {
 		$recipe_page->queried_object = get_post( 41 );
 		$recipe_page->posts          = [ get_post( 41 ) ];
 		$this->assertSame( '', $t->render_archive_block(), 'the archive block belongs to list views: on a recipe page it would be a one-card grid of that recipe' );
+		$list        = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
+		$list->posts = [ get_post( 41 ) ];
+		$GLOBALS['bfrc_test_doing_filter'] = [ 'the_content' ];
+		$this->assertSame( '', $t->render_archive_block(), 'inside a post body rendered on the archive (a Query Loop with a Post Content block in the template): a pasted archive block renders no second grid' );
+		$GLOBALS['bfrc_test_doing_filter'] = [];
+		$this->assertStringContainsString( 'bfrc-grid__item', $t->render_archive_block(), 'the template itself still gets the grid' );
 		$recipe_page->main = false;
 		$this->assertSame( '', $t->render_single_block(), 'a secondary query is not the page: the single block renders from the main query only' );
 		$page                 = bfrc_test_front_query( [], 'single' );

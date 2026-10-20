@@ -416,8 +416,10 @@ final class Templates {
 			if ( null !== $writer ) {
 				// The writer's feed URL as the rules serve it: no page segment (core paginates feeds by
 				// query argument), the requested format kept when it is not the default.
+				global $wp_rewrite;
 				$feed   = (string) $query->get( 'feed' );
-				$suffix = 'feed/' . ( '' !== $feed && 'feed' !== $feed && get_default_feed() !== $feed ? $feed . '/' : '' );
+				$known  = $wp_rewrite instanceof \WP_Rewrite && is_array( $wp_rewrite->feeds ) ? $wp_rewrite->feeds : [ 'feed', 'rdf', 'rss', 'rss2', 'atom' ];
+				$suffix = 'feed/' . ( in_array( $feed, $known, true ) && 'feed' !== $feed && get_default_feed() !== $feed ? $feed . '/' : '' ); // Only a format core serves; never a caller's string in the Location.
 				wp_safe_redirect( trailingslashit( $this->writers->url( $writer ) ) . $suffix, 301, 'BlueFairy Recipes' );
 				exit;
 			}
@@ -588,6 +590,9 @@ final class Templates {
 		}
 		if ( ! $wp_query instanceof \WP_Query || $wp_query->is_feed() || ( function_exists( 'wp_is_serving_rest_request' ) && wp_is_serving_rest_request() ) ) {
 			return false;
+		}
+		if ( doing_filter( 'the_content' ) ) {
+			return false; // Inside a post body (a Query Loop's Post Content block on the archive template included): the view blocks belong to templates, not to bodies.
 		}
 		return $single
 			? $wp_query->is_singular( PostType::NAME ) && $wp_query->is_main_query()

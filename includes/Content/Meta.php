@@ -124,7 +124,7 @@ final class Meta {
 	public function register_hooks(): void {
 		add_action( 'init', [ $this, 'register' ], 7 );
 		add_filter( 'rest_prepare_' . PostType::NAME, [ self::class, 'hide_protected_meta' ], 10, 3 );
-		add_filter( 'rest_post_dispatch', [ self::class, 'no_store_when_protected' ], 10, 3 );
+		add_filter( 'rest_request_after_callbacks', [ self::class, 'no_store_when_protected' ], 10, 3 );
 		add_action( 'added_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
 		add_action( 'updated_post_meta', [ self::class, 'reconcile_servings' ], 10, 4 );
 		add_action( 'added_post_meta', [ self::class, 'flush_featured_ids' ], 10, 3 );
@@ -386,22 +386,40 @@ final class Meta {
 	}
 
 	/**
-	 * `rest_post_dispatch`: the final response of any REST request that
-	 * prepared a password-protected recipe (a collection, a search with
-	 * `_embed`) carries `Cache-Control: no-store`, since core keeps only an
-	 * embedded item's data, not its headers.
+	 * `rest_request_after_callbacks`: a REST response that must not be
+	 * served to anyone else carries `Cache-Control: no-store`: one that
+	 * prepared a password-protected recipe (a collection keeps only an
+	 * embedded item's data, not its headers), one whose search results name
+	 * one, and **any response to a caller holding an unlock cookie**, since
+	 * what they see of a locked recipe can appear in another post's body
+	 * (a Query Loop with a Post Content block) with no protected item in the
+	 * response at all. This hook runs inside dispatch, before any
+	 * `rest_post_dispatch` consumer (the BlueFairy API Gateway stores there).
 	 *
-	 * @param mixed            $response The response about to be served.
-	 * @param \WP_REST_Server  $server   The server.
+	 * @param mixed            $response The response the route produced.
+	 * @param mixed            $handler  The route handler (core passes an array).
 	 * @param \WP_REST_Request $request  The request.
 	 */
-	public static function no_store_when_protected( mixed $response, \WP_REST_Server $server, \WP_REST_Request $request ): mixed {
-		unset( $server, $request );
-		if ( $response instanceof \WP_REST_Response && ( self::$saw_protected || self::lists_protected_recipe( $response->get_data() ) ) ) {
+	public static function no_store_when_protected( mixed $response, mixed $handler, \WP_REST_Request $request ): mixed {
+		unset( $handler, $request );
+		if ( $response instanceof \WP_REST_Response && ( self::$saw_protected || self::caller_has_unlock_cookie() || self::lists_protected_recipe( $response->get_data() ) ) ) {
 			$response->header( 'Cache-Control', 'no-store' );
 		}
 		self::$saw_protected = false;
 		return $response;
+	}
+
+	/**
+	 * Does the caller hold a `wp-postpass_*` cookie? Then any recipe they
+	 * read may be unlocked for them alone.
+	 */
+	public static function caller_has_unlock_cookie(): bool {
+		foreach ( array_keys( $_COOKIE ) as $name ) {
+			if ( is_string( $name ) && str_starts_with( $name, 'wp-postpass_' ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

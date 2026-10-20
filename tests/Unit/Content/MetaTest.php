@@ -100,6 +100,15 @@ final class MetaTest extends TestCase {
 		$this->assertSame( 'no-store', $search->get_headers()['Cache-Control'], 'a search listing a locked recipe: its items are embedded after the headers go out, so the ids decide' );
 		$open_search = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 42, 'type' => 'post', 'subtype' => 'bfrc_recipe' ], [ 'id' => 41, 'type' => 'post', 'subtype' => 'page' ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/search' ) );
 		$this->assertArrayNotHasKey( 'Cache-Control', $open_search->get_headers(), 'only a locked recipe counts; a page with the same id does not' );
+		// A caller with an unlock cookie: whatever they read may be unlocked for them alone (a Query Loop in
+		// another recipe renders the locked body), so none of their responses may be stored.
+		$this->assertFalse( Meta::caller_has_unlock_cookie() );
+		$_COOKIE['wp-postpass_abc123'] = 'hash';
+		$this->assertTrue( Meta::caller_has_unlock_cookie() );
+		$with_cookie = Meta::no_store_when_protected( new \WP_REST_Response( [ [ 'id' => 42 ] ] ), $server, new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe' ) );
+		$this->assertSame( 'no-store', $with_cookie->get_headers()['Cache-Control'], 'an open recipe\'s item, but a cookie holder asked: not stored' );
+		$_COOKIE = [ 'wordpress_test_cookie' => 'WP Cookie check' ];
+		$this->assertFalse( Meta::caller_has_unlock_cookie(), 'other cookies are not unlock cookies' );
 		$open = Meta::hide_protected_meta( $make(), get_post( 42 ), new \WP_REST_Request( 'GET', '/wp/v2/bfrc_recipe/42' ) );
 		$this->assertSame( $meta, $open->get_data()['meta'], 'no password, nothing to hide' );
 		$this->assertArrayNotHasKey( 'Cache-Control', $open->get_headers(), 'an open recipe caches as core decides' );
@@ -117,7 +126,8 @@ final class MetaTest extends TestCase {
 		$m->register_hooks();
 		$this->assertSame( 7, has_action( 'init', [ $m, 'register' ] ) );
 		$this->assertSame( 10, has_filter( 'rest_prepare_bfrc_recipe', [ Meta::class, 'hide_protected_meta' ] ), 'a locked recipe\'s REST item carries no field values' );
-		$this->assertSame( 10, has_filter( 'rest_post_dispatch', [ Meta::class, 'no_store_when_protected' ] ), 'and the response that embeds one is never cached' );
+		$this->assertSame( 10, has_filter( 'rest_request_after_callbacks', [ Meta::class, 'no_store_when_protected' ] ), 'inside dispatch, before any rest_post_dispatch consumer (a REST cache stores there)' );
+		$this->assertFalse( has_filter( 'rest_post_dispatch', [ Meta::class, 'no_store_when_protected' ] ), 'not on rest_post_dispatch: the API Gateway stores at that hook and priority before a later registrant runs' );
 		foreach ( [ 'added_post_meta', 'updated_post_meta', 'deleted_post_meta' ] as $hook ) {
 			$this->assertSame( 10, has_action( $hook, [ Meta::class, 'flush_featured_ids' ] ), $hook );
 		}
