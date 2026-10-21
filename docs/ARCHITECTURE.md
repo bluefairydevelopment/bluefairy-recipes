@@ -232,6 +232,17 @@ store's helpers and definition are plain ES modules imported directly). The harn
 encoding of entities, values not encoded) because a stub that differs from core hides real
 regressions; `bfrc_test_query_resolver()` scripts what `new WP_Query()` returns.
 
+Documentation: `tests/Unit/DocsTest.php` reads FEATURES.md, README.md, readme.txt and
+CHANGELOG.md back and compares what they quote with the code: the Settings table's defaults
+against `Settings::DEFAULTS`, its labels against the rendered tabs and its per-page bounds
+against the sanitiser; the filter-types table against `Taxonomies::system()`; the roles table
+against `Capabilities`; the Extending table against every `do_action`/`apply_filters`/`seam`
+hook name in the code, in both directions; the blocks table against `build/blocks/*/block.json`
+and the shortcode constants; the limits (rows, lengths, minutes, servings, about text, writers
+per page, REST bounds, the debounce) against their constants; readme.txt's header lines against
+the plugin header; and that no placeholder sentence is left. Each check was seen red against an
+edited copy of the document before it was trusted.
+
 `tests/bootstrap.php` is a WordPress stub harness (no database, no WordPress): hooks really
 dispatch, options and transients live in arrays, roles and users resolve capabilities as
 core does, `$wpdb` is `tests/FakeWpdb.php` with a scripted answer queue. Module stubs go in

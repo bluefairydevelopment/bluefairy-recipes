@@ -12,13 +12,70 @@ Recipes for WordPress: ingredients, steps, timings, nutrition, writer profiles, 
 
 == Description ==
 
-In development. This file is completed before the first release.
+BlueFairy Recipes turns WordPress into a recipe site. Each recipe has ingredients with measures, numbered steps, prep and cook times, servings, nutrition facts, a photo or a YouTube or Vimeo video, and a writer with a public profile page. Visitors browse by meal type, diet, season and cuisine, search by title, and share or print a recipe. Google gets Recipe structured data on every recipe page with a photo.
+
+= On the site =
+
+* A recipe archive with a filter panel (one dropdown per filter type, a title search, Filter and Reset), card grid and pagination; filtering updates the list without a reload, and the plain form works without JavaScript.
+* A page for every filter term (`/recipes/diet/vegan/`) and a writers listing with a page and feed per writer.
+* Recipe pages with the photo or video, timings, servings, filter tags, ingredients, method, nutrition facts per serving, share buttons (Facebook, X, Pinterest) and a print layout.
+* Recipe JSON-LD for Google's recipe rich results, switchable in Settings.
+* Block themes: Single Recipe, Recipes Archive and Recipe Writers templates you can edit in the Site Editor. Classic themes: bundled templates you can override from your theme.
+* Blocks: Recipe List (with fixed filters, per page, filter form and pagination switches), Recipe Filters, Featured Recipes and Recipe Card, plus the shortcodes `[bfrc_recipes]`, `[bfrc_featured]` and `[bfrc_writers]`.
+* A public read-only REST endpoint, `GET /wp-json/bfrc/v1/recipes`, for themes and apps.
+
+= In the admin =
+
+* A recipe edit screen with Recipe Details, Recipe Video, Ingredients, Steps and Nutrition panels; rows can be added, moved and dragged; works in the block editor and the classic editor.
+* A Recipes list with photo, time, servings and featured columns, filters by filter type and featured, and bulk Mark/Unmark featured.
+* Two roles: Recipe Writer (own recipes) and Recipe Manager (every recipe, the filter types, the settings). Authors and Editors get recipe capabilities too while "Grant core roles" is on.
+* Writer profile fields on the user profile: photo, header image, about text, website and social links, and a switch to appear on the public writers page.
+* Recipes → Settings: on/off switch, rich snippets, archive slug and title, recipes per page, share buttons, writer listing, core role grants, filter types on/off and order, uninstall data choice, and three sample recipes to install and remove.
+
+= BlueFairy Recipes Pro =
+
+The Pro add-on adds visitor reviews with star ratings, moderation and a rating in Google results; recipe submissions from visitors with photos, approval and admin notes; WooCommerce shoppable ingredients, affiliate ingredient links and related recipes on product pages; and your own filter types beyond meal type, diet, season and cuisine.
+
+= Requirements =
+
+WordPress 6.7 or newer with pretty permalinks, PHP 8.1 or newer. 1.0 is a single-site product: on a multisite network, activate it on each site; network activation is not supported.
 
 == Installation ==
 
 1. Upload the plugin folder to `/wp-content/plugins/`, or install it from Plugins → Add New Plugin.
 2. Activate it.
 3. Open Recipes → Settings. The Data tab can install three sample recipes to look at, and remove them again.
+4. Add a recipe under Recipes → Add New. It appears at /recipes/ (the archive slug is a setting), with its filter pages and its writer's page.
+
+== Frequently Asked Questions ==
+
+= Does it work with my theme? =
+
+Yes. A block theme gets three templates (Single Recipe, Recipes Archive, Recipe Writers) to arrange in the Site Editor. A classic theme uses the plugin's templates, which you can override by copying them into a `bluefairy-recipes` folder in your theme.
+
+= How do I put the recipe archive in my menu? =
+
+Add a custom link to `/recipes/` (or your archive slug) in a Navigation block or under Appearance → Menus. The plugin does not add menu items itself.
+
+= Where is the structured data? =
+
+Every recipe page with a featured image carries a Recipe JSON-LD script for Google, with the ingredients, steps, times, servings, nutrition, categories and, for a video recipe, the video. Turn it off under Recipes → Settings → General if your SEO plugin prints its own.
+
+= Can visitors filter recipes without reloading the page? =
+
+Yes. The archive and the Recipe List block update after a short pause when a filter or the search box changes, and the page address follows so a reload or a shared link opens the same list. Without JavaScript the form and the page links still work.
+
+= What happens to my recipes when I uninstall the plugin? =
+
+They stay, with their fields, terms and writer profiles, unless you turned on "Delete all data on uninstall" under Recipes → Settings → Data. The plugin's roles are removed either way, so after a reinstall give your writers the Recipe Writer role again.
+
+= Does it support multisite? =
+
+Each site on a network can activate the plugin on its own. Network activation is not supported in 1.0.
+
+= Are the sample recipes real? =
+
+They are three invented recipes with placeholder images, meant to show you the pages. Install and remove them from Recipes → Settings → Data; removing deletes them permanently, even if you edited or published them.
 
 == External services ==
 
@@ -48,4 +105,9 @@ The blocks' JavaScript is built with @wordpress/scripts from the `src/` director
 == Changelog ==
 
 = 1.0.0 =
-* Initial release.
+* Initial release: recipes with ingredients, steps, timings, servings, nutrition, photo or video; four filter types; archive with filters, search and pagination; writer profiles and pages; Recipe JSON-LD; share and print; blocks, shortcodes and the public REST endpoint; the settings screen, two roles and the sample recipes.
+
+== Upgrade Notice ==
+
+= 1.0.0 =
+First release.

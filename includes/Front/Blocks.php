@@ -68,13 +68,16 @@ final class Blocks {
 	public const SHORTCODE_FEATURED = 'bfrc_featured';
 	public const SHORTCODE_WRITERS  = 'bfrc_writers';
 
+	/** How long the live list waits after the last change before it fetches (the figure the guide quotes). */
+	public const DEBOUNCE_MS = 600;
+
 	/**
 	 * Build directory of each block, in registration order (the filters
 	 * block first: it owns the module the list block refers to).
 	 *
 	 * @var array<string, string> block name => render method.
 	 */
-	private const BLOCKS = [
+	public const BLOCKS = [
 		'recipe-filters'   => 'render_filters',
 		'recipe-list'      => 'render_list',
 		'featured-recipes' => 'render_featured',
@@ -648,7 +651,7 @@ final class Blocks {
 				'foundText'    => __( '%s recipes shown.', 'bluefairy-recipes' ),
 				'prevText'     => esc_html__( '&laquo; Previous', 'bluefairy-recipes' ),
 				'nextText'     => esc_html__( 'Next &raquo;', 'bluefairy-recipes' ),
-				'debounce'     => 600,
+				'debounce'     => self::DEBOUNCE_MS,
 			]
 		);
 	}
