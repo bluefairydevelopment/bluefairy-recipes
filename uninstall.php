@@ -18,7 +18,9 @@
  * cache supports flushing a group).
  *
  * Removes the CONTENT — recipes with their meta and terms, the recipe
- * taxonomies' terms, and the writer profile fields on users — ONLY when the
+ * taxonomies' terms, the sample set's images and writer account (while the
+ * account is still the plugin's own), and the writer profile fields on
+ * users — ONLY when the
  * administrator ticked "Delete all data on uninstall" in Settings. Recipes
  * are the customer's work; deleting them by default is not a cleanup, it is
  * a loss. After a reinstall the recipes and profiles are intact; writers must
@@ -47,6 +49,7 @@ $bfrc_option_keys = [
 	'bfrc_db_version',
 	'bfrc_version',
 	'bfrc_flush_rewrite',
+	'bfrc_samples',
 ];
 
 /** Capabilities::ROLE_WRITER, ROLE_MANAGER. */
@@ -113,6 +116,31 @@ $bfrc_uninstall_site = static function ( bool $delete_data ) use ( $bfrc_option_
 	global $wpdb;
 
 	if ( $delete_data ) {
+		// The sample set first, while its record is still there: its images are
+		// attachments (not recipes, so the loop below would leave them) and its
+		// writer account goes with them while it is still the plugin's own
+		// (the login and exactly the Writer role; a renamed or promoted account
+		// is the owner's). The sample recipes are recipes: the loop takes them.
+		$samples = get_option( 'bfrc_samples', [] );
+		if ( is_array( $samples ) ) {
+			foreach ( (array) ( $samples['attachments'] ?? [] ) as $attachment_id ) {
+				wp_delete_attachment( (int) $attachment_id, true );
+			}
+			$sample_writer = (int) ( $samples['writer'] ?? 0 );
+			$sample_user   = $sample_writer > 0 ? get_userdata( $sample_writer ) : false;
+			if ( $sample_user instanceof WP_User && 'bfrc_sample_writer' === (string) $sample_user->user_login && [ 'bfrc_writer' ] === array_values( (array) $sample_user->roles ) ) {
+				if ( ! function_exists( 'wp_delete_user' ) ) {
+					require_once ABSPATH . 'wp-admin/includes/user.php';
+				}
+				wp_delete_user( $sample_writer, get_current_user_id() > 0 ? get_current_user_id() : null ); // Anything else of theirs (an upload) goes to whoever uninstalls; from WP-CLI there is no one, and core deletes it with the account.
+				if ( is_multisite() && [] === get_blogs_of_user( $sample_writer ) ) {
+					if ( ! function_exists( 'wpmu_delete_user' ) ) {
+						require_once ABSPATH . 'wp-admin/includes/ms.php';
+					}
+					wpmu_delete_user( $sample_writer );
+				}
+			}
+		}
 		// Recipes, in keyset batches (ID > last), force-deleted so meta,
 		// revisions and comments go with them through core's own routine.
 		// Cache invalidation is suspended for the loop and the cache flushed

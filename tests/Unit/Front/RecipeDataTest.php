@@ -107,5 +107,6 @@ final class RecipeDataTest extends TestCase {
 		$this->assertSame( '6 servings', $make( 0, 6 )->servings_text() );
 		$this->assertSame( '2–4 servings', $make( 2, 4 )->servings_text() );
 		$this->assertSame( '5 servings', $make( 5, 3 )->servings_text(), 'a max below min (never written by the plugin) reads as min' );
+		$this->assertSame( [ '', '4', '1', '6', '2–4', '5' ], [ $make( 0, 0 )->servings_number(), $make( 4, 4 )->servings_number(), $make( 1, 0 )->servings_number(), $make( 0, 6 )->servings_number(), $make( 2, 4 )->servings_number(), $make( 5, 3 )->servings_number() ], 'the bare number for a labelled badge' );
 	}
 }

@@ -150,6 +150,28 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_query_resolver']   = null;
 	$GLOBALS['bfrc_test_last_changed_seq'] = 0;
 	$GLOBALS['bfrc_test_unique_id']        = 0;
+	$GLOBALS['bfrc_test_next_user_id']     = 900;
+	$GLOBALS['bfrc_test_next_post_id']     = 9000;
+	$GLOBALS['bfrc_test_inserted_users']   = [];
+	$GLOBALS['bfrc_test_inserted_posts']   = [];
+	$GLOBALS['bfrc_test_deleted_users']    = [];
+	$GLOBALS['bfrc_test_deleted_users_reassign'] = [];
+	$GLOBALS['bfrc_test_network_deleted_users']  = [];
+	$GLOBALS['bfrc_test_user_blogs']             = [];
+	$GLOBALS['bfrc_test_removed_from_blog']      = [];
+	$GLOBALS['bfrc_test_passwords_set']          = [];
+	$GLOBALS['bfrc_test_sessions_destroyed']     = [];
+	$GLOBALS['bfrc_test_app_passwords_deleted']  = [];
+	$GLOBALS['bfrc_test_updated_users']          = [];
+	$GLOBALS['bfrc_test_user_caps_cleared']      = [];
+	$GLOBALS['bfrc_test_user_update_fails']      = false;
+	$GLOBALS['bfrc_test_deleted_attachments'] = [];
+	$GLOBALS['bfrc_test_uploads']          = [];
+	$GLOBALS['bfrc_test_attachment_meta']  = [];
+	$GLOBALS['bfrc_test_attachment_parents'] = [];
+	$GLOBALS['bfrc_test_user_insert_fails'] = false;
+	$GLOBALS['bfrc_test_post_insert_fails'] = false;
+	$GLOBALS['bfrc_test_upload_fails']     = false;
 	BlueFairy\Recipes\Front\Blocks::reset();
 	$_COOKIE                               = [];
 	$_REQUEST                              = [];
@@ -816,6 +838,11 @@ class WP_User {
 	public string $user_email = '';
 	public string $display_name = '';
 	public string $user_nicename = '';
+	public string $user_url = '';
+	public string $description = '';
+	public string $nickname = '';
+	public string $first_name = '';
+	public string $last_name = '';
 	/** @var list<string> */
 	public array $roles = [];
 	public function __construct( int $id = 0 ) {
@@ -844,6 +871,12 @@ class WP_User {
 		if ( ! in_array( $role, $this->roles, true ) ) {
 			$this->roles[] = $role;
 		}
+		bfrc_test_store_user( $this );
+	}
+	/** As core: every role and every individual capability goes. */
+	public function remove_all_caps(): void {
+		$this->roles = [];
+		$GLOBALS['bfrc_test_user_caps_cleared'][] = $this->ID;
 		bfrc_test_store_user( $this );
 	}
 	public function remove_role( string $role ): void {
@@ -933,6 +966,10 @@ function bfrc_test_add_user( int $id, array $props = [] ): WP_User {
 	}
 	$GLOBALS['bfrc_test_users'][ $id ] = $user;
 	return $user;
+}
+/** Core's regex, verbatim. */
+function wp_make_link_relative( string $link ): string {
+	return (string) preg_replace( '|^(https?:)?//[^/]+(/?.*)|i', '$2', $link );
 }
 function get_userdata( int $user_id ): WP_User|false {
 	if ( $user_id <= 0 ) {
@@ -1389,7 +1426,9 @@ class WP_Post {
 	public string $post_title  = '';
 	public string $post_name   = '';
 	public int $post_author    = 0;
+	public string $post_date = '';
 	public string $post_date_gmt = '';
+	public string $post_modified = '';
 	public string $post_modified_gmt = '';
 	public string $post_content = '';
 	public string $post_excerpt = '';
@@ -1529,7 +1568,13 @@ function submit_button( ?string $text = null, string $type = 'primary', string $
 	if ( is_array( $other_attributes ) && isset( $other_attributes['id'] ) ) {
 		$id = (string) $other_attributes['id'];
 	}
-	bfrc_test_echo( '<button type="submit" name="' . esc_attr( $name ) . '" id="' . esc_attr( $id ) . '">' . esc_html( $text ?? 'Save Changes' ) . '</button>' );
+	$extra = '';
+	foreach ( is_array( $other_attributes ) ? $other_attributes : [] as $attr => $value ) {
+		if ( 'id' !== $attr ) {
+			$extra .= ' ' . esc_attr( (string) $attr ) . '="' . esc_attr( (string) $value ) . '"'; // As core: every other attribute is printed.
+		}
+	}
+	bfrc_test_echo( '<button type="submit" name="' . esc_attr( $name ) . '" id="' . esc_attr( $id ) . '" class="button ' . esc_attr( $type ) . '"' . $extra . '>' . esc_html( $text ?? 'Save Changes' ) . '</button>' );
 }
 function selected( mixed $selected, mixed $current = true, bool $display = true ): string {
 	$out = (string) $selected === (string) $current ? ' selected="selected"' : '';

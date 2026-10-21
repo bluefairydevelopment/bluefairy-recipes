@@ -187,6 +187,22 @@ final class RecipeData {
 	}
 
 	/**
+	 * The servings as a bare number or range ("4", "2–4"); '' when unset.
+	 */
+	public function servings_number(): string {
+		$min = $this->servings_min;
+		$max = max( $this->servings_max, $min );
+		if ( 0 === $min && 0 === $max ) {
+			return '';
+		}
+		if ( 0 === $min || $min === $max ) {
+			return number_format_i18n( max( $min, $max ) );
+		}
+		/* translators: 1: minimum servings, 2: maximum servings */
+		return sprintf( __( '%1$s–%2$s', 'bluefairy-recipes' ), number_format_i18n( $min ), number_format_i18n( $max ) );
+	}
+
+	/**
 	 * Does the recipe show a video (type video and a stored URL)?
 	 */
 	public function has_video(): bool {

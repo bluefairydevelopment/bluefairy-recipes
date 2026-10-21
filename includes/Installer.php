@@ -37,6 +37,7 @@ final class Installer {
 		'bfrc_db_version',
 		'bfrc_version',
 		Settings::FLUSH_OPTION,
+		Admin\Samples::OPTION,
 	];
 
 	/**

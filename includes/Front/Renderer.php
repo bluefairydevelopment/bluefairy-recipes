@@ -540,7 +540,7 @@ final class Renderer {
 		}
 		$servings = $data->servings_text();
 		if ( '' !== $servings ) {
-			$items[] = [ __( 'Serves', 'bluefairy-recipes' ), $servings ];
+			$items[] = [ __( 'Servings', 'bluefairy-recipes' ), $data->servings_number() ]; // The label carries the word; the value is the bare number, so "servings" is not printed twice.
 		}
 		if ( [] === $items ) {
 			return '';
@@ -623,10 +623,21 @@ final class Renderer {
 			return '';
 		}
 		$html = '<section class="bfrc-recipe__steps"><h2>' . esc_html__( 'Method', 'bluefairy-recipes' ) . '</h2><ol class="bfrc-steps">';
+		$n    = 0;
 		foreach ( $rows as $step ) {
-			$html .= '<li class="bfrc-step">' . wp_kses_post( $step['text'] ) . '</li>';
+			++$n;
+			$html .= '<li class="bfrc-step" id="' . esc_attr( self::step_anchor( $n ) ) . '">' . wp_kses_post( $step['text'] ) . '</li>'; // The anchor the JSON-LD HowToStep url names.
 		}
 		return $html . '</ol></section>';
+	}
+
+	/**
+	 * The id of step N on the recipe page (the JSON-LD links to it).
+	 *
+	 * @param int $n 1-based step number.
+	 */
+	public static function step_anchor( int $n ): string {
+		return 'bfrc-step-' . $n;
 	}
 
 	/**

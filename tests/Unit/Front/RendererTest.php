@@ -69,7 +69,7 @@ final class RendererTest extends TestCase {
 		$this->assertStringContainsString( '<dt>Prep</dt><dd>20 min</dd>', $html );
 		$this->assertStringContainsString( '<dt>Cook</dt><dd>1 hr 15 min</dd>', $html );
 		$this->assertStringNotContainsString( '<dt>Total</dt>', $html, 'cards keep it short' );
-		$this->assertStringContainsString( '<dt>Serves</dt><dd>2–4 servings</dd>', $html );
+		$this->assertStringContainsString( '<dt>Servings</dt><dd>2–4</dd>', $html, 'not "Serves: 2–4 servings"' );
 		$this->assertStringContainsString( 'By <a href="https://example.com/recipes/chef/ann/" rel="author">Ann &lt;b&gt;Lee&lt;/b&gt;</a>', $html );
 		$this->assertStringContainsString( '<p class="bfrc-card__excerpt">A warm bowl &amp; more.</p>', $html, 'excerpt stripped of tags, escaped' );
 		$plain = $this->renderer->card( get_post( 42 ), null );
@@ -106,7 +106,7 @@ final class RendererTest extends TestCase {
 		$this->assertStringContainsString( 'Tomato &quot;Soup&quot;</a></h2>', $html );
 		$this->assertStringContainsString( '<img src="https://example.test/uploads/77.jpg"', $html, 'the photo shows, as in core\'s own loops' );
 		$this->assertStringContainsString( 'rel="author">Ann', $html );
-		foreach ( [ '<dl', 'Prep', '20 min', 'Serves', 'bfrc-card__excerpt', 'warm bowl' ] as $leak ) {
+		foreach ( [ '<dl', 'Prep', '20 min', 'Servings', 'bfrc-card__excerpt', 'warm bowl' ] as $leak ) {
 			$this->assertStringNotContainsString( $leak, $html, "$leak must not leak from a locked recipe" );
 		}
 		$GLOBALS['bfrc_test_password_unlocked'][41] = true;
@@ -303,7 +303,7 @@ final class RendererTest extends TestCase {
 		$this->assertStringContainsString( '<p class="bfrc-recipe__summary">A warm bowl &amp; more.</p>', $html );
 		$this->assertStringContainsString( '<li class="bfrc-ingredient bfrc-ingredient--plain"><span class="bfrc-ingredient__measure">2 cups</span> <span class="bfrc-ingredient__label">flour &amp; co</span></li>', $html );
 		$this->assertStringContainsString( '<li class="bfrc-ingredient bfrc-ingredient--internal"><span class="bfrc-ingredient__label"><a href="https://shop.test/salt">salt</a></span></li>', $html, 'the add-on may link a row; its script does not survive kses' );
-		$this->assertStringContainsString( '<ol class="bfrc-steps"><li class="bfrc-step">Mix <em>well</em></li><li class="bfrc-step">Bake</li></ol></section><i data-seam="bfrc_single_after_steps">41</i>', $html, 'the seam fires after the section, not inside it' );
+		$this->assertStringContainsString( '<ol class="bfrc-steps"><li class="bfrc-step" id="bfrc-step-1">Mix <em>well</em></li><li class="bfrc-step" id="bfrc-step-2">Bake</li></ol></section><i data-seam="bfrc_single_after_steps">41</i>', $html, 'the seam fires after the section, not inside it' );
 		$this->assertStringContainsString( '<th scope="row">Calories</th><td>250 kcal</td>', $html );
 		$this->assertStringContainsString( '<th scope="row">Protein</th><td>12.5 g</td>', $html );
 		$this->assertStringContainsString( '<th scope="row">Sodium</th><td>0.25 mg</td>', $html );
@@ -448,7 +448,8 @@ final class RendererTest extends TestCase {
 		$GLOBALS['bfrc_test_post_meta'][41][ Meta::STEPS ] = [ [ 'text' => 'Mix <script>x()</script><em>well</em>' ] ];
 		update_user_meta( 5, 'bfrc_about', 'Hi <script>alert(1)</script><b>there</b>' );
 		$html = $this->renderer->single( get_post( 41 ) );
-		$this->assertStringContainsString( '<li class="bfrc-step">Mix <em>well</em></li>', $html );
+		$this->assertStringContainsString( '<li class="bfrc-step" id="bfrc-step-1">Mix <em>well</em></li>', $html );
+		$this->assertSame( 'bfrc-step-7', Renderer::step_anchor( 7 ), 'the anchor the JSON-LD HowToStep url names' );
 		$this->assertStringNotContainsString( '<script>', $html );
 		$q        = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
 		$q->posts = [];

@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BlueFairy Recipes JSON-LD contract: Google's Recipe rich-result properties (required: name, image; the recommended ones typed when present)",
+  "type": "object",
+  "required": [ "@context", "@type", "name", "image" ],
+  "properties": {
+    "@context": { "const": "https://schema.org" },
+    "@type": { "const": "Recipe" },
+    "name": { "type": "string", "minLength": 1 },
+    "url": { "type": "string", "format": "uri" },
+    "image": { "type": "array", "minItems": 1, "items": { "type": "string", "format": "uri" } },
+    "description": { "type": "string", "minLength": 1 },
+    "author": {
+      "type": "object",
+      "required": [ "@type", "name" ],
+      "properties": { "@type": { "const": "Person" }, "name": { "type": "string", "minLength": 1 }, "url": { "type": "string", "format": "uri" } }
+    },
+    "datePublished": { "type": "string", "format": "date-time" },
+    "dateModified": { "type": "string", "format": "date-time" },
+    "prepTime": { "type": "string", "pattern": "^PT(\\d+H)?(\\d+M)?$" },
+    "cookTime": { "type": "string", "pattern": "^PT(\\d+H)?(\\d+M)?$" },
+    "totalTime": { "type": "string", "pattern": "^PT(\\d+H)?(\\d+M)?$" },
+    "recipeYield": { "type": "string", "minLength": 1 },
+    "recipeCategory": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "recipeCuisine": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "keywords": { "type": "string", "minLength": 1 },
+    "suitableForDiet": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^https://schema\\.org/[A-Za-z]+Diet$" } },
+    "recipeIngredient": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "recipeInstructions": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [ "@type", "text" ],
+        "properties": { "@type": { "const": "HowToStep" }, "text": { "type": "string", "minLength": 1 }, "position": { "type": "integer", "minimum": 1 }, "url": { "type": "string", "format": "uri" } }
+      }
+    },
+    "nutrition": {
+      "type": "object",
+      "required": [ "@type" ],
+      "properties": {
+        "@type": { "const": "NutritionInformation" },
+        "calories": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)? calories$" },
+        "fatContent": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)? g$" },
+        "saturatedFatContent": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)? g$" },
+        "carbohydrateContent": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)? g$" },
+        "sugarContent": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)? g$" },
+        "fiberContent": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)? g$" },
+        "proteinContent": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)? g$" },
+        "sodiumContent": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)? mg$" }
+      }
+    },
+    "video": {
+      "type": "object",
+      "required": [ "@type", "name", "thumbnailUrl", "uploadDate" ],
+      "properties": {
+        "@type": { "const": "VideoObject" },
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "thumbnailUrl": { "type": "array", "minItems": 1, "items": { "type": "string", "format": "uri" } },
+        "uploadDate": { "type": "string", "format": "date-time" },
+        "embedUrl": { "type": "string", "format": "uri" }
+      }
+    },
+    "aggregateRating": {
+      "type": "object",
+      "required": [ "@type", "ratingValue", "ratingCount" ],
+      "properties": { "@type": { "const": "AggregateRating" }, "ratingValue": { "type": [ "number", "string" ] }, "ratingCount": { "type": [ "integer", "string" ] } }
+    }
+  }
+}

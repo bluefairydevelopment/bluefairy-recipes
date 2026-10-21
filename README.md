@@ -9,7 +9,7 @@ release tag.
 - WordPress 6.7 or newer, with pretty permalinks
 - PHP 8.1 or newer
 
-## What is in the tree today (milestones A1–A5)
+## What is in the tree today (milestones A1–A6)
 
 - Plugin bootstrap, settings model, roles and capabilities, activation, deactivation and
   uninstall.
@@ -23,7 +23,10 @@ release tag.
 - Blocks (Recipe List, Recipe Filters, Featured Recipes, Recipe Card) and the shortcodes
   that mirror them (`[bfrc_recipes]`, `[bfrc_featured]`, `[bfrc_writers]`); the public
   `GET /bfrc/v1/recipes` endpoint; filtering a Recipe List without a reload (Interactivity
-  API). JSON-LD follows in A6.
+  API).
+- Recipe JSON-LD for Google (validated against `tests/fixtures/recipe-jsonld.schema.json`),
+  the Recipes → Settings screen, the opt-in sample recipes, the Pro upsell, the readme's
+  External services section, the POT file. A7 completes the documentation.
 
 ## Notes for site owners
 

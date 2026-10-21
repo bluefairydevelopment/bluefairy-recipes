@@ -24,10 +24,12 @@ if ( ! defined( 'ABSPATH' ) ) {
  * wrong type. Two writers:
  *
  * - update( $form ) has FORM semantics: a missing checkbox is an unticked
- *   checkbox. It is for the settings screen, which posts every field.
+ *   checkbox. It is for a caller that posts every field (an importer, a
+ *   WP-CLI command).
  * - patch( $values ) has MERGE semantics: keys not given keep their stored
- *   value. It is for code (the Pro add-on, WP-CLI, REST) that changes one
- *   setting without knowing the others.
+ *   value. It is for code that changes some settings without knowing the
+ *   others: the settings screen (one tab at a time, building that tab's
+ *   booleans itself), the Pro add-on, REST.
  *
  * Both normalise through the same rules, so an out-of-range value cannot be
  * stored whichever path wrote it.
@@ -225,7 +227,8 @@ final class Settings {
 
 	/**
 	 * Coerce a form post into a complete, typed, bounded settings array
-	 * (form semantics). Registered as the Settings API sanitiser.
+	 * (form semantics): what update() stores. Public so an importer or a
+	 * WP-CLI command can normalise before it writes.
 	 *
 	 * @param array<string, mixed> $raw Raw input.
 	 * @return array<string, mixed>

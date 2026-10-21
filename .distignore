@@ -12,7 +12,9 @@
 /vendor
 /tests
 /bin
-/docs/screenshots
+/docs
+/FEATURES.md
+/README.md
 /coverage
 /composer.json
 /composer.lock
