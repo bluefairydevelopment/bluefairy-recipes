@@ -29,7 +29,7 @@ Very long recipes: a web server accepts a limited number of form fields per requ
 
 ### The Recipes list
 
-The list shows the photo, prep and cook time, servings and a featured star for each recipe, plus a column for every enabled filter type. Above the list you can filter by any filter type that has terms and by featured or not, and sort by the Featured column (recipes that were never marked sort as not featured). Curators get two bulk actions, **Mark featured** and **Unmark featured**, which apply to the recipes they may edit and report how many recipes actually changed.
+The list shows the photo, prep and cook time, servings and a featured star for each recipe, plus a column for every filter type. Above the list you can filter by any filter type that has terms and by featured or not, and sort by the Featured column (recipes that were never marked sort as not featured). Curators get two bulk actions, **Mark featured** and **Unmark featured**, which apply to the recipes they may edit and report how many recipes actually changed.
 
 ### Writer profiles
 
@@ -37,10 +37,10 @@ Every user who can edit recipes has a **Recipe writer profile** section on their
 
 ### On the site
 
-- **Recipe archive** at `/{archive slug}/` (default `/recipes/`): a card grid (photo, title, prep and cook time, servings, writer, short description) with a filter panel above it: one dropdown per filter type that has terms, a title keyword search, Filter and Reset. A changed dropdown or a pause in typing applies the filters after a moment and puts the keyboard focus back on the control you used; the Filter button applies them at once, and the form works without JavaScript. A writer's own page lists all their recipes and takes no filters. A password-protected recipe's card shows its title, photo and writer only. Pages follow your "Recipes per page" setting. Each filter type also has its own page, `/recipes/meal-type/dinner/` and so on, with the same panel.
+- **Recipe archive** at `/{archive slug}/` (default `/recipes/`): a card grid (photo, title, prep and cook time, servings, writer, short description) with a filter panel above it: one dropdown per filter type that has terms, a title keyword search, Filter, and Reset once something is filtered. A changed dropdown or a pause in typing applies the filters after a moment and puts the keyboard focus back on the control you used; the Filter button applies them at once, and the form works without JavaScript. A writer's own page lists all their recipes and takes no filters. A password-protected recipe's card shows its title, photo and writer only. Pages follow your "Recipes per page" setting. Each filter type also has its own page, `/recipes/meal-type/dinner/` and so on, with the same panel.
 - **Recipe page**: title, writer and date, timings and servings, the filter-type tags, the photo or the embedded video (YouTube or Vimeo, loaded without cookies), the short description, your text, Ingredients, Method, Nutrition (per serving; only the values you entered), share buttons (Facebook, X, Pinterest with the recipe photo) and a Print button. The print layout keeps the recipe, its title and timings, and drops the site's header, footer, navigation, filters and buttons. A password-protected recipe shows the password form and nothing else until it is unlocked.
-- **Writer pages**: `/recipes/chef/` lists every public writer (name order, 24 per page, photo or Gravatar, recipe count, a line of their About text); `/recipes/chef/{username}/` shows a writer's header image, photo, About, links and their recipes, with a feed at `/recipes/chef/{username}/feed/`. Each page names its own canonical address, and the query-string spellings of the same page redirect to it (with Yoast, Rank Math or All in One SEO active, the plugin hands that address to the SEO plugin's canonical instead of printing a second one). A writer has a public page only when they are listed (Recipe Writers by default; anyone else by switching it on in their profile) and have at least one published recipe. Everyone else's writer URL is a 404, and their recipes show the name without a link. "Browse recipe writers" appears on the archive while the listing is on. Note that a listed writer's display name and username appear in public URLs, as on any WordPress author page, and that switching the listing off hides a writer from these pages and from the users sitemap, not from WordPress's own author archive.
-- **Themes**: block themes get two templates (Single Recipe, Recipes Archive) you can arrange in the Site Editor; the recipe block inside them renders on the site and, on WordPress 7.0 or newer, previews in the editor: the Single Recipe template previews your newest published recipe that has no password (or a short note until one is published), the Recipes Archive template previews the filter panel and a grid of your newest recipes, both styled as on the site (older WordPress versions show a placeholder: leave it in place). The writer pages use a third template, Recipe Writers, which previews the writers list, so a theme's own recipes-archive template never catches them. Classic themes get the plugin's templates, which you can override by copying them to `{your theme}/bluefairy-recipes/single-recipe.php` or `archive-recipe.php`, or by shipping your own `single-bfrc_recipe.php` / `archive-bfrc_recipe.php` (the writer pages use the plugin's archive template, or your `bluefairy-recipes/archive-recipe.php`). Inserting the Single Recipe or Recipes Archive block into a recipe's own text renders nothing there, and in the post editor it shows a note saying so instead of another recipe's page or a grid. A password-protected recipe keeps its ingredients, method and nutrition out of the REST API as well as off the page until it is unlocked.
+- **Writer pages**: `/recipes/chef/` lists every public writer (name order, 24 per page, photo or Gravatar, recipe count, a line of their About text); `/recipes/chef/{nicename}/` (the user's URL name, normally their username) shows a writer's header image, photo, About, links and their recipes, with a feed at `/recipes/chef/{username}/feed/`. Each page names its own canonical address, and the query-string spellings of the same page redirect to it (with Yoast, Rank Math or All in One SEO active, the plugin hands that address to the SEO plugin's canonical instead of printing a second one; another SEO plugin that prints its own canonical on archives should read `bfrc_writer_canonical`). A writer has a public page only when they are listed (Recipe Writers by default; anyone else by switching it on in their profile) and have at least one published recipe. Everyone else's writer URL is a 404, and their recipes show the name without a link. "Browse recipe writers" appears on the archive while the listing is on. Note that a listed writer's display name and username appear in public URLs, as on any WordPress author page, and that switching the listing off hides a writer from these pages and from the users sitemap, not from WordPress's own author archive.
+- **Themes**: block themes get three templates (Single Recipe, Recipes Archive, Recipe Writers) you can arrange in the Site Editor; the recipe block inside them renders on the site and, on WordPress 7.0 or newer, previews in the editor: the Single Recipe template previews your newest published recipe that has no password (or a short note until one is published), the Recipes Archive template previews the filter panel and a grid of your newest recipes, both styled as on the site (older WordPress versions show a placeholder: leave it in place). The writer pages use a third template, Recipe Writers, which previews the writers list, so a theme's own recipes-archive template never catches them. Classic themes get the plugin's templates, which you can override by copying them to `{your theme}/bluefairy-recipes/single-recipe.php` or `archive-recipe.php`, or by shipping your own `single-bfrc_recipe.php` / `archive-bfrc_recipe.php` (the writer pages use the plugin's archive template, or your `bluefairy-recipes/archive-recipe.php`). Inserting the Single Recipe or Recipes Archive block into a recipe's own text renders nothing there, and in the post editor it shows a note saying so instead of another recipe's page or a grid. A password-protected recipe keeps its ingredients, method and nutrition out of the REST API as well as off the page until it is unlocked.
 - With the plugin **disabled**, every recipe URL, filter-type page and writer page is a 404.
 
 ## Filter types (taxonomies)
@@ -54,7 +54,7 @@ Recipes are browsed by four filter types, each a taxonomy under the recipe archi
 | Seasons | `bfrc_season` | `/recipes/season/…` | Spring, Summer, Autumn, Winter |
 | Cuisines | `bfrc_cuisine` | `/recipes/cuisine/…` | Italian, Mexican, Asian, American, Mediterranean |
 
-Each can be switched off and reordered in Settings. A switched-off filter type keeps its terms and its admin screen but has no public archive and no public REST route. The Recipe Manager role manages terms; writers assign them. A filter type's name may not be a route under the archive (`chef`, `page`, a feed name).
+Each can be switched off and reordered in Settings. A switched-off filter type keeps its terms, its admin screen and its column in the Recipes list, but has no public archive, no select in the filter form and no filter on the plugin's REST endpoint; its terms stay readable through WordPress's own taxonomy route (`/wp/v2/bfrc_season`), which the admin screen uses. The Recipe Manager role manages terms; writers assign them. A filter type's name may not be a route under the archive (`chef`, `page`, a feed name).
 
 ## SEO
 
@@ -132,7 +132,7 @@ responses may be cached for 60 seconds. While the plugin is disabled the list is
 
 | Hook | Kind | Purpose |
 |---|---|---|
-| `bfrc_loaded` | action | Fired before the plugin binds anything; the Pro add-on attaches its filters here |
+| `bfrc_loaded` | action | Fired once the settings exist and before the content model is wired; the Pro add-on attaches its filters here |
 | `bfrc_booted` | action | Fired after every subsystem is wired |
 | `bfrc_is_pro` | filter | Return true when a Pro add-on is running |
 | `bfrc_filter_taxonomies` | filter | Add filter types (code ⇒ label, singular, sort order) |
@@ -155,7 +155,7 @@ responses may be cached for 60 seconds. While the plugin is disabled the list is
 | `bfrc_single_after_steps` | action | After the method (also when a recipe has no steps) |
 | `bfrc_single_after_nutrition` | action | After the nutrition facts (also when there are none) |
 | `bfrc_single_footer` | action | At the end of the recipe page |
-| `bfrc_writer_canonical` | filter | The canonical address of a writer page or the writers listing before it is printed or handed to an SEO plugin (return an empty string to print none) |
+| `bfrc_writer_canonical` | filter | The canonical address of a writer page or the writers listing before it is printed (an empty string prints none) or, with Yoast, Rank Math or All in One SEO active, before it is handed to that plugin (an empty string hands the SEO plugin its own value back) |
 
 The four recipe-page actions (`bfrc_render_ingredient_actions`, `bfrc_single_after_steps`,
 `bfrc_single_after_nutrition`, `bfrc_single_footer`) receive the recipe id; whatever the
@@ -169,7 +169,8 @@ JSON-LD, sharing and the featured block. Where WordPress already does the job, t
 leaves it to WordPress:
 
 - **No "Show in navigation menu" setting.** WordPress menus belong to you: add the recipe
-  archive to a Navigation block or to Appearance → Menus with a custom link to `/recipes/`
+  archive to a Navigation block, or pick the Recipes archive item under Appearance → Menus
+  (WordPress lists it there while the plugin is enabled), or use a custom link to `/recipes/`
   (or your archive slug).
 - **No ".html" URL postfix setting.** The archive slug is configurable (default `recipes`);
   recipe addresses follow WordPress's permalink structure, and WordPress's own old-slug
@@ -181,9 +182,9 @@ leaves it to WordPress:
   colour" is left to the theme. There is no "Admin user" link on a writer: a writer is a
   user.
 - **No images on filter options** (the Magento storefront did not render them either) and
-  **no recipe-to-product sort order** (a Pro feature; products render in the order they were
-  linked).
+  **no recipe-to-product sort order** (the Pro add-on's product links render in the order they
+  were linked).
 - **No Instagram share button.** Instagram has no web share address; the Magento toggle
-  rendered a profile link, not a share.
+  rendered a profile link, not a share. A writer's own Instagram link stays on their profile.
 - **No store-view scope.** 1.0 is a single-site product: on a multisite network, activate the
   plugin on each site that needs it; network activation is not supported in 1.0.

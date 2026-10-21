@@ -25,7 +25,8 @@ The feature-by-feature guide is [FEATURES.md](FEATURES.md); what each version ch
 2. Open Recipes → Settings. The Data tab can install three sample recipes to look at and
    remove them again.
 3. Add a recipe under Recipes → Add New; it appears at `/recipes/` (the archive slug is a
-   setting) with its filter pages and writer page.
+   setting) and on its filter pages. Its writer gets a public page once they are listed
+   (Recipe Writers are, by default) and have a published recipe.
 
 ## Notes for site owners
 
@@ -65,7 +66,7 @@ npm test           # node --test tests/js/*.test.js
 `build/` is committed so a checkout works without Node; rebuild and commit it with any change
 under `src/`. The release zip ships `build/`, `src/`, `package.json`, `package-lock.json` and
 `webpack.config.js` (WordPress.org requires the source of built JavaScript), never
-`node_modules/`, `tests/`, `docs/` or this file; `readme.txt` is the plugin directory's readme.
+`node_modules/`, `tests/`, `docs/`, `FEATURES.md` or this file; `readme.txt` is the plugin directory's readme.
 
 `tests/Unit/DocsTest.php` checks the names, defaults, limits, roles and hooks quoted in
 FEATURES.md, README.md and readme.txt against the code, so the documentation cannot drift

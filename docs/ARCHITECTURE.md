@@ -8,7 +8,9 @@ seams listed under **Extension seams** and never ships inside this plugin.
 
 - `declare(strict_types=1);` in every PHP file, directly after the opening tag (in the
   entry file, after the plugin header docblock WordPress requires there). WPCS
-  (`phpcs.xml.dist`), PHPStan level 6 (`phpstan.neon`), PHPUnit 10 (`phpunit.xml.dist`).
+  (`phpcs.xml.dist`), PHPStan level 6 (`phpstan.neon`, with `phpVersion` pinned to the plugin
+  header's Requires PHP so a type the newer PHP alone accepts, such as `true` as a return type,
+  fails the gate; `DocsTest` ties the two), PHPUnit 10 (`phpunit.xml.dist`).
   Tabs. Yoda conditions. Every function has a docblock with `@param` for every parameter.
 - PSR-4 under `includes/`. Instance-based services wired in `Plugin::boot()` and exposed
   through `Plugin::service( $id )`; `Plugin::*`, `Installer::*`, `Capabilities::*` and the

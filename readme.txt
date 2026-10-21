@@ -16,12 +16,12 @@ BlueFairy Recipes turns WordPress into a recipe site. Each recipe has ingredient
 
 = On the site =
 
-* A recipe archive with a filter panel (one dropdown per filter type, a title search, Filter and Reset), card grid and pagination; filtering updates the list without a reload, and the plain form works without JavaScript.
+* A recipe archive with a filter panel (one dropdown per filter type that has terms, a title search, Filter and Reset), card grid and pagination; a changed filter applies itself after a moment, and the form works without JavaScript.
 * A page for every filter term (`/recipes/diet/vegan/`) and a writers listing with a page and feed per writer.
 * Recipe pages with the photo or video, timings, servings, filter tags, ingredients, method, nutrition facts per serving, share buttons (Facebook, X, Pinterest) and a print layout.
 * Recipe JSON-LD for Google's recipe rich results, switchable in Settings.
 * Block themes: Single Recipe, Recipes Archive and Recipe Writers templates you can edit in the Site Editor. Classic themes: bundled templates you can override from your theme.
-* Blocks: Recipe List (with fixed filters, per page, filter form and pagination switches), Recipe Filters, Featured Recipes and Recipe Card, plus the shortcodes `[bfrc_recipes]`, `[bfrc_featured]` and `[bfrc_writers]`.
+* Blocks: Recipe List (with fixed filters, per page, filter form and pagination switches; its filters update the list without a reload), Recipe Filters, Featured Recipes and Recipe Card, plus the shortcodes `[bfrc_recipes]`, `[bfrc_featured]` and `[bfrc_writers]`.
 * A public read-only REST endpoint, `GET /wp-json/bfrc/v1/recipes`, for themes and apps.
 
 = In the admin =
@@ -45,7 +45,7 @@ WordPress 6.7 or newer with pretty permalinks, PHP 8.1 or newer. 1.0 is a single
 1. Upload the plugin folder to `/wp-content/plugins/`, or install it from Plugins → Add New Plugin.
 2. Activate it.
 3. Open Recipes → Settings. The Data tab can install three sample recipes to look at, and remove them again.
-4. Add a recipe under Recipes → Add New. It appears at /recipes/ (the archive slug is a setting), with its filter pages and its writer's page.
+4. Add a recipe under Recipes → Add New. It appears at /recipes/ (the archive slug is a setting) and on its filter pages; its writer gets a public page once they are listed (Recipe Writers are, by default) and have a published recipe.
 
 == Frequently Asked Questions ==
 
@@ -55,7 +55,7 @@ Yes. A block theme gets three templates (Single Recipe, Recipes Archive, Recipe 
 
 = How do I put the recipe archive in my menu? =
 
-Add a custom link to `/recipes/` (or your archive slug) in a Navigation block or under Appearance → Menus. The plugin does not add menu items itself.
+Pick the Recipes archive item under Appearance → Menus (WordPress lists it there while the plugin is enabled), or add a custom link to `/recipes/` (or your archive slug) in a Navigation block. The plugin does not add menu items itself.
 
 = Where is the structured data? =
 
@@ -63,7 +63,7 @@ Every recipe page with a featured image carries a Recipe JSON-LD script for Goog
 
 = Can visitors filter recipes without reloading the page? =
 
-Yes. The archive and the Recipe List block update after a short pause when a filter or the search box changes, and the page address follows so a reload or a shared link opens the same list. Without JavaScript the form and the page links still work.
+In a Recipe List block (or the `[bfrc_recipes]` shortcode), yes: the list updates after a short pause when a filter or the search box changes, and the page address follows so a reload or a shared link opens the same list. The recipe archive page itself applies a changed filter by reloading. Without JavaScript the forms and the page links still work.
 
 = What happens to my recipes when I uninstall the plugin? =
 
@@ -82,25 +82,38 @@ They are three invented recipes with placeholder images, meant to show you the p
 This plugin embeds recipe videos from two services when a recipe's writer sets a video URL, and shows a writer's profile picture through WordPress's own avatar function when the writer has not chosen a profile photo. Nothing else contacts another server, and no data is sent anywhere by the plugin itself.
 
 = YouTube =
+
 What: the YouTube player (an iframe from youtube-nocookie.com, the privacy-enhanced mode: YouTube states it stores no viewing information before the visitor plays the video).
+
 When: a visitor opens a recipe whose video is a YouTube video. The visitor's browser then loads the player from YouTube, which receives the visitor's IP address and browser details as with any embedded video.
+
 Terms: https://www.youtube.com/t/terms — Privacy: https://policies.google.com/privacy
 
 = Vimeo =
+
 What: the Vimeo player (an iframe from player.vimeo.com).
+
 When: a visitor opens a recipe whose video is a Vimeo video. The visitor's browser then loads the player from Vimeo, which receives the visitor's IP address and browser details.
+
 Terms: https://vimeo.com/terms — Privacy: https://vimeo.com/privacy
 
 The plugin never fetches a video, a thumbnail or any data from these services on the server.
 
 = Gravatar =
+
 What: a writer's picture on the writer pages and the writers listing, through WordPress's own avatar function (get_avatar), which loads it from gravatar.com, but only for a writer who has not chosen a profile photo and only while the site's Discussion settings show avatars.
+
 When: a visitor opens a writer page or the writers listing, the writer has no profile photo, and avatars are enabled in Settings → Discussion. The visitor's browser requests the picture from Gravatar, which receives the visitor's IP address and a hash of the writer's email address. Choosing a profile photo for the writer, or turning avatars off in Settings → Discussion, stops this.
+
 Terms: https://gravatar.com/site/terms-of-service/ — Privacy: https://automattic.com/privacy/
+
+= Share buttons =
+
+The Facebook, X and Pinterest share buttons on a recipe page are plain links to those services' share pages; nothing loads from them until a visitor clicks one. Each can be switched off under Recipes → Settings → Listing.
 
 == Development ==
 
-The blocks' JavaScript is built with @wordpress/scripts from the `src/` directory shipped with the plugin (`npm install && npm run build`). Source, tests and the full history: https://github.com/bluefairydevelopment/bluefairy-recipes
+The blocks' JavaScript is built with @wordpress/scripts from the `src/` directory shipped with the plugin (`npm install && npm run build`). Source, tests and the full history: https://github.com/bluefairydevelopment/bluefairy-recipes (public from the first release).
 
 == Changelog ==
 

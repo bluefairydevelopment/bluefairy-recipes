@@ -147,8 +147,12 @@ final class DocsTest extends TestCase {
 		$this->assertSame( [ 'Recipe Writer', 'Recipe Manager' ], [ $GLOBALS['bfrc_test_role_names'][ Capabilities::ROLE_WRITER ] ?? null, $GLOBALS['bfrc_test_role_names'][ Capabilities::ROLE_MANAGER ] ?? null ], 'the display names the table starts its rows with' );
 		$this->assertStringStartsWith( 'Recipe Writer', $rows[0][0] );
 		$this->assertStringStartsWith( 'Recipe Manager', $rows[1][0] );
-		$this->assertContains( 'upload_files', Capabilities::WRITER_CAPS, 'the table says writers upload files' );
-		$this->assertStringContainsString( 'upload files', $rows[0][1] );
+		foreach ( [ 'create' => 'edit_bfrc_recipes', 'edit' => 'edit_bfrc_recipes', 'publish' => 'publish_bfrc_recipes', 'delete' => 'delete_bfrc_recipes', 'assign terms' => 'assign_bfrc_terms', 'upload files' => 'upload_files' ] as $phrase => $cap ) {
+			$this->assertStringContainsString( $phrase, $rows[0][1], "writers: $phrase" );
+			$this->assertContains( $cap, Capabilities::WRITER_CAPS, "writers hold $cap" );
+		}
+		$this->assertStringContainsString( 'for every recipe', $rows[1][1] );
+		$this->assertContains( 'edit_others_bfrc_recipes', Capabilities::MANAGER_EXTRA_CAPS, 'managers reach every recipe' );
 		$this->assertContains( 'manage_bfrc_terms', Capabilities::MANAGER_EXTRA_CAPS, 'the table says managers manage the taxonomies' );
 		$this->assertContains( Capabilities::MANAGE, Capabilities::MANAGER_EXTRA_CAPS, 'and change settings' );
 		$this->assertStringContainsString( 'change settings', $rows[1][1] );
@@ -157,19 +161,22 @@ final class DocsTest extends TestCase {
 	public function test_every_hook_in_the_extending_table_fires_in_the_code_and_every_hook_in_the_code_is_documented(): void {
 		$documented = [];
 		foreach ( $this->table( $this->features, 'Extending' ) as $cells ) {
-			$documented[] = trim( $cells[0], '`' );
+			$documented[ trim( $cells[0], '`' ) ] = $cells[1];
 		}
 		$in_code = [];
-		$files   = array_merge( [ BFRC_DIR . 'bluefairy-recipes.php', BFRC_DIR . 'uninstall.php' ], glob( BFRC_DIR . 'includes/*.php' ) ?: [], glob( BFRC_DIR . 'includes/*/*.php' ) ?: [] );
+		$files   = array_merge( [ BFRC_DIR . 'bluefairy-recipes.php', BFRC_DIR . 'uninstall.php' ], glob( BFRC_DIR . 'includes/*.php' ) ?: [], glob( BFRC_DIR . 'includes/*/*.php' ) ?: [], glob( BFRC_DIR . 'templates/*.php' ) ?: [] );
 		$this->assertGreaterThan( 20, count( $files ), 'the includes tree was found' );
 		foreach ( $files as $file ) {
-			preg_match_all( '/\b(?:do_action|apply_filters|seam)\(\s*\'(bfrc_[a-z_]+)\'/', (string) file_get_contents( $file ), $m );
-			$in_code = array_merge( $in_code, $m[1] );
+			$source = (string) file_get_contents( $file );
+			preg_match_all( '/\b(do_action|apply_filters|seam)\(\s*[\'"](bfrc_[a-z0-9_]+)[\'"]/', $source, $m, PREG_SET_ORDER );
+			foreach ( $m as $hit ) {
+				$in_code[ $hit[2] ] = 'apply_filters' === $hit[1] ? 'filter' : 'action'; // seam() wraps do_action().
+			}
+			$this->assertSame( 0, preg_match( '/\b(?:do_action|apply_filters)(?:_ref_array|_deprecated)?\(\s*[^\'"\s)]/', (string) preg_replace( '/do_action\( \$hook, \$recipe_id \)/', '', $source ) ), basename( $file ) . ': a hook fired by a variable or computed name would escape this sweep (seam() is the one allowed, and its callers are literal)' );
 		}
-		$in_code = array_values( array_unique( $in_code ) );
-		sort( $in_code );
-		sort( $documented );
-		$this->assertSame( $in_code, $documented, 'the Extending table and the code name the same hooks, no more, no less' );
+		ksort( $in_code );
+		ksort( $documented );
+		$this->assertSame( $in_code, $documented, 'the Extending table and the code name the same hooks with the same kind, no more, no less' );
 		$this->assertGreaterThan( 20, count( $in_code ), 'denominator: the seams found in the code' );
 	}
 
@@ -207,6 +214,11 @@ final class DocsTest extends TestCase {
 			$this->assertStringContainsString( $quote, $folded, $quote );
 		}
 		$this->assertStringContainsString( 'recipe of ' . Meta::MAX_ROWS . ' ingredients and ' . Meta::MAX_ROWS . ' steps', self::folded( $this->readme ) );
+		$this->assertStringContainsString( 'numbers up to ' . number_format( Meta::MAX_NUTRITION ) . ' with two decimals', $folded, 'the nutrition bound' );
+		$this->assertStringContainsString( 'may be cached for ' . \BlueFairy\Recipes\Rest\Recipes::MAX_AGE . ' seconds', $folded, 'the REST cache age' );
+		$this->assertStringContainsString( 'Stored in one option, `' . Settings::OPTION . '`', $folded, 'the option name' );
+		$featured = json_decode( (string) file_get_contents( BFRC_DIR . 'build/blocks/featured-recipes/block.json' ), true );
+		$this->assertStringContainsString( 'the newest ones, ' . $featured['attributes']['count']['minimum'] . ' to ' . $featured['attributes']['count']['maximum'] . ' cards', $folded, 'the Featured block\'s range' );
 	}
 
 	public function test_the_readmes_quote_the_plugin_header_and_name_the_release(): void {
@@ -227,6 +239,9 @@ final class DocsTest extends TestCase {
 		$this->assertStringContainsString( '- WordPress ' . $this->header['Requires at least'] . ' or newer', $this->readme );
 		$this->assertStringContainsString( '- PHP ' . $this->header['Requires PHP'] . ' or newer', $this->readme );
 		$this->assertStringContainsString( 'WordPress ' . $this->header['Requires at least'] . ' or newer with pretty permalinks, PHP ' . $this->header['Requires PHP'] . ' or newer', $txt );
+		[ $major, $minor ] = array_map( 'intval', explode( '.', $this->header['Requires PHP'] ) );
+		$this->assertSame( 1, preg_match( '/^\s*phpVersion:\s*(\d+)/m', (string) file_get_contents( BFRC_DIR . 'phpstan.neon' ), $m ) );
+		$this->assertSame( $major * 10000 + $minor * 100, (int) $m[1], 'phpstan analyses the code as the PHP version the header promises, so a newer-only type fails the gate' );
 	}
 
 	public function test_no_document_still_carries_a_placeholder(): void {
