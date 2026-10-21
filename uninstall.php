@@ -18,7 +18,7 @@
  * cache supports flushing a group).
  *
  * Removes the CONTENT — recipes with their meta and terms, the recipe
- * taxonomies' terms, the sample set's photos and writer account (while the
+ * taxonomies' terms, the sample set's images and writer account (while the
  * account is still the plugin's own), and the writer profile fields on
  * users — ONLY when the
  * administrator ticked "Delete all data on uninstall" in Settings. Recipes
@@ -116,7 +116,7 @@ $bfrc_uninstall_site = static function ( bool $delete_data ) use ( $bfrc_option_
 	global $wpdb;
 
 	if ( $delete_data ) {
-		// The sample set first, while its record is still there: its photos are
+		// The sample set first, while its record is still there: its images are
 		// attachments (not recipes, so the loop below would leave them) and its
 		// writer account goes with them while it is still the plugin's own
 		// (the login and exactly the Writer role; a renamed or promoted account

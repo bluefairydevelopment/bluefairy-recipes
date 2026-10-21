@@ -163,6 +163,7 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_sessions_destroyed']     = [];
 	$GLOBALS['bfrc_test_app_passwords_deleted']  = [];
 	$GLOBALS['bfrc_test_updated_users']          = [];
+	$GLOBALS['bfrc_test_user_caps_cleared']      = [];
 	$GLOBALS['bfrc_test_deleted_attachments'] = [];
 	$GLOBALS['bfrc_test_uploads']          = [];
 	$GLOBALS['bfrc_test_attachment_meta']  = [];
@@ -838,6 +839,9 @@ class WP_User {
 	public string $user_nicename = '';
 	public string $user_url = '';
 	public string $description = '';
+	public string $nickname = '';
+	public string $first_name = '';
+	public string $last_name = '';
 	/** @var list<string> */
 	public array $roles = [];
 	public function __construct( int $id = 0 ) {
@@ -866,6 +870,12 @@ class WP_User {
 		if ( ! in_array( $role, $this->roles, true ) ) {
 			$this->roles[] = $role;
 		}
+		bfrc_test_store_user( $this );
+	}
+	/** As core: every role and every individual capability goes. */
+	public function remove_all_caps(): void {
+		$this->roles = [];
+		$GLOBALS['bfrc_test_user_caps_cleared'][] = $this->ID;
 		bfrc_test_store_user( $this );
 	}
 	public function remove_role( string $role ): void {

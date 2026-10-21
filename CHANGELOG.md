@@ -40,7 +40,7 @@
 - Every cached recipe list carries a change counter: a saved recipe, field, term or term
   rename is seen at once.
 - Recipe JSON-LD on every recipe page with a photo (Google's Recipe properties; video
-  recipes carry a VideoObject); off with Rich snippets or for a password-protected recipe.
+  recipes carry a VideoObject); none when the Rich snippets setting is off or the recipe is password-protected.
 - Recipes → Settings: General, Listing, Writers and Data tabs; filter types can be switched
   off and ordered.
 - Sample recipes: install three draft recipes with illustrative placeholder images by a sample writer from the Data

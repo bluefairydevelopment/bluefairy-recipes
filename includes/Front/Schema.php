@@ -44,7 +44,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * or the site's local time with its offset when only that is stored (a
  * post published through wp_publish_post()); a status whose date floats
  * (draft, pending, auto-draft: core re-stamps it on every save) gets no
- * date keys, so a logged-in preview never carries a made-up date.
+ * date keys and no `video` (its `uploadDate` is required), so a logged-in
+ * preview never carries a made-up date.
  * `tests/fixtures/recipe-jsonld.schema.json` is the contract the unit test
  * and `bin/check-jsonld.php` validate against.
  */
@@ -248,7 +249,7 @@ final class Schema {
 		if ( [] !== $nutrition ) {
 			$out['nutrition'] = [ '@type' => 'NutritionInformation' ] + $nutrition;
 		}
-		if ( $data->has_video() ) {
+		if ( $data->has_video() && ! $floating ) { // A VideoObject needs uploadDate, which a floating-date status cannot give.
 			$out['video'] = [
 				'@type'        => 'VideoObject',
 				'name'         => $out['name'],

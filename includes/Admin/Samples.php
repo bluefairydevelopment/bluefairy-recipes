@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace BlueFairy\Recipes\Admin;
 
-use BlueFairy\Recipes\Admin\WriterProfile;
 use BlueFairy\Recipes\Capabilities;
 use BlueFairy\Recipes\Content\Meta;
 use BlueFairy\Recipes\Content\PostType;
@@ -186,18 +185,21 @@ final class Samples {
 			\WP_Application_Passwords::delete_all_application_passwords( (int) $existing );
 			wp_update_user(
 				[
-					'ID'           => (int) $existing,
-					'display_name' => __( 'Sam Sample', 'bluefairy-recipes' ),
-					'user_url'     => '',
-					'description'  => '',
+					'ID'            => (int) $existing,
+					'display_name'  => __( 'Sam Sample', 'bluefairy-recipes' ),
+					'nickname'      => __( 'Sam Sample', 'bluefairy-recipes' ),
+					'first_name'    => '',
+					'last_name'     => '',
+					'user_nicename' => self::WRITER_LOGIN, // The writer page's URL segment: the previous holder's slug must not stay.
+					'user_url'      => '',
+					'description'   => '',
 				]
 			);
-			foreach ( array_keys( WriterProfile::FIELDS ) as $meta_key ) {
-				delete_user_meta( (int) $existing, $meta_key );
+			foreach ( array_merge( array_keys( WriterProfile::FIELDS ), [ '_new_email' ] ) as $meta_key ) {
+				delete_user_meta( (int) $existing, $meta_key ); // The writer fields, and a pending address change.
 			}
-			if ( [ Capabilities::ROLE_WRITER ] !== array_values( (array) $user->roles ) ) {
-				$user->set_role( Capabilities::ROLE_WRITER );
-			}
+			$user->remove_all_caps(); // set_role() short-circuits when the role already matches, leaving an individual capability in place.
+			$user->add_role( Capabilities::ROLE_WRITER );
 			$writer  = (int) $existing;
 			$adopted = true;
 		} else {
@@ -297,8 +299,8 @@ final class Samples {
 	 * May install() adopt this leftover `bfrc_sample_writer` account? Only
 	 * the plugin's own: the `@example.invalid` address it created it with,
 	 * and no role beyond Writer (uninstall.php leaves a user whose only role
-	 * was Writer as a subscriber; an older cleanup may leave no role). What
-	 * adoption then does to the account, see install().
+	 * was Writer as a subscriber; a network Remove leaves it with no role on
+	 * this site). What adoption then does to the account, see install().
 	 *
 	 * @param \WP_User $user The account with the sample writer's login.
 	 */
@@ -363,9 +365,10 @@ final class Samples {
 	}
 
 	/**
-	 * Copy a shipped photo into the uploads directory as an attachment of
-	 * the recipe; 0 when the file is missing or the upload fails (the
-	 * recipe is kept without a photo).
+	 * Copy a shipped placeholder image into the uploads directory as an
+	 * attachment of the recipe (its featured image, "photo" in the plugin's
+	 * vocabulary); 0 when the file is missing or the upload fails (the
+	 * recipe is kept without one).
 	 *
 	 * @param string $slug    The recipe slug (= the photo's file name).
 	 * @param int    $post_id The recipe.

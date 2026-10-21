@@ -131,7 +131,13 @@ final class SchemaTest extends TestCase {
 			$GLOBALS['bfrc_test_posts'][42]->post_status = $status;
 			$this->assertArrayNotHasKey( 'datePublished', $this->schema->build( get_post( 42 ) ), $status );
 		}
+		update_post_meta( 42, Meta::MEDIA_TYPE, 'video' );
+		update_post_meta( 42, Meta::VIDEO_URL, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' );
+		$draft = $this->schema->build( get_post( 42 ) );
+		$this->assertArrayNotHasKey( 'video', $draft, 'a VideoObject needs uploadDate, which a draft cannot give' );
+		$this->assertTrue( $this->validate( $draft )->isValid(), 'and the contract holds for a draft video recipe' );
 		$GLOBALS['bfrc_test_posts'][42]->post_status = 'publish'; // wp_publish_post(): the status changes, the local date stays, the GMT column stays zero.
+		$this->assertSame( '2026-10-20T23:45:53+02:00', $this->schema->build( get_post( 42 ) )['video']['uploadDate'], 'published: the video is back, dated' );
 		$data                                        = $this->schema->build( get_post( 42 ) );
 		$this->assertSame( [ '2026-10-20T23:45:53+02:00', '2026-10-21T01:00:00+02:00' ], [ $data['datePublished'], $data['dateModified'] ], 'the local time with the site\'s offset stands in for a missing UTC date' );
 		$this->assertTrue( $this->validate( $data )->isValid(), 'still ISO 8601 for the fixture' );
