@@ -198,7 +198,7 @@ builds it; `.distignore` is checked by `DistignoreTest`). `node_modules/` never 
 
 | Seam | Kind | Since | Purpose |
 |---|---|---|---|
-| `bfrc_loaded` | action | 1.0.0 | fired before the base binds anything |
+| `bfrc_loaded` | action | 1.0.0 | fired once the settings exist and before the content model is wired (the rewrite flush hook, the WooCommerce admin-access filters and `maybe_upgrade()` run before it) |
 | `bfrc_booted` | action | 1.0.0 | fired after every subsystem is wired |
 | `bfrc_is_pro` | filter (bool) | 1.0.0 | Pro answers true after `base_ok()`; hides the upsell |
 | `bfrc_filter_taxonomies` | filter (array) | 1.0.0 | add filter types keyed by code (`label`, `singular`, `sort_order`); system codes cannot be changed |
@@ -214,7 +214,7 @@ builds it; `.distignore` is checked by `DistignoreTest`). `node_modules/` never 
 | `bfrc_single_after_steps` | action ($recipe_id) | 1.0.0 | after the method (fires even when the recipe has no steps) |
 | `bfrc_single_after_nutrition` | action ($recipe_id) | 1.0.0 | after the nutrition facts (fires even when there are none) |
 | `bfrc_single_footer` | action ($recipe_id) | 1.0.0 | end of the recipe (the add-on's reviews) |
-| `bfrc_writer_canonical` | filter ($url, $query) | 1.0.0 | the canonical URL printed on a writer page or the writers listing; return `''` to let an SEO plugin print its own |
+| `bfrc_writer_canonical` | filter ($url, $query) | 1.0.0 | the canonical URL of a writer page or the writers listing: on the plugin's own `rel_canonical()` an empty string prints none; on the Yoast, Rank Math and AIOSEO paths an empty string hands the SEO plugin its own value back |
 | `bfrc_recipe_saved` | action ($post_id, $clean, $raw) | 1.0.0 | the recipe edit form was saved; `$clean` = meta key => value written, after capability and nonce |
 | `bfrc_list_query_args` | filter ($args, $normalised, $context) | 1.0.0 | the `WP_Query` arguments of a recipe list that is not the archive's main query: the REST endpoint (`rest`), the Recipe List block (`block`), `[bfrc_recipes]` (`shortcode`) |
 | `bfrc_schema_data` | filter ($data, $post) | 1.0.0 | the Recipe JSON-LD object before encoding (Pro adds `aggregateRating`) |

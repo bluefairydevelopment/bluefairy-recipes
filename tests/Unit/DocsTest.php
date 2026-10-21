@@ -168,15 +168,22 @@ final class DocsTest extends TestCase {
 		$this->assertGreaterThan( 20, count( $files ), 'the includes tree was found' );
 		foreach ( $files as $file ) {
 			$source = (string) file_get_contents( $file );
-			preg_match_all( '/\b(do_action|apply_filters|seam)\(\s*[\'"](bfrc_[a-z0-9_]+)[\'"]/', $source, $m, PREG_SET_ORDER );
+			preg_match_all( '/\b(do_action|apply_filters|seam)(?:_ref_array|_deprecated)?\(\s*[\'"](bfrc_[a-z0-9_]+)[\'"]/', $source, $m, PREG_SET_ORDER );
 			foreach ( $m as $hit ) {
 				$in_code[ $hit[2] ] = 'apply_filters' === $hit[1] ? 'filter' : 'action'; // seam() wraps do_action().
 			}
-			$this->assertSame( 0, preg_match( '/\b(?:do_action|apply_filters)(?:_ref_array|_deprecated)?\(\s*[^\'"\s)]/', (string) preg_replace( '/do_action\( \$hook, \$recipe_id \)/', '', $source ) ), basename( $file ) . ': a hook fired by a variable or computed name would escape this sweep (seam() is the one allowed, and its callers are literal)' );
+			$without_seam = (string) preg_replace( '/do_action\( \$hook, \$recipe_id \)/', '', $source );
+			$this->assertSame( 0, preg_match( '/\b(?:do_action|apply_filters)(?:_ref_array|_deprecated)?\(\s*(?:[^\'"\s)]|"[^"]*\$)/', $without_seam ), basename( $file ) . ': a hook fired by a variable, computed or interpolated name would escape this sweep (seam() is the one allowed, and its callers are literal)' );
 		}
 		ksort( $in_code );
 		ksort( $documented );
 		$this->assertSame( $in_code, $documented, 'the Extending table and the code name the same hooks with the same kind, no more, no less' );
+		$architecture = [];
+		foreach ( $this->table( (string) file_get_contents( BFRC_DIR . 'docs/ARCHITECTURE.md' ), 'Extension seams (this list is mirrored in FEATURES.md "Extending")' ) as $cells ) {
+			$architecture[ trim( $cells[0], '`' ) ] = str_starts_with( $cells[1], 'filter' ) ? 'filter' : 'action';
+		}
+		ksort( $architecture );
+		$this->assertSame( $in_code, $architecture, 'docs/ARCHITECTURE.md\'s seams table is the same list, as it says it is' );
 		$this->assertGreaterThan( 20, count( $in_code ), 'denominator: the seams found in the code' );
 	}
 

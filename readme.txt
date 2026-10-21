@@ -55,7 +55,7 @@ Yes. A block theme gets three templates (Single Recipe, Recipes Archive, Recipe 
 
 = How do I put the recipe archive in my menu? =
 
-Pick the Recipes archive item under Appearance → Menus (WordPress lists it there while the plugin is enabled), or add a custom link to `/recipes/` (or your archive slug) in a Navigation block. The plugin does not add menu items itself.
+Add a custom link to `/recipes/` (or your archive slug) in a Navigation block. A theme with a menu screen also lists a "Recipe Archives" item under Appearance → Menus → Recipes once a recipe is published. The plugin does not add menu items itself.
 
 = Where is the structured data? =
 
