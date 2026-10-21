@@ -72,12 +72,19 @@ final class SamplesTest extends TestCase {
 		$this->assertCount( 3, $GLOBALS['bfrc_test_inserted_posts'], 'nothing created twice' );
 		$this->samples->remove( 5 );
 		bfrc_test_add_user( 7, [ 'roles' => [ 'subscriber' ], 'user_login' => 'bfrc_sample_writer', 'user_email' => 'bfrc_sample_writer@example.invalid' ] ); // An uninstall that kept content removed the record and the Writer role, not the account.
+		update_user_meta( 7, 'bfrc_website', 'https://squatter.example' ); // Whatever the previous holder put on the profile.
+		update_user_meta( 7, 'bfrc_listed', '1' );
 		$record = $this->samples->install();
 		$this->assertIsArray( $record, 'a leftover account is adopted, not a dead end' );
 		$this->assertSame( 7, $record['writer'] );
 		$this->assertSame( [ 'bfrc_writer' ], get_userdata( 7 )->roles, 'given the Writer role back' );
 		$this->assertSame( [ 7 ], $GLOBALS['bfrc_test_passwords_set'], 'a new password: whoever knew the old one is out' );
 		$this->assertSame( [ 7 ], $GLOBALS['bfrc_test_sessions_destroyed'], 'and so is every session' );
+		$this->assertSame( [ 7 ], $GLOBALS['bfrc_test_app_passwords_deleted'], 'an application password made before adoption would outlive the password reset: gone too' );
+		$this->assertSame( [ [ 'ID' => 7, 'display_name' => 'Sam Sample', 'user_url' => '', 'description' => '' ] ], $GLOBALS['bfrc_test_updated_users'], 'the profile is ours again' );
+		$this->assertSame( '', (string) get_user_meta( 7, 'bfrc_website', true ), 'the writer fields set before adoption are cleared' );
+		$this->assertSame( '', (string) get_user_meta( 7, 'bfrc_listed', true ) );
+		$this->assertStringContainsString( 'Sam is the sample writer', (string) get_user_meta( 7, 'bfrc_about', true ) );
 		$this->assertCount( 1, $GLOBALS['bfrc_test_inserted_users'], 'no second account' );
 		$this->assertSame( 7, $GLOBALS['bfrc_test_inserted_posts'][ $record['recipes'][0] ]['post_author'] );
 	}

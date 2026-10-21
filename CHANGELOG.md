@@ -47,5 +47,5 @@
   tab, and remove them again.
 - A "Get Pro" link and a note on the settings page name what the Pro add-on adds; both go
   when it is active.
-- readme.txt names the two video services (YouTube, Vimeo) and what they load; a POT file
+- readme.txt names the two video services (YouTube, Vimeo) and Gravatar and what they load; a POT file
   ships in `languages/`.

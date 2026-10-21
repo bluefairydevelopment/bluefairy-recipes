@@ -122,14 +122,17 @@ final class SchemaTest extends TestCase {
 	public function test_a_recipe_without_a_photo_builds_nothing_and_a_bare_recipe_still_validates(): void {
 		delete_post_meta( 41, '_thumbnail_id' );
 		$this->assertSame( [], $this->schema->build( get_post( 41 ) ), 'Google requires image: no markup rather than invalid markup' );
-		bfrc_test_add_post( [ 'ID' => 42, 'post_type' => 'bfrc_recipe', 'post_status' => 'publish', 'post_author' => 999, 'post_title' => 'Bread', 'post_name' => 'bread' ] );
+		bfrc_test_add_post( [ 'ID' => 42, 'post_type' => 'bfrc_recipe', 'post_status' => 'draft', 'post_author' => 999, 'post_title' => 'Bread', 'post_name' => 'bread', 'post_date' => '2026-10-20 23:45:53', 'post_modified' => '2026-10-21 01:00:00' ] ); // As core stores a draft: local dates, zero GMT columns.
 		update_post_meta( 42, '_thumbnail_id', 77 );
 		$data = $this->schema->build( get_post( 42 ) );
 		$this->assertTrue( $this->validate( $data )->isValid(), wp_json_encode( $this->validate( $data )->getErrors() ) );
-		$this->assertSame( [ '@context', '@type', 'name', 'url', 'image' ], array_keys( $data ), 'nothing invented for an empty field; a deleted author is no author; a post without dates (a draft) has no date keys rather than empty ones' );
-		$GLOBALS['bfrc_test_posts'][42]->post_date     = '2026-10-20 23:45:53'; // wp_publish_post() sets the local date and leaves the GMT column zero.
-		$GLOBALS['bfrc_test_posts'][42]->post_modified = '2026-10-21 01:00:00';
-		$data                                          = $this->schema->build( get_post( 42 ) );
+		$this->assertSame( [ '@context', '@type', 'name', 'url', 'image' ], array_keys( $data ), 'nothing invented for an empty field; a deleted author is no author; a draft has no date keys: its date floats, and a preview would carry the request time' );
+		foreach ( [ 'pending', 'auto-draft' ] as $status ) {
+			$GLOBALS['bfrc_test_posts'][42]->post_status = $status;
+			$this->assertArrayNotHasKey( 'datePublished', $this->schema->build( get_post( 42 ) ), $status );
+		}
+		$GLOBALS['bfrc_test_posts'][42]->post_status = 'publish'; // wp_publish_post(): the status changes, the local date stays, the GMT column stays zero.
+		$data                                        = $this->schema->build( get_post( 42 ) );
 		$this->assertSame( [ '2026-10-20T23:45:53+02:00', '2026-10-21T01:00:00+02:00' ], [ $data['datePublished'], $data['dateModified'] ], 'the local time with the site\'s offset stands in for a missing UTC date' );
 		$this->assertTrue( $this->validate( $data )->isValid(), 'still ISO 8601 for the fixture' );
 	}

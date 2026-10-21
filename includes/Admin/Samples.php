@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace BlueFairy\Recipes\Admin;
 
+use BlueFairy\Recipes\Admin\WriterProfile;
 use BlueFairy\Recipes\Capabilities;
 use BlueFairy\Recipes\Content\Meta;
 use BlueFairy\Recipes\Content\PostType;
@@ -21,12 +22,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Three synthetic recipes by one sample writer, with the plugin's own
- * photos (`assets/samples/`), installed from Recipes → Settings → Data on
+ * placeholder images (`assets/samples/`), installed from Recipes → Settings → Data on
  * request and never on activation. Created as drafts under a Recipe Writer
  * account `bfrc_sample_writer` (random password, no e-mail delivery), with
  * terms from the starter sets where they exist. What was created is
  * recorded in the option `bfrc_samples` so Remove deletes exactly that,
- * recipes, photos and the writer (the writer only while the account is
+ * recipes, images and the writer (the writer only while the account is
  * still the sample writer: the login and exactly the Writer role; posts
  * of theirs outside the record are reassigned to the remover, never
  * deleted). A second Install is refused while the record exists; a
@@ -46,7 +47,7 @@ final class Samples {
 	/**
 	 * The sample set. Terms are the starter terms' names, translated as the
 	 * starter terms are seeded (skipped when a site renamed or removed
-	 * them); measures with a unit are translatable too; photos live in
+	 * them); measures with a unit are translatable too; the images live in
 	 * `assets/samples/`.
 	 *
 	 * @return list<array<string, mixed>>
@@ -150,8 +151,9 @@ final class Samples {
 	 * Install the set. Refused (`exists`) while the record exists and
 	 * (`writer_taken`) while an account with the writer's login exists that
 	 * is not the plugin's own leftover (see is_adoptable()); a leftover is
-	 * adopted with a new password and its sessions ended. On any failure
-	 * everything created so far is removed (`failed`).
+	 * adopted with a new password, its sessions and application passwords
+	 * ended and its profile reset. On any failure everything created so
+	 * far is removed (`failed`), the adopted account included.
 	 *
 	 * @return array<string, mixed>|\WP_Error The record, or why not.
 	 */
@@ -174,10 +176,25 @@ final class Samples {
 			// the role-less leftover). Anything else is someone's account: never demoted, never handed the samples.
 			$user = get_userdata( (int) $existing );
 			if ( ! $user instanceof \WP_User || ! self::is_adoptable( $user ) ) {
-				return new \WP_Error( 'writer_taken', __( 'An account named bfrc_sample_writer exists and is not the sample writer the plugin created. Rename or delete it, then install the samples.', 'bluefairy-recipes' ) );
+				/* translators: %s: the sample writer's login */
+				return new \WP_Error( 'writer_taken', sprintf( __( 'An account named %s exists and is not the sample writer the plugin created. Rename or delete it, then install the samples.', 'bluefairy-recipes' ), self::WRITER_LOGIN ) );
 			}
-			wp_set_password( wp_generate_password( 32, true, true ), (int) $existing ); // A fresh secret for a fresh set.
+			// Every way into the account is closed and its profile is ours again: whoever held it before
+			// (an uninstall's leftover, or someone who registered the login and set our address) keeps nothing.
+			wp_set_password( wp_generate_password( 32, true, true ), (int) $existing );
 			\WP_Session_Tokens::get_instance( (int) $existing )->destroy_all();
+			\WP_Application_Passwords::delete_all_application_passwords( (int) $existing );
+			wp_update_user(
+				[
+					'ID'           => (int) $existing,
+					'display_name' => __( 'Sam Sample', 'bluefairy-recipes' ),
+					'user_url'     => '',
+					'description'  => '',
+				]
+			);
+			foreach ( array_keys( WriterProfile::FIELDS ) as $meta_key ) {
+				delete_user_meta( (int) $existing, $meta_key );
+			}
 			if ( [ Capabilities::ROLE_WRITER ] !== array_values( (array) $user->roles ) ) {
 				$user->set_role( Capabilities::ROLE_WRITER );
 			}
@@ -263,7 +280,7 @@ final class Samples {
 	}
 
 	/**
-	 * Remove what install() recorded (recipes, photos, the writer) and the
+	 * Remove what install() recorded (recipes, images, the writer) and the
 	 * record. Safe to call when nothing is installed.
 	 *
 	 * @param int $reassign_to User id that inherits any other post of the writer's (0: the current user).
@@ -279,8 +296,9 @@ final class Samples {
 	/**
 	 * May install() adopt this leftover `bfrc_sample_writer` account? Only
 	 * the plugin's own: the `@example.invalid` address it created it with,
-	 * and no role beyond Writer (an uninstall that kept content leaves it
-	 * with no role or with core's default role for new users, subscriber).
+	 * and no role beyond Writer (uninstall.php leaves a user whose only role
+	 * was Writer as a subscriber; an older cleanup may leave no role). What
+	 * adoption then does to the account, see install().
 	 *
 	 * @param \WP_User $user The account with the sample writer's login.
 	 */
@@ -301,7 +319,6 @@ final class Samples {
 		return $user instanceof \WP_User && self::WRITER_LOGIN === (string) $user->user_login && [ Capabilities::ROLE_WRITER ] === array_values( (array) $user->roles );
 	}
 
-	/**
 	/**
 	 * Delete everything a record names, then the record. The writer goes
 	 * only while it is still the sample writer AND there is someone to

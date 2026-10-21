@@ -132,7 +132,7 @@ $bfrc_uninstall_site = static function ( bool $delete_data ) use ( $bfrc_option_
 				if ( ! function_exists( 'wp_delete_user' ) ) {
 					require_once ABSPATH . 'wp-admin/includes/user.php';
 				}
-				wp_delete_user( $sample_writer ); // Their posts are the samples, deleted below anyway.
+				wp_delete_user( $sample_writer, get_current_user_id() > 0 ? get_current_user_id() : null ); // Anything else of theirs (an upload) goes to whoever uninstalls; from WP-CLI there is no one, and core deletes it with the account.
 				if ( is_multisite() && [] === get_blogs_of_user( $sample_writer ) ) {
 					if ( ! function_exists( 'wpmu_delete_user' ) ) {
 						require_once ABSPATH . 'wp-admin/includes/ms.php';

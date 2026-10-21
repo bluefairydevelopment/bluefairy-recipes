@@ -182,7 +182,7 @@ final class SettingsPageTest extends TestCase {
 		foreach ( [ 'bfrc_meal_type', 'bfrc_diet', 'bfrc_season', 'bfrc_cuisine' ] as $tax ) {
 			$GLOBALS['bfrc_test_taxonomies'][ $tax ] = [ 'object_type' => [ 'bfrc_recipe' ], 'args' => [] ];
 		}
-		$_REQUEST['_wpnonce'] = 'nonce-bfrc_install_samples';
+		$_REQUEST['bfrc_install_nonce'] = 'nonce-bfrc_install_samples';
 		$exit                 = bfrc_test_catch_exit( fn() => $this->page->install_samples() );
 		$this->assertStringContainsString( 'tab=data&bfrc_notice=samples_added', (string) $exit->payload );
 		$this->assertCount( 3, $this->samples->installed()['recipes'] );
@@ -190,13 +190,15 @@ final class SettingsPageTest extends TestCase {
 		$this->assertStringContainsString( 'The sample recipes are installed (3 recipes by the sample writer bfrc_sample_writer).', $data );
 		$this->assertStringContainsString( 'value="bfrc_remove_samples"', $data );
 		$this->assertStringContainsString( 'Remove deletes the sample recipes permanently (not to the trash), even if you edited or published them', $data, 'the destructive wording' );
+		$this->assertSame( 1, substr_count( $data, 'name="_wpnonce"' ), 'the Remove form has its own nonce field name: one _wpnonce on the tab' );
+		$this->assertStringContainsString( 'name="bfrc_remove_nonce"', $data );
 		$this->assertStringNotContainsString( 'published on your site', $data, 'all drafts: no published warning' );
 		$this->assertStringNotContainsString( 'value="bfrc_install_samples"', $data );
 		$GLOBALS['bfrc_test_posts'][ $this->samples->installed()['recipes'][1] ]->post_status = 'publish';
 		$this->assertStringContainsString( '<strong>1 of them is published on your site.</strong>', $this->render( 'data' ) );
 		$exit = bfrc_test_catch_exit( fn() => $this->page->install_samples() );
 		$this->assertStringContainsString( 'bfrc_notice=samples_present', (string) $exit->payload );
-		$_REQUEST['_wpnonce'] = 'nonce-bfrc_remove_samples';
+		$_REQUEST['bfrc_remove_nonce'] = 'nonce-bfrc_remove_samples';
 		$exit                 = bfrc_test_catch_exit( fn() => $this->page->remove_samples() );
 		$this->assertStringContainsString( 'bfrc_notice=samples_no_delete_users', (string) $exit->payload, 'removing deletes a user account: delete_users is the mirror of create_users' );
 		$this->assertCount( 3, $this->samples->installed()['recipes'], 'nothing removed' );
@@ -215,12 +217,12 @@ final class SettingsPageTest extends TestCase {
 		$this->assertStringContainsString( 'bfrc_notice=samples_removed', (string) $exit->payload );
 		$this->assertSame( [ [ 900, 1 ] ], $GLOBALS['bfrc_test_deleted_users_reassign'], 'the writer\'s other posts go to the remover' );
 		bfrc_test_add_user( 7, [ 'roles' => [ 'editor' ], 'user_login' => 'bfrc_sample_writer', 'user_email' => 'ed@example.com' ] );
-		$_REQUEST['_wpnonce'] = 'nonce-bfrc_install_samples';
+		$_REQUEST['bfrc_install_nonce'] = 'nonce-bfrc_install_samples';
 		$exit                 = bfrc_test_catch_exit( fn() => $this->page->install_samples() );
 		$this->assertStringContainsString( 'bfrc_notice=samples_writer_taken', (string) $exit->payload, 'someone else\'s account with the login: refused with its own notice' );
 		$this->assertSame( [ 'editor' ], get_userdata( 7 )->roles );
 		unset( $GLOBALS['bfrc_test_users'][7] );
-		$_REQUEST['_wpnonce'] = 'nonce-bfrc_install_samples';
+		$_REQUEST['bfrc_install_nonce'] = 'nonce-bfrc_install_samples';
 		$this->assertSame( [], $this->samples->installed() );
 		$GLOBALS['bfrc_test_user_insert_fails'] = true;
 		$exit                                   = bfrc_test_catch_exit( fn() => $this->page->install_samples() );
@@ -238,8 +240,12 @@ final class SettingsPageTest extends TestCase {
 		$this->assertSame( 403, bfrc_test_catch_exit( fn() => $this->page->install_samples() )->status );
 		$this->assertSame( 403, bfrc_test_catch_exit( fn() => $this->page->remove_samples() )->status );
 		wp_set_current_user( 1 );
-		$_REQUEST['_wpnonce'] = 'nonce-bfrc_save_settings';
-		$this->assertSame( 'The link you followed has expired.', bfrc_test_catch_exit( fn() => $this->page->remove_samples() )->payload, 'the remove nonce is its own' );
+		$_REQUEST['_wpnonce'] = 'nonce-bfrc_remove_samples'; // The right value in the wrong field: the sample forms read their own field names.
+		unset( $_REQUEST['bfrc_remove_nonce'] );
+		$this->assertSame( 'The link you followed has expired.', bfrc_test_catch_exit( fn() => $this->page->remove_samples() )->payload, 'the remove nonce is its own field' );
+		$data = $this->render( 'data' );
+		$this->assertSame( 1, substr_count( $data, 'name="_wpnonce"' ), 'one _wpnonce (the settings form); the sample form has its own field, so no duplicate id' );
+		$this->assertStringContainsString( 'name="bfrc_install_nonce"', $data );
 	}
 
 	public function test_the_plugins_row_gets_a_settings_link_before_the_upsells(): void {

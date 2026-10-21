@@ -47,11 +47,13 @@ final class UninstallTest extends TestCase {
 
 	public function test_opt_in_deletes_the_sample_photos_and_the_sample_writer_only_while_it_is_still_the_plugins_own(): void {
 		$this->seed( true );
+		wp_set_current_user( 1 ); // Uninstalling from the plugins screen.
 		$this->wpdb->queue( 'get_col', [ '41' ] );
 		$this->wpdb->queue( 'get_col', [] );
 		$this->run_uninstall();
 		$this->assertSame( [ 43, 44 ], $GLOBALS['bfrc_test_deleted_attachments'], 'the photos are attachments, not recipes: the recipe loop would leave them' );
 		$this->assertSame( [ 6 ], $GLOBALS['bfrc_test_deleted_users'], 'the sample writer account goes with the content' );
+		$this->assertSame( [ [ 6, 1 ] ], $GLOBALS['bfrc_test_deleted_users_reassign'], 'anything else of theirs goes to whoever uninstalls' );
 		$this->assertSame( [], $GLOBALS['bfrc_test_network_deleted_users'], 'single site' );
 		$this->assertFalse( get_option( 'bfrc_samples' ) );
 		$this->seed( true );
@@ -60,6 +62,22 @@ final class UninstallTest extends TestCase {
 		$this->run_uninstall();
 		$this->assertSame( [ 6 ], $GLOBALS['bfrc_test_deleted_users'], 'not deleted a second time: a promoted account stays' );
 		$this->assertSame( [ 43, 44, 43, 44 ], $GLOBALS['bfrc_test_deleted_attachments'], 'its photos still go' );
+	}
+
+	public function test_opt_in_on_multisite_drops_the_sample_writers_network_row_only_when_no_other_site_has_it(): void {
+		$GLOBALS['bfrc_test_multisite'] = true;
+		$GLOBALS['bfrc_test_sites']     = [ 1 ];
+		$this->seed( true );
+		$GLOBALS['bfrc_test_user_blogs'][6] = [ 1 => 'this site', 2 => 'another site' ];
+		$this->wpdb->queue( 'get_col', [] );
+		$this->run_uninstall();
+		$this->assertSame( [ [ 6, 1 ] ], $GLOBALS['bfrc_test_removed_from_blog'], 'removed from the site' );
+		$this->assertSame( [], $GLOBALS['bfrc_test_network_deleted_users'], 'still a member of another site: the network row stays' );
+		$this->seed( true );
+		$GLOBALS['bfrc_test_user_blogs'][6] = [ 1 => 'this site' ];
+		$this->wpdb->queue( 'get_col', [] );
+		$this->run_uninstall();
+		$this->assertSame( [ 6 ], $GLOBALS['bfrc_test_network_deleted_users'], 'nowhere else: the network row goes' );
 	}
 
 	public function test_default_keeps_the_sample_writer_and_photos(): void {

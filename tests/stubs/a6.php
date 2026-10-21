@@ -89,6 +89,39 @@ if ( ! function_exists( 'wp_set_password' ) ) {
 		$GLOBALS['bfrc_test_passwords_set'][] = $user_id;
 	}
 }
+if ( ! function_exists( 'get_post_stati' ) ) {
+	/** Core's built-in statuses with a floating creation date. */
+	function get_post_stati( array $args = [], string $output = 'names' ): array {
+		if ( ! empty( $args['date_floating'] ) ) {
+			return [ 'draft', 'pending', 'auto-draft' ];
+		}
+		return [ 'publish', 'future', 'draft', 'pending', 'private', 'trash', 'auto-draft', 'inherit' ];
+	}
+}
+if ( ! function_exists( 'wp_update_user' ) ) {
+	function wp_update_user( array $userdata ): int|WP_Error {
+		$id   = (int) ( $userdata['ID'] ?? 0 );
+		$user = $GLOBALS['bfrc_test_users'][ $id ] ?? null;
+		if ( ! $user instanceof WP_User ) {
+			return new WP_Error( 'invalid_user_id', 'Invalid user ID.' );
+		}
+		foreach ( $userdata as $key => $value ) {
+			if ( 'ID' !== $key ) {
+				$user->$key = $value;
+			}
+		}
+		$GLOBALS['bfrc_test_updated_users'][] = $userdata;
+		return $id;
+	}
+}
+if ( ! class_exists( 'WP_Application_Passwords' ) ) {
+	class WP_Application_Passwords {
+		public static function delete_all_application_passwords( int $user_id ): int|WP_Error {
+			$GLOBALS['bfrc_test_app_passwords_deleted'][] = $user_id;
+			return 1;
+		}
+	}
+}
 if ( ! class_exists( 'WP_Session_Tokens' ) ) {
 	class WP_Session_Tokens {
 		public function __construct( private int $user_id ) {}

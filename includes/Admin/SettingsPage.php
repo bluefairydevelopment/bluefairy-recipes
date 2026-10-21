@@ -36,8 +36,11 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class SettingsPage {
 
-	public const SLUG          = 'bfrc-settings';
-	public const ACTION_SAVE   = 'bfrc_save_settings';
+	public const SLUG        = 'bfrc-settings';
+	public const ACTION_SAVE = 'bfrc_save_settings';
+	/** The nonce field names of the two sample forms (the settings form keeps core's `_wpnonce`, so the tab has one of each id). */
+	public const NONCE_INSTALL = 'bfrc_install_nonce';
+	public const NONCE_REMOVE  = 'bfrc_remove_nonce';
 	public const NOTICE_VAR    = 'bfrc_notice';
 	public const TAB_VAR       = 'tab';
 	public const PARENT        = 'edit.php?post_type=' . PostType::NAME;
@@ -229,7 +232,8 @@ final class SettingsPage {
 			'samples_failed'          => [ 'error', __( 'The sample recipes could not be installed. Nothing was kept.', 'bluefairy-recipes' ) ],
 			'samples_no_users'        => [ 'error', __( 'Installing the samples creates a sample writer, which needs the right to create users.', 'bluefairy-recipes' ) ],
 			'samples_no_delete_users' => [ 'error', __( 'Removing the samples deletes the sample writer account, which needs the right to delete users (on a network, to remove users).', 'bluefairy-recipes' ) ],
-			'samples_writer_taken'    => [ 'error', __( 'An account named bfrc_sample_writer exists and is not the sample writer the plugin created. Rename or delete it, then install the samples.', 'bluefairy-recipes' ) ],
+			/* translators: %s: the sample writer's login */
+			'samples_writer_taken'    => [ 'error', sprintf( __( 'An account named %s exists and is not the sample writer the plugin created. Rename or delete it, then install the samples.', 'bluefairy-recipes' ), Samples::WRITER_LOGIN ) ],
 		];
 		if ( ! isset( $texts[ $code ] ) ) {
 			return;
@@ -290,7 +294,7 @@ final class SettingsPage {
 		if ( [] === $installed ) {
 			echo '<p>' . esc_html__( 'Install three sample recipes by a sample writer, with illustrative placeholder images, to see the archive, the filters and a recipe page filled in. They are created as drafts; remove them from here when you are done.', 'bluefairy-recipes' ) . '</p>';
 			echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="action" value="' . esc_attr( Samples::ACTION_INSTALL ) . '">';
-			wp_nonce_field( Samples::ACTION_INSTALL );
+			wp_nonce_field( Samples::ACTION_INSTALL, self::NONCE_INSTALL ); // Its own field name: the tab's form has `_wpnonce`, and two elements may not share an id.
 			// Its own id: the tab's Save button is `#submit` already, and two elements may not share an id.
 			if ( current_user_can( 'create_users' ) ) {
 				submit_button( __( 'Install sample recipes', 'bluefairy-recipes' ), 'secondary', 'submit', false, [ 'id' => 'bfrc-install-samples' ] );
@@ -316,14 +320,14 @@ final class SettingsPage {
 		$published = count( array_filter( $recipes, static fn( int $id ): bool => 'publish' === get_post_status( $id ) ) );
 		/* translators: 1: number of recipes, 2: the sample writer's login */
 		echo '<p>' . esc_html( sprintf( _n( 'The sample recipes are installed (%1$d recipe by the sample writer %2$s).', 'The sample recipes are installed (%1$d recipes by the sample writer %2$s).', count( $recipes ), 'bluefairy-recipes' ), count( $recipes ), (string) ( $installed['writer_login'] ?? '' ) ) ) . '</p>';
-		echo '<p>' . esc_html__( 'Remove deletes the sample recipes permanently (not to the trash), even if you edited or published them, together with their photos and the sample writer account; a recipe the writer account wrote outside the samples is given to you. It cannot be undone.', 'bluefairy-recipes' );
+		echo '<p>' . esc_html__( 'Remove deletes the sample recipes permanently (not to the trash), even if you edited or published them, together with their images and the sample writer account; a recipe the writer account wrote outside the samples is given to you. It cannot be undone.', 'bluefairy-recipes' );
 		if ( $published > 0 ) {
 			/* translators: %d: number of published sample recipes */
 			echo ' <strong>' . esc_html( sprintf( _n( '%d of them is published on your site.', '%d of them are published on your site.', $published, 'bluefairy-recipes' ), $published ) ) . '</strong>';
 		}
 		echo '</p>';
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="action" value="' . esc_attr( Samples::ACTION_REMOVE ) . '">';
-		wp_nonce_field( Samples::ACTION_REMOVE );
+		wp_nonce_field( Samples::ACTION_REMOVE, self::NONCE_REMOVE );
 		// Core's own destructive control (button-link button-link-delete), which every admin colour scheme paints red.
 		if ( self::can_remove_writer() ) {
 			echo '<button type="submit" name="submit" class="button-link button-link-delete">' . esc_html__( 'Remove sample recipes', 'bluefairy-recipes' ) . '</button>';
@@ -385,7 +389,7 @@ final class SettingsPage {
 		if ( ! Capabilities::current_user_can_manage() ) {
 			wp_die( esc_html__( 'You are not allowed to manage recipe settings.', 'bluefairy-recipes' ), '', [ 'response' => 403 ] );
 		}
-		check_admin_referer( Samples::ACTION_INSTALL );
+		check_admin_referer( Samples::ACTION_INSTALL, self::NONCE_INSTALL );
 		if ( ! current_user_can( 'create_users' ) ) {
 			$this->redirect( 'data', 'samples_no_users' );
 		}
@@ -417,9 +421,9 @@ final class SettingsPage {
 		if ( ! Capabilities::current_user_can_manage() ) {
 			wp_die( esc_html__( 'You are not allowed to manage recipe settings.', 'bluefairy-recipes' ), '', [ 'response' => 403 ] );
 		}
-		check_admin_referer( Samples::ACTION_REMOVE );
+		check_admin_referer( Samples::ACTION_REMOVE, self::NONCE_REMOVE );
 		if ( ! self::can_remove_writer() ) {
-			$this->redirect( 'data', 'samples_no_delete_users' ); // Removing deletes the writer account: the mirror of Install's create_users.
+			$this->redirect( 'data', 'samples_no_delete_users' ); // Removing deletes the writer account: delete_users, or remove_users on a network.
 		}
 		$this->samples->remove( (int) get_current_user_id() );
 		$this->redirect( 'data', 'samples_removed' );

@@ -42,8 +42,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  * URL is not a media file, so no `contentUrl`) for a video recipe, plus
  * `suitableForDiet` for the diet terms schema.org names. Dates are UTC,
  * or the site's local time with its offset when only that is stored (a
- * post published through wp_publish_post()); a draft has neither and
- * gets no `datePublished`.
+ * post published through wp_publish_post()); a status whose date floats
+ * (draft, pending, auto-draft: core re-stamps it on every save) gets no
+ * date keys, so a logged-in preview never carries a made-up date.
  * `tests/fixtures/recipe-jsonld.schema.json` is the contract the unit test
  * and `bin/check-jsonld.php` validate against.
  */
@@ -157,13 +158,15 @@ final class Schema {
 			'image'    => $images,
 		];
 		// UTC when the post has it; a post published by wp_publish_post() keeps a zero GMT column, so fall back to
-		// the local time, which `c` prints with the site's offset (still ISO 8601). A draft has neither: no key.
-		$published = get_post_time( 'c', true, $post );
-		$published = false === $published ? get_post_time( 'c', false, $post ) : $published;
-		$modified  = get_post_modified_time( 'c', true, $post );
-		$modified  = false === $modified ? get_post_modified_time( 'c', false, $post ) : $modified;
+		// the local time, which `c` prints with the site's offset (still ISO 8601). A draft's date floats (core
+		// re-stamps it on every save and sets it to now on a preview), so a status with a floating date gets no key.
+		$floating  = in_array( $post->post_status, get_post_stati( [ 'date_floating' => true ] ), true );
+		$published = $floating ? false : get_post_time( 'c', true, $post );
+		$published = false === $published && ! $floating ? get_post_time( 'c', false, $post ) : $published;
+		$modified  = $floating ? false : get_post_modified_time( 'c', true, $post );
+		$modified  = false === $modified && ! $floating ? get_post_modified_time( 'c', false, $post ) : $modified;
 		if ( is_string( $published ) && '' !== $published ) {
-			$out['datePublished'] = $published; // A draft has no date: the key is left out rather than empty.
+			$out['datePublished'] = $published; // Left out rather than empty when there is none.
 		}
 		if ( is_string( $modified ) && '' !== $modified ) {
 			$out['dateModified'] = $modified;

@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-20T23:41:07+00:00\n"
+"POT-Creation-Date: 2026-10-21T00:13:16+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: bluefairy-recipes\n"
@@ -392,526 +392,529 @@ msgstr ""
 msgid "Remove"
 msgstr ""
 
-#: includes/Admin/Samples.php:58
+#: includes/Admin/Samples.php:59
 msgid "Lemon Herb Roast Chicken"
 msgstr ""
 
-#: includes/Admin/Samples.php:59
+#: includes/Admin/Samples.php:60
 msgid "A whole chicken roasted over lemon halves and a handful of garden herbs, with crisp skin and a pan sauce."
 msgstr ""
 
-#: includes/Admin/Samples.php:60
+#: includes/Admin/Samples.php:61
 msgid "Sunday lunch for four, with enough left for sandwiches. Bring the chicken to room temperature before it goes in: a cold bird steams before it roasts."
 msgstr ""
 
-#: includes/Admin/Samples.php:64
+#: includes/Admin/Samples.php:65
 msgid "whole chicken, about 1.8 kg"
 msgstr ""
 
-#: includes/Admin/Samples.php:64
+#: includes/Admin/Samples.php:65
 msgid "lemons, halved"
 msgstr ""
 
-#: includes/Admin/Samples.php:64
+#: includes/Admin/Samples.php:65
 msgid "1 small bunch"
 msgstr ""
 
-#: includes/Admin/Samples.php:64
+#: includes/Admin/Samples.php:65
 msgid "thyme and rosemary"
 msgstr ""
 
-#: includes/Admin/Samples.php:64
+#: includes/Admin/Samples.php:65
 msgid "4 cloves"
 msgstr ""
 
-#: includes/Admin/Samples.php:64
+#: includes/Admin/Samples.php:65
 msgid "garlic, crushed"
 msgstr ""
 
-#: includes/Admin/Samples.php:64
-#: includes/Admin/Samples.php:89
+#: includes/Admin/Samples.php:65
+#: includes/Admin/Samples.php:90
 msgid "2 tbsp"
 msgstr ""
 
-#: includes/Admin/Samples.php:64
-#: includes/Admin/Samples.php:89
+#: includes/Admin/Samples.php:65
+#: includes/Admin/Samples.php:90
 msgid "olive oil"
 msgstr ""
 
-#: includes/Admin/Samples.php:64
+#: includes/Admin/Samples.php:65
 msgid "1 tsp"
 msgstr ""
 
-#: includes/Admin/Samples.php:64
+#: includes/Admin/Samples.php:65
 msgid "flaky salt"
 msgstr ""
 
-#: includes/Admin/Samples.php:64
+#: includes/Admin/Samples.php:65
 msgid "black pepper"
 msgstr ""
 
-#: includes/Admin/Samples.php:65
+#: includes/Admin/Samples.php:66
 msgid "Heat the oven to 200 °C (390 °F). Pat the chicken dry and season inside and out."
 msgstr ""
 
-#: includes/Admin/Samples.php:65
+#: includes/Admin/Samples.php:66
 msgid "Put the lemon halves, garlic and half the herbs in the cavity; rub the skin with oil and scatter the rest of the herbs over."
 msgstr ""
 
-#: includes/Admin/Samples.php:65
+#: includes/Admin/Samples.php:66
 msgid "Roast for 75 to 85 minutes, until the juices run clear at the thigh. Rest for 15 minutes before carving."
 msgstr ""
 
-#: includes/Admin/Samples.php:65
+#: includes/Admin/Samples.php:66
 msgid "Skim the pan juices, squeeze in the roasted lemon and spoon over the carved chicken."
 msgstr ""
 
-#: includes/Admin/Samples.php:75
+#: includes/Admin/Samples.php:76
 #: includes/Content/Taxonomies.php:127
 msgid "Dinner"
 msgstr ""
 
-#: includes/Admin/Samples.php:76
+#: includes/Admin/Samples.php:77
 #: includes/Content/Taxonomies.php:133
 msgid "Gluten-Free"
 msgstr ""
 
-#: includes/Admin/Samples.php:77
+#: includes/Admin/Samples.php:78
 #: includes/Content/Taxonomies.php:139
 msgid "Autumn"
 msgstr ""
 
-#: includes/Admin/Samples.php:78
-#: includes/Admin/Samples.php:132
+#: includes/Admin/Samples.php:79
+#: includes/Admin/Samples.php:133
 #: includes/Content/Taxonomies.php:145
 msgid "American"
 msgstr ""
 
-#: includes/Admin/Samples.php:83
+#: includes/Admin/Samples.php:84
 msgid "Garden Vegetable Soup"
 msgstr ""
 
-#: includes/Admin/Samples.php:84
+#: includes/Admin/Samples.php:85
 msgid "A big pot of soup from whatever the garden gives: leeks, carrots, courgettes and beans in a tomato broth."
 msgstr ""
 
-#: includes/Admin/Samples.php:85
+#: includes/Admin/Samples.php:86
 msgid "It keeps for three days and freezes well. Add the greens at the end so they stay bright."
 msgstr ""
 
-#: includes/Admin/Samples.php:89
+#: includes/Admin/Samples.php:90
 msgid "leeks, sliced"
 msgstr ""
 
-#: includes/Admin/Samples.php:89
+#: includes/Admin/Samples.php:90
 msgid "carrots, diced"
 msgstr ""
 
-#: includes/Admin/Samples.php:89
+#: includes/Admin/Samples.php:90
 msgid "courgettes, diced"
 msgstr ""
 
-#: includes/Admin/Samples.php:89
+#: includes/Admin/Samples.php:90
 msgid "1 can"
 msgstr ""
 
-#: includes/Admin/Samples.php:89
+#: includes/Admin/Samples.php:90
 msgid "cannellini beans, drained"
 msgstr ""
 
-#: includes/Admin/Samples.php:89
+#: includes/Admin/Samples.php:90
 msgid "chopped tomatoes"
 msgstr ""
 
-#: includes/Admin/Samples.php:89
+#: includes/Admin/Samples.php:90
 msgid "1.2 l"
 msgstr ""
 
-#: includes/Admin/Samples.php:89
+#: includes/Admin/Samples.php:90
 msgid "vegetable stock"
 msgstr ""
 
-#: includes/Admin/Samples.php:89
+#: includes/Admin/Samples.php:90
 msgid "2 handfuls"
 msgstr ""
 
-#: includes/Admin/Samples.php:89
+#: includes/Admin/Samples.php:90
 msgid "spinach or chard"
 msgstr ""
 
-#: includes/Admin/Samples.php:90
+#: includes/Admin/Samples.php:91
 msgid "Soften the leeks and carrots in the oil over a low heat for 10 minutes."
 msgstr ""
 
-#: includes/Admin/Samples.php:90
+#: includes/Admin/Samples.php:91
 msgid "Add the courgettes, beans, tomatoes and stock; simmer for 20 minutes."
 msgstr ""
 
-#: includes/Admin/Samples.php:90
+#: includes/Admin/Samples.php:91
 msgid "Stir in the greens, season, and serve with bread."
 msgstr ""
 
-#: includes/Admin/Samples.php:102
+#: includes/Admin/Samples.php:103
 #: includes/Content/Taxonomies.php:127
 msgid "Lunch"
 msgstr ""
 
-#: includes/Admin/Samples.php:103
+#: includes/Admin/Samples.php:104
 #: includes/Content/Taxonomies.php:133
 msgid "Vegan"
 msgstr ""
 
-#: includes/Admin/Samples.php:104
+#: includes/Admin/Samples.php:105
 #: includes/Content/Taxonomies.php:139
 msgid "Summer"
 msgstr ""
 
-#: includes/Admin/Samples.php:105
+#: includes/Admin/Samples.php:106
 #: includes/Content/Taxonomies.php:145
 msgid "Mediterranean"
 msgstr ""
 
-#: includes/Admin/Samples.php:110
+#: includes/Admin/Samples.php:111
 msgid "Blueberry Oat Pancakes"
 msgstr ""
 
-#: includes/Admin/Samples.php:111
+#: includes/Admin/Samples.php:112
 msgid "Thick, fluffy pancakes with oats in the batter and blueberries dropped onto each one as it cooks."
 msgstr ""
 
-#: includes/Admin/Samples.php:112
+#: includes/Admin/Samples.php:113
 msgid "Let the batter rest for ten minutes so the oats soften. A low heat and a lid make them rise."
 msgstr ""
 
-#: includes/Admin/Samples.php:116
+#: includes/Admin/Samples.php:117
 msgid "150 g"
 msgstr ""
 
-#: includes/Admin/Samples.php:116
+#: includes/Admin/Samples.php:117
 msgid "plain flour"
 msgstr ""
 
-#: includes/Admin/Samples.php:116
+#: includes/Admin/Samples.php:117
 msgid "50 g"
 msgstr ""
 
-#: includes/Admin/Samples.php:116
+#: includes/Admin/Samples.php:117
 msgid "rolled oats"
 msgstr ""
 
-#: includes/Admin/Samples.php:116
+#: includes/Admin/Samples.php:117
 msgid "2 tsp"
 msgstr ""
 
-#: includes/Admin/Samples.php:116
+#: includes/Admin/Samples.php:117
 msgid "baking powder"
 msgstr ""
 
-#: includes/Admin/Samples.php:116
+#: includes/Admin/Samples.php:117
 msgid "1 tbsp"
 msgstr ""
 
-#: includes/Admin/Samples.php:116
+#: includes/Admin/Samples.php:117
 msgid "sugar"
 msgstr ""
 
-#: includes/Admin/Samples.php:116
+#: includes/Admin/Samples.php:117
 msgid "egg"
 msgstr ""
 
-#: includes/Admin/Samples.php:116
+#: includes/Admin/Samples.php:117
 msgid "250 ml"
 msgstr ""
 
-#: includes/Admin/Samples.php:116
+#: includes/Admin/Samples.php:117
 msgid "milk"
 msgstr ""
 
-#: includes/Admin/Samples.php:116
+#: includes/Admin/Samples.php:117
 msgid "blueberries"
 msgstr ""
 
-#: includes/Admin/Samples.php:116
+#: includes/Admin/Samples.php:117
 msgid "butter, for the pan"
 msgstr ""
 
-#: includes/Admin/Samples.php:117
+#: includes/Admin/Samples.php:118
 msgid "Mix the dry ingredients; whisk the egg into the milk and stir it in until just combined. Rest for 10 minutes."
 msgstr ""
 
-#: includes/Admin/Samples.php:117
+#: includes/Admin/Samples.php:118
 msgid "Heat a knob of butter in a pan over a low heat. Ladle in the batter and drop a few blueberries onto each pancake."
 msgstr ""
 
-#: includes/Admin/Samples.php:117
+#: includes/Admin/Samples.php:118
 msgid "Cook for 2 to 3 minutes a side, until golden. Keep warm while you finish the batch."
 msgstr ""
 
-#: includes/Admin/Samples.php:129
+#: includes/Admin/Samples.php:130
 #: includes/Content/Taxonomies.php:127
 msgid "Breakfast"
 msgstr ""
 
-#: includes/Admin/Samples.php:130
+#: includes/Admin/Samples.php:131
 #: includes/Content/Taxonomies.php:133
 msgid "Vegetarian"
 msgstr ""
 
-#: includes/Admin/Samples.php:131
+#: includes/Admin/Samples.php:132
 #: includes/Content/Taxonomies.php:139
 msgid "Spring"
 msgstr ""
 
-#: includes/Admin/Samples.php:160
-#: includes/Admin/SettingsPage.php:228
+#: includes/Admin/Samples.php:162
+#: includes/Admin/SettingsPage.php:231
 msgid "The sample recipes are already installed."
 msgstr ""
 
-#: includes/Admin/Samples.php:177
-#: includes/Admin/SettingsPage.php:232
-msgid "An account named bfrc_sample_writer exists and is not the sample writer the plugin created. Rename or delete it, then install the samples."
+#. translators: %s: the sample writer's login
+#: includes/Admin/Samples.php:180
+#: includes/Admin/SettingsPage.php:236
+#, php-format
+msgid "An account named %s exists and is not the sample writer the plugin created. Rename or delete it, then install the samples."
 msgstr ""
 
-#: includes/Admin/Samples.php:192
+#: includes/Admin/Samples.php:190
+#: includes/Admin/Samples.php:209
 msgid "Sam Sample"
 msgstr ""
 
-#: includes/Admin/Samples.php:201
+#: includes/Admin/Samples.php:218
 msgid "Sam is the sample writer who comes with BlueFairy Recipes: three recipes that show what a recipe page, the archive and a writer page look like."
 msgstr ""
 
-#: includes/Admin/Samples.php:222
+#: includes/Admin/Samples.php:239
 msgid "The recipe could not be created."
 msgstr ""
 
-#: includes/Admin/Samples.php:260
+#: includes/Admin/Samples.php:277
 msgid "The record of the sample recipes could not be saved."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:96
-#: includes/Admin/SettingsPage.php:104
+#: includes/Admin/SettingsPage.php:99
+#: includes/Admin/SettingsPage.php:107
 msgid "Settings"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:104
-#: includes/Admin/SettingsPage.php:195
+#: includes/Admin/SettingsPage.php:107
+#: includes/Admin/SettingsPage.php:198
 msgid "Recipe Settings"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:128
+#: includes/Admin/SettingsPage.php:131
 msgid "General"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:129
+#: includes/Admin/SettingsPage.php:132
 msgid "Listing"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:130
+#: includes/Admin/SettingsPage.php:133
 msgid "Writers"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:131
+#: includes/Admin/SettingsPage.php:134
 msgid "Data"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:191
-#: includes/Admin/SettingsPage.php:341
-#: includes/Admin/SettingsPage.php:384
-#: includes/Admin/SettingsPage.php:416
+#: includes/Admin/SettingsPage.php:194
+#: includes/Admin/SettingsPage.php:347
+#: includes/Admin/SettingsPage.php:390
+#: includes/Admin/SettingsPage.php:422
 msgid "You are not allowed to manage recipe settings."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:197
+#: includes/Admin/SettingsPage.php:200
 msgid "Settings tabs"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:223
+#: includes/Admin/SettingsPage.php:226
 msgid "Settings saved."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:224
+#: includes/Admin/SettingsPage.php:227
 msgid "Settings saved. A value was adjusted: the archive slug must not be a route WordPress owns, and recipes per page is 1 to 100. The stored values are shown."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:225
+#: includes/Admin/SettingsPage.php:228
 msgid "The settings could not be saved. Try again."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:226
+#: includes/Admin/SettingsPage.php:229
 msgid "Sample recipes installed: three recipes by a sample writer, as drafts you can publish."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:227
+#: includes/Admin/SettingsPage.php:230
 msgid "Sample recipes removed."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:229
+#: includes/Admin/SettingsPage.php:232
 msgid "The sample recipes could not be installed. Nothing was kept."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:230
+#: includes/Admin/SettingsPage.php:233
 msgid "Installing the samples creates a sample writer, which needs the right to create users."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:231
-#: includes/Admin/SettingsPage.php:330
+#: includes/Admin/SettingsPage.php:234
+#: includes/Admin/SettingsPage.php:336
 msgid "Removing the samples deletes the sample writer account, which needs the right to delete users (on a network, to remove users)."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:254
-#: includes/Admin/SettingsPage.php:430
+#: includes/Admin/SettingsPage.php:258
+#: includes/Admin/SettingsPage.php:436
 msgid "Enabled"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:254
+#: includes/Admin/SettingsPage.php:258
 msgid "Off: recipes, the archive and the filter pages return 404, recipes leave search, the sitemap and the public REST API; the admin keeps working."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:255
+#: includes/Admin/SettingsPage.php:259
 msgid "Rich snippets"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:255
+#: includes/Admin/SettingsPage.php:259
 msgid "Recipe JSON-LD for Google on every recipe page with a photo."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:256
+#: includes/Admin/SettingsPage.php:260
 msgid "Archive slug"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:256
+#: includes/Admin/SettingsPage.php:260
 msgid "The address of the recipe archive, filter pages and writer pages. Changing it updates the site's rewrite rules on the next page load."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:257
+#: includes/Admin/SettingsPage.php:261
 msgid "Archive title"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:261
+#: includes/Admin/SettingsPage.php:265
 #: src/blocks/recipe-list/index.js:24
 msgid "Recipes per page"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:262
+#: includes/Admin/SettingsPage.php:266
 msgid "Social share"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:262
+#: includes/Admin/SettingsPage.php:266
 msgid "Share buttons on recipe pages."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:263
+#: includes/Admin/SettingsPage.php:267
 #: includes/Admin/WriterProfile.php:140
 msgid "Facebook"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:264
+#: includes/Admin/SettingsPage.php:268
 msgid "X"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:265
+#: includes/Admin/SettingsPage.php:269
 msgid "Pinterest"
 msgstr ""
 
 #. translators: %s: the writers listing path, e.g. /recipes/chef
-#: includes/Admin/SettingsPage.php:269
+#: includes/Admin/SettingsPage.php:273
 #: includes/Admin/WriterProfile.php:125
 msgid "Writer listing"
 msgstr ""
 
 #. translators: %s: the writers listing path, e.g. /recipes/chef
-#: includes/Admin/SettingsPage.php:269
+#: includes/Admin/SettingsPage.php:273
 #, php-format
 msgid "The list of recipe writers at %s (each writer can opt out on their profile)."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:270
+#: includes/Admin/SettingsPage.php:274
 msgid "Grant core roles"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:270
+#: includes/Admin/SettingsPage.php:274
 msgid "Authors can write recipes and Editors can manage them. Turning it off takes those capabilities back; Administrators can always do everything."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:273
+#: includes/Admin/SettingsPage.php:277
 msgid "Delete all data on uninstall"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:273
+#: includes/Admin/SettingsPage.php:277
 msgid "Off: deleting the plugin keeps your recipes, terms and writer profiles. On: everything the plugin created is removed."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:277
+#: includes/Admin/SettingsPage.php:281
 msgid "Save settings"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:289
+#: includes/Admin/SettingsPage.php:293
 msgid "Sample recipes"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:291
+#: includes/Admin/SettingsPage.php:295
 msgid "Install three sample recipes by a sample writer, with illustrative placeholder images, to see the archive, the filters and a recipe page filled in. They are created as drafts; remove them from here when you are done."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:295
-#: includes/Admin/SettingsPage.php:298
+#: includes/Admin/SettingsPage.php:300
+#: includes/Admin/SettingsPage.php:303
 msgid "Install sample recipes"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:307
+#: includes/Admin/SettingsPage.php:313
 msgid "Installing the samples creates a sample writer account, which needs the right to create users."
 msgstr ""
 
 #. translators: 1: number of recipes, 2: the sample writer's login
-#: includes/Admin/SettingsPage.php:316
+#: includes/Admin/SettingsPage.php:322
 #, php-format
 msgid "The sample recipes are installed (%1$d recipe by the sample writer %2$s)."
 msgid_plural "The sample recipes are installed (%1$d recipes by the sample writer %2$s)."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/Admin/SettingsPage.php:317
-msgid "Remove deletes the sample recipes permanently (not to the trash), even if you edited or published them, together with their photos and the sample writer account; a recipe the writer account wrote outside the samples is given to you. It cannot be undone."
+#: includes/Admin/SettingsPage.php:323
+msgid "Remove deletes the sample recipes permanently (not to the trash), even if you edited or published them, together with their images and the sample writer account; a recipe the writer account wrote outside the samples is given to you. It cannot be undone."
 msgstr ""
 
 #. translators: %d: number of published sample recipes
-#: includes/Admin/SettingsPage.php:320
+#: includes/Admin/SettingsPage.php:326
 #, php-format
 msgid "%d of them is published on your site."
 msgid_plural "%d of them are published on your site."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/Admin/SettingsPage.php:327
-#: includes/Admin/SettingsPage.php:329
+#: includes/Admin/SettingsPage.php:333
+#: includes/Admin/SettingsPage.php:335
 msgid "Remove sample recipes"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:430
+#: includes/Admin/SettingsPage.php:436
 msgid "Filter types"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:430
+#: includes/Admin/SettingsPage.php:436
 msgid "Filter type"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:430
+#: includes/Admin/SettingsPage.php:436
 msgid "Sort order"
 msgstr ""
 
 #. translators: %s: filter type name
-#: includes/Admin/SettingsPage.php:433
+#: includes/Admin/SettingsPage.php:439
 #, php-format
 msgid "%s enabled"
 msgstr ""
 
 #. translators: %s: filter type name
-#: includes/Admin/SettingsPage.php:434
+#: includes/Admin/SettingsPage.php:440
 #, php-format
 msgid "%s sort order"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:436
+#: includes/Admin/SettingsPage.php:442
 msgid "A disabled filter type keeps its terms and leaves the filter form, the badges and the REST filters."
 msgstr ""
 

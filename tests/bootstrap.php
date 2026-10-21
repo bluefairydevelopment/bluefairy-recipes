@@ -161,6 +161,8 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_removed_from_blog']      = [];
 	$GLOBALS['bfrc_test_passwords_set']          = [];
 	$GLOBALS['bfrc_test_sessions_destroyed']     = [];
+	$GLOBALS['bfrc_test_app_passwords_deleted']  = [];
+	$GLOBALS['bfrc_test_updated_users']          = [];
 	$GLOBALS['bfrc_test_deleted_attachments'] = [];
 	$GLOBALS['bfrc_test_uploads']          = [];
 	$GLOBALS['bfrc_test_attachment_meta']  = [];
@@ -834,6 +836,8 @@ class WP_User {
 	public string $user_email = '';
 	public string $display_name = '';
 	public string $user_nicename = '';
+	public string $user_url = '';
+	public string $description = '';
 	/** @var list<string> */
 	public array $roles = [];
 	public function __construct( int $id = 0 ) {
