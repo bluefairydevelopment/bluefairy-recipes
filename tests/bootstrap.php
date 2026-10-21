@@ -164,6 +164,7 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_app_passwords_deleted']  = [];
 	$GLOBALS['bfrc_test_updated_users']          = [];
 	$GLOBALS['bfrc_test_user_caps_cleared']      = [];
+	$GLOBALS['bfrc_test_user_update_fails']      = false;
 	$GLOBALS['bfrc_test_deleted_attachments'] = [];
 	$GLOBALS['bfrc_test_uploads']          = [];
 	$GLOBALS['bfrc_test_attachment_meta']  = [];

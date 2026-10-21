@@ -109,7 +109,11 @@ final class SamplesTest extends TestCase {
 			$this->assertFalse( Samples::is_adoptable( get_userdata( 7 ) ) );
 		}
 		bfrc_test_add_user( 7, [ 'roles' => [], 'user_login' => 'bfrc_sample_writer', 'user_email' => 'BFRC_Sample_Writer@Example.invalid' ] );
-		$this->assertTrue( Samples::is_adoptable( get_userdata( 7 ) ), 'no role at all (an uninstall removed Writer) and our address, whatever its case' );
+		$GLOBALS['bfrc_test_user_update_fails'] = true;
+		$this->assertSame( 'failed', $this->samples->install()->get_error_code(), 'a refused profile update (a hostile pre_user_nicename filter) is reported, not swallowed' );
+		$this->assertSame( [ 7 ], $GLOBALS['bfrc_test_passwords_set'], 'the credentials were reset before it' );
+		$GLOBALS['bfrc_test_user_update_fails'] = false;
+		$this->assertTrue( Samples::is_adoptable( get_userdata( 7 ) ), 'no role at all (a network Remove took Writer away on this site) and our address, whatever its case' );
 		$this->assertIsArray( $this->samples->install() );
 	}
 

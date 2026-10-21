@@ -100,6 +100,9 @@ if ( ! function_exists( 'get_post_stati' ) ) {
 }
 if ( ! function_exists( 'wp_update_user' ) ) {
 	function wp_update_user( array $userdata ): int|WP_Error {
+		if ( ! empty( $GLOBALS['bfrc_test_user_update_fails'] ) ) {
+			return new WP_Error( 'empty_user_nicename', 'Nicename may not be empty.' );
+		}
 		$id   = (int) ( $userdata['ID'] ?? 0 );
 		$user = $GLOBALS['bfrc_test_users'][ $id ] ?? null;
 		if ( ! $user instanceof WP_User ) {

@@ -152,7 +152,9 @@ final class Samples {
 	 * is not the plugin's own leftover (see is_adoptable()); a leftover is
 	 * adopted with a new password, its sessions and application passwords
 	 * ended and its profile reset. On any failure everything created so
-	 * far is removed (`failed`), the adopted account included.
+	 * far is removed (`failed`); an adopted account goes too when someone
+	 * can inherit its other posts (always from the Data tab), since an
+	 * uninstall that kept content leaves it the author of its old drafts.
 	 *
 	 * @return array<string, mixed>|\WP_Error The record, or why not.
 	 */
@@ -183,7 +185,7 @@ final class Samples {
 			wp_set_password( wp_generate_password( 32, true, true ), (int) $existing );
 			\WP_Session_Tokens::get_instance( (int) $existing )->destroy_all();
 			\WP_Application_Passwords::delete_all_application_passwords( (int) $existing );
-			wp_update_user(
+			$updated = wp_update_user(
 				[
 					'ID'            => (int) $existing,
 					'display_name'  => __( 'Sam Sample', 'bluefairy-recipes' ),
@@ -195,6 +197,9 @@ final class Samples {
 					'description'   => '',
 				]
 			);
+			if ( is_wp_error( $updated ) ) {
+				return new \WP_Error( 'failed', $updated->get_error_message() ); // Credentials are already reset: the holder is out either way.
+			}
 			foreach ( array_merge( array_keys( WriterProfile::FIELDS ), [ '_new_email' ] ) as $meta_key ) {
 				delete_user_meta( (int) $existing, $meta_key ); // The writer fields, and a pending address change.
 			}
