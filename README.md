@@ -1,38 +1,37 @@
 # BlueFairy Recipes
 
-Recipes for WordPress. **In development: 1.0.0 is not released.** This file is completed
-milestone by milestone; every statement in it is checked against the code before the
-release tag.
+Recipes for WordPress: ingredients, numbered steps, timings, servings, nutrition facts, a
+photo or a video, writer profiles, four browse filter types, a filterable recipe archive,
+Recipe JSON-LD for Google, share buttons, print, and blocks for lists, filters, featured
+recipes and single cards. Everything is set up in wp-admin; block themes get editable
+templates and classic themes get bundled ones you can override.
+
+BlueFairy Recipes Pro adds visitor reviews with star ratings, recipe submissions with an
+approval workflow, WooCommerce shoppable ingredients and related recipes, affiliate
+ingredient links and your own filter types.
+
+The feature-by-feature guide is [FEATURES.md](FEATURES.md); what each version changed is in
+[CHANGELOG.md](CHANGELOG.md).
 
 ## Requirements
 
 - WordPress 6.7 or newer, with pretty permalinks
 - PHP 8.1 or newer
 
-## What is in the tree today (milestones A1–A6)
+## Installation
 
-- Plugin bootstrap, settings model, roles and capabilities, activation, deactivation and
-  uninstall.
-- The content model: the `bfrc_recipe` post type, the four filter taxonomies with starter
-  terms, the registered recipe fields, reserved recipe slugs.
-- Admin editing: the recipe edit screen (five panels, repeatable rows, block and classic
-  editors), the Recipes list (columns, filters, bulk featured) and the writer profile fields.
-- The public pages: the recipe archive with filters, title search and pagination, the
-  filter-type pages, recipe pages (photo or video, ingredients, method, nutrition, share and
-  print), the writers listing and writer pages; block and classic theme templates.
-- Blocks (Recipe List, Recipe Filters, Featured Recipes, Recipe Card) and the shortcodes
-  that mirror them (`[bfrc_recipes]`, `[bfrc_featured]`, `[bfrc_writers]`); the public
-  `GET /bfrc/v1/recipes` endpoint; filtering a Recipe List without a reload (Interactivity
-  API).
-- Recipe JSON-LD for Google (validated against `tests/fixtures/recipe-jsonld.schema.json`),
-  the Recipes → Settings screen, the opt-in sample recipes, the Pro upsell, the readme's
-  External services section, the POT file. A7 completes the documentation.
+1. Upload the plugin folder to `wp-content/plugins/`, or install the zip from
+   Plugins → Add New Plugin, and activate it.
+2. Open Recipes → Settings. The Data tab can install three sample recipes to look at and
+   remove them again.
+3. Add a recipe under Recipes → Add New; it appears at `/recipes/` (the archive slug is a
+   setting) and on its filter pages. Its writer gets a public page once they are listed
+   (Recipe Writers are, by default) and have a published recipe.
 
 ## Notes for site owners
 
-- **Network activation is not a tested configuration in 1.0.** On a multisite network,
-  activate the plugin on each site. Network activation is handled, but nothing in the
-  release process exercises it.
+- **Multisite:** 1.0 is a single-site product. On a network, activate the plugin on each
+  site; network activation is not supported in 1.0.
 - **Uninstall keeps your recipes** unless "Delete all data on uninstall" is on. With it on,
   a site with thousands of recipes may not finish inside one web request; run
   `wp plugin uninstall bluefairy-recipes` instead, or simply repeat the uninstall (profiles
@@ -65,8 +64,13 @@ npm test           # node --test tests/js/*.test.js
 ```
 
 `build/` is committed so a checkout works without Node; rebuild and commit it with any change
-under `src/`. The release zip ships `build/`, `src/`, `package.json`, `package-lock.json` and `webpack.config.js`
-(WordPress.org requires the source of built JavaScript), never `node_modules/`.
+under `src/`. The release zip ships `build/`, `src/`, `package.json`, `package-lock.json` and
+`webpack.config.js` (WordPress.org requires the source of built JavaScript), never
+`node_modules/`, `tests/`, `docs/`, `FEATURES.md` or this file; `readme.txt` is the plugin directory's readme.
+
+`tests/Unit/DocsTest.php` checks the names, defaults, limits, roles and hooks quoted in
+FEATURES.md, README.md and readme.txt against the code, so the documentation cannot drift
+from a release unnoticed.
 
 Architecture and extension seams: `docs/ARCHITECTURE.md`.
 

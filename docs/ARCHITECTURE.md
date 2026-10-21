@@ -8,7 +8,9 @@ seams listed under **Extension seams** and never ships inside this plugin.
 
 - `declare(strict_types=1);` in every PHP file, directly after the opening tag (in the
   entry file, after the plugin header docblock WordPress requires there). WPCS
-  (`phpcs.xml.dist`), PHPStan level 6 (`phpstan.neon`), PHPUnit 10 (`phpunit.xml.dist`).
+  (`phpcs.xml.dist`), PHPStan level 6 (`phpstan.neon`, with `phpVersion` pinned to the plugin
+  header's Requires PHP so a type the newer PHP alone accepts, such as `true` as a return type,
+  fails the gate; `DocsTest` ties the two), PHPUnit 10 (`phpunit.xml.dist`).
   Tabs. Yoda conditions. Every function has a docblock with `@param` for every parameter.
 - PSR-4 under `includes/`. Instance-based services wired in `Plugin::boot()` and exposed
   through `Plugin::service( $id )`; `Plugin::*`, `Installer::*`, `Capabilities::*` and the
@@ -196,7 +198,7 @@ builds it; `.distignore` is checked by `DistignoreTest`). `node_modules/` never 
 
 | Seam | Kind | Since | Purpose |
 |---|---|---|---|
-| `bfrc_loaded` | action | 1.0.0 | fired before the base binds anything |
+| `bfrc_loaded` | action | 1.0.0 | fired once the settings exist and before the content model is wired (the rewrite flush hook, the WooCommerce admin-access filters and `maybe_upgrade()` run before it) |
 | `bfrc_booted` | action | 1.0.0 | fired after every subsystem is wired |
 | `bfrc_is_pro` | filter (bool) | 1.0.0 | Pro answers true after `base_ok()`; hides the upsell |
 | `bfrc_filter_taxonomies` | filter (array) | 1.0.0 | add filter types keyed by code (`label`, `singular`, `sort_order`); system codes cannot be changed |
@@ -212,7 +214,7 @@ builds it; `.distignore` is checked by `DistignoreTest`). `node_modules/` never 
 | `bfrc_single_after_steps` | action ($recipe_id) | 1.0.0 | after the method (fires even when the recipe has no steps) |
 | `bfrc_single_after_nutrition` | action ($recipe_id) | 1.0.0 | after the nutrition facts (fires even when there are none) |
 | `bfrc_single_footer` | action ($recipe_id) | 1.0.0 | end of the recipe (the add-on's reviews) |
-| `bfrc_writer_canonical` | filter ($url, $query) | 1.0.0 | the canonical URL printed on a writer page or the writers listing; return `''` to let an SEO plugin print its own |
+| `bfrc_writer_canonical` | filter ($url, $query) | 1.0.0 | the canonical URL of a writer page or the writers listing: on the plugin's own `rel_canonical()` an empty string prints none; on the Yoast, Rank Math and AIOSEO paths an empty string hands the SEO plugin its own value back |
 | `bfrc_recipe_saved` | action ($post_id, $clean, $raw) | 1.0.0 | the recipe edit form was saved; `$clean` = meta key => value written, after capability and nonce |
 | `bfrc_list_query_args` | filter ($args, $normalised, $context) | 1.0.0 | the `WP_Query` arguments of a recipe list that is not the archive's main query: the REST endpoint (`rest`), the Recipe List block (`block`), `[bfrc_recipes]` (`shortcode`) |
 | `bfrc_schema_data` | filter ($data, $post) | 1.0.0 | the Recipe JSON-LD object before encoding (Pro adds `aggregateRating`) |
@@ -231,6 +233,17 @@ store's helpers and definition are plain ES modules imported directly). The harn
 `esc_url()`, `esc_html()` and `add_query_arg()` follow core's output (`&#038;`, no double
 encoding of entities, values not encoded) because a stub that differs from core hides real
 regressions; `bfrc_test_query_resolver()` scripts what `new WP_Query()` returns.
+
+Documentation: `tests/Unit/DocsTest.php` reads FEATURES.md, README.md, readme.txt and
+CHANGELOG.md back and compares what they quote with the code: the Settings table's defaults
+against `Settings::DEFAULTS`, its labels against the rendered tabs and its per-page bounds
+against the sanitiser; the filter-types table against `Taxonomies::system()`; the roles table
+against `Capabilities`; the Extending table against every `do_action`/`apply_filters`/`seam`
+hook name in the code, in both directions; the blocks table against `build/blocks/*/block.json`
+and the shortcode constants; the limits (rows, lengths, minutes, servings, about text, writers
+per page, REST bounds, the debounce) against their constants; readme.txt's header lines against
+the plugin header; and that no placeholder sentence is left. Each check was seen red against an
+edited copy of the document before it was trusted.
 
 `tests/bootstrap.php` is a WordPress stub harness (no database, no WordPress): hooks really
 dispatch, options and transients live in arrays, roles and users resolve capabilities as

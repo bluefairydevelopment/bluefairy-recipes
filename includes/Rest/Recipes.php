@@ -134,7 +134,7 @@ final class Recipes {
 	 *
 	 * @param mixed $value The value.
 	 */
-	public function validate_search( mixed $value ): true|\WP_Error {
+	public function validate_search( mixed $value ): bool|\WP_Error {
 		if ( ! is_string( $value ) || mb_strlen( $value ) > RecipeQuery::SEARCH_MAX ) {
 			/* translators: %d: the maximum length */
 			return self::invalid( 's', sprintf( __( 'The keyword must be text of at most %d characters.', 'bluefairy-recipes' ), RecipeQuery::SEARCH_MAX ) );
@@ -147,7 +147,7 @@ final class Recipes {
 	 *
 	 * @param mixed $value The value.
 	 */
-	public function validate_page( mixed $value ): true|\WP_Error {
+	public function validate_page( mixed $value ): bool|\WP_Error {
 		if ( ! self::is_int_between( $value, 1, RecipeQuery::MAX_PAGE ) ) {
 			/* translators: %d: the deepest page */
 			return self::invalid( 'page', sprintf( __( 'page must be a whole number from 1 to %d.', 'bluefairy-recipes' ), RecipeQuery::MAX_PAGE ) );
@@ -160,7 +160,7 @@ final class Recipes {
 	 *
 	 * @param mixed $value The value.
 	 */
-	public function validate_per_page( mixed $value ): true|\WP_Error {
+	public function validate_per_page( mixed $value ): bool|\WP_Error {
 		if ( ! self::is_int_between( $value, 1, RecipeQuery::MAX_PER_PAGE ) ) {
 			/* translators: %d: the largest page size */
 			return self::invalid( 'per_page', sprintf( __( 'per_page must be a whole number from 1 to %d.', 'bluefairy-recipes' ), RecipeQuery::MAX_PER_PAGE ) );
@@ -175,7 +175,7 @@ final class Recipes {
 	 *
 	 * @param mixed $value The value.
 	 */
-	public function validate_filter( mixed $value ): true|\WP_Error {
+	public function validate_filter( mixed $value ): bool|\WP_Error {
 		if ( ! is_array( $value ) ) {
 			return self::invalid( 'filter', __( 'filter must be an object of filter-type code to term slug.', 'bluefairy-recipes' ) );
 		}
