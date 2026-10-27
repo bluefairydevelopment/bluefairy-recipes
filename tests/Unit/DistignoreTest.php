@@ -29,4 +29,22 @@ final class DistignoreTest extends TestCase {
 		$this->assertFileExists( BFRC_DIR . 'package.json' );
 		$this->assertSame( 'wp-scripts build --experimental-modules', json_decode( (string) file_get_contents( BFRC_DIR . 'package.json' ), true )['scripts']['build'], 'the documented build command' );
 	}
+
+	public function test_the_build_honours_the_same_list_through_export_ignore(): void {
+		// wp-release.sh builds the zip with `git archive`, which reads
+		// .gitattributes and never .distignore: without these rules the zip
+		// carried docs/ (screenshots included), bin/ and the repository docs.
+		$norm        = static fn( string $l ): string => '/' . trim( trim( $l ), '/' );
+		$distignore  = array_values( array_filter( array_map( $norm, file( BFRC_DIR . '.distignore' ) ?: [] ), static fn( string $l ): bool => '/' !== $l && '/#' !== substr( $l, 0, 2 ) ) );
+		$attributes  = [];
+		foreach ( file( BFRC_DIR . '.gitattributes' ) ?: [] as $line ) {
+			if ( preg_match( '#^(\S+)\s+export-ignore\s*$#', trim( $line ), $m ) ) {
+				$attributes[] = $norm( $m[1] );
+			}
+		}
+		sort( $distignore );
+		sort( $attributes );
+		$this->assertGreaterThan( 10, count( $attributes ), 'the export-ignore rules were read' );
+		$this->assertSame( $distignore, $attributes, '.gitattributes export-ignore and .distignore name the same paths' );
+	}
 }
