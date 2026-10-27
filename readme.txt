@@ -1,5 +1,6 @@
 === BlueFairy Recipes ===
 Contributors: bluefairydevelopment
+Donate link: https://ko-fi.com/bluefairydevelopment
 Tags: recipes, recipe, food blog, schema, nutrition
 Requires at least: 6.7
 Tested up to: 7.1
