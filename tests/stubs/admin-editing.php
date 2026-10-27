@@ -72,7 +72,11 @@ if ( ! function_exists( 'wp_set_object_terms' ) ) {
 		foreach ( $ids as $id ) {
 			$list[] = $GLOBALS['bfrc_test_terms'][ $taxonomy ][ $id ];
 		}
+		$old_tt_ids = array_map( static fn( WP_Term $t ): int => (int) $t->term_taxonomy_id, $GLOBALS['bfrc_test_object_terms'][ $object_id ][ $taxonomy ] ?? [] );
 		$GLOBALS['bfrc_test_object_terms'][ $object_id ][ $taxonomy ] = $append ? array_merge( $GLOBALS['bfrc_test_object_terms'][ $object_id ][ $taxonomy ] ?? [], $list ) : $list;
+		$tt_ids = array_map( static fn( WP_Term $t ): int => (int) $t->term_taxonomy_id, $list );
+		// As core: fired after every set, with the term taxonomy IDs now set and those before.
+		do_action( 'set_object_terms', $object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids );
 		return $ids;
 	}
 	function get_the_terms( mixed $post, string $taxonomy ): array|false|WP_Error {
@@ -210,11 +214,58 @@ if ( ! function_exists( 'get_posts' ) ) {
 					continue;
 				}
 			}
+			// tax_query as core answers a single slug/term_id IN clause: the post
+			// must carry one of the terms in that taxonomy (bfrc_test_object_terms).
+			if ( isset( $args['tax_query'] ) && is_array( $args['tax_query'] ) && ! bfrc_test_tax_query_matches( $post->ID, $args['tax_query'] ) ) {
+				continue;
+			}
 			$out[] = ( $args['fields'] ?? '' ) === 'ids' ? $post->ID : $post;
 		}
-		if ( isset( $args['numberposts'] ) && (int) $args['numberposts'] > 0 ) {
-			$out = array_slice( $out, 0, (int) $args['numberposts'] );
+		if ( isset( $args['orderby'] ) && 'date' === $args['orderby'] ) {
+			// Core orders by post_date (then ID when equal); DESC is core's default order.
+			$desc = 'ASC' !== strtoupper( (string) ( $args['order'] ?? 'DESC' ) );
+			usort(
+				$out,
+				static function ( mixed $a, mixed $b ) use ( $desc ): int {
+					$pa  = $a instanceof WP_Post ? $a : get_post( (int) $a );
+					$pb  = $b instanceof WP_Post ? $b : get_post( (int) $b );
+					$cmp = [ (string) ( $pa->post_date ?? '' ), (int) ( $pa->ID ?? 0 ) ] <=> [ (string) ( $pb->post_date ?? '' ), (int) ( $pb->ID ?? 0 ) ];
+					return $desc ? -$cmp : $cmp;
+				}
+			);
+		}
+		// As core's get_posts(): posts_per_page wins; numberposts fills it when it is absent.
+		$limit = (int) ( $args['posts_per_page'] ?? ( $args['numberposts'] ?? 0 ) );
+		if ( $limit > 0 ) {
+			$out = array_slice( $out, 0, $limit );
 		}
 		return $out;
+	}
+}
+if ( ! function_exists( 'bfrc_test_tax_query_matches' ) ) {
+	/**
+	 * Does a post carry a term the tax_query names? Each clause is
+	 * `{ taxonomy, field: slug|term_id, terms }` with core's default IN
+	 * operator; clauses are ANDed (core's default relation).
+	 *
+	 * @param int                $post_id   The post.
+	 * @param array<mixed>       $tax_query The query.
+	 */
+	function bfrc_test_tax_query_matches( int $post_id, array $tax_query ): bool {
+		foreach ( $tax_query as $key => $clause ) {
+			if ( 'relation' === $key || ! is_array( $clause ) ) {
+				continue;
+			}
+			$field  = (string) ( $clause['field'] ?? 'term_id' );
+			$wanted = array_map( 'strval', (array) ( $clause['terms'] ?? [] ) );
+			$have   = [];
+			foreach ( $GLOBALS['bfrc_test_object_terms'][ $post_id ][ (string) ( $clause['taxonomy'] ?? '' ) ] ?? [] as $term ) {
+				$have[] = (string) ( 'slug' === $field ? $term->slug : $term->term_id );
+			}
+			if ( [] === array_intersect( $wanted, $have ) ) {
+				return false;
+			}
+		}
+		return true;
 	}
 }
