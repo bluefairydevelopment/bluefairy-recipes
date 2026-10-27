@@ -209,6 +209,7 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_admin_pages']   = [];
 	$GLOBALS['bfrc_test_enqueued']      = [];
 	$GLOBALS['bfrc_test_registered']    = [];
+	$GLOBALS['bfrc_test_script_translations'] = [];
 	$GLOBALS['bfrc_test_output']        = [];
 	$GLOBALS['bfrc_test_screen']        = null;
 	$GLOBALS['bfrc_test_user_meta']     = [];
@@ -1505,6 +1506,7 @@ function wp_enqueue_script( string $handle, string $src = '', array $deps = [], 
 }
 function wp_register_script( string $handle, mixed $src, array $deps = [], mixed $ver = false, mixed $args = [] ): bool {
 	$GLOBALS['bfrc_test_registered']['script'][ $handle ] = $src;
+	$GLOBALS['bfrc_test_registered']['deps'][ $handle ]   = $deps;
 	return true;
 }
 function wp_register_style( string $handle, mixed $src, array $deps = [], mixed $ver = false, string $media = 'all' ): bool {
