@@ -156,8 +156,14 @@ if ( ! function_exists( 'wp_insert_post' ) ) {
 		}
 		$id = (int) ( $GLOBALS['bfrc_test_next_post_id'] ?? 9000 );
 		$GLOBALS['bfrc_test_next_post_id'] = $id + 1;
-		bfrc_test_add_post( [ 'ID' => $id ] + array_intersect_key( $postarr, array_flip( [ 'post_type', 'post_status', 'post_author', 'post_title', 'post_name', 'post_excerpt', 'post_content' ] ) ) );
+		// As core: the post's own fields are stored unslashed (wp_insert_post() runs
+		// wp_unslash() on them), and each meta_input entry goes through
+		// update_post_meta(), which unslashes it once more as it always does.
+		bfrc_test_add_post( [ 'ID' => $id ] + wp_unslash( array_intersect_key( $postarr, array_flip( [ 'post_type', 'post_status', 'post_author', 'post_title', 'post_name', 'post_excerpt', 'post_content' ] ) ) ) );
 		$GLOBALS['bfrc_test_inserted_posts'][ $id ] = $postarr;
+		foreach ( (array) ( $postarr['meta_input'] ?? [] ) as $key => $value ) {
+			update_post_meta( $id, (string) $key, $value );
+		}
 		return $id;
 	}
 }

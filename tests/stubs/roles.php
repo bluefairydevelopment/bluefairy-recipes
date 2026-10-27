@@ -60,12 +60,23 @@ if ( ! function_exists( 'flush_rewrite_rules' ) ) {
 }
 
 if ( ! function_exists( 'wp_delete_post' ) ) {
-	/** Records the deletion; returns the (fake) post as core does when it existed. */
+	/**
+	 * Records the deletion; returns the (fake) post as core does when it
+	 * existed. As core, an existing post fires `before_delete_post` and then
+	 * `delete_post` (post id, post) before its row goes, and `deleted_post`
+	 * after; a missing one fires nothing.
+	 */
 	function wp_delete_post( int $post_id, bool $force_delete = false ): WP_Post|false|null {
 		$GLOBALS['bfrc_test_deleted_posts'][] = [ $post_id, $force_delete ];
 		$post = $GLOBALS['bfrc_test_posts'][ $post_id ] ?? null;
+		if ( ! $post instanceof WP_Post ) {
+			return false;
+		}
+		do_action( 'before_delete_post', $post_id, $post );
+		do_action( 'delete_post', $post_id, $post );
 		unset( $GLOBALS['bfrc_test_posts'][ $post_id ] );
-		return $post instanceof WP_Post ? $post : false;
+		do_action( 'deleted_post', $post_id, $post );
+		return $post;
 	}
 }
 
