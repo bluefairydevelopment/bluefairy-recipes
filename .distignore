@@ -5,6 +5,7 @@
 /.github
 /.gitignore
 /.distignore
+/.gitattributes
 /.cache
 /.phpunit.cache
 /.phpunit.result.cache
