@@ -39,7 +39,7 @@ The Pro add-on adds visitor reviews with star ratings, moderation and a rating i
 
 = Requirements =
 
-WordPress 6.7 or newer with pretty permalinks, PHP 8.1 or newer. 1.0 is a single-site product: on a multisite network, activate it on each site; network activation is not supported.
+WordPress 6.7 or newer with pretty permalinks, PHP 8.1 or newer. On a multisite network, network-activate it or activate it on each site that uses it.
 
 == Installation ==
 
@@ -72,7 +72,7 @@ They stay, with their fields, terms and writer profiles, unless you turned on "D
 
 = Does it support multisite? =
 
-Each site on a network can activate the plugin on its own. Network activation is not supported in 1.0.
+Yes. Network-activate it, or activate it on each site that uses it. Every site, including one created after network activation, is set up on its own, with its own settings and recipes.
 
 = Are the sample recipes real? =
 

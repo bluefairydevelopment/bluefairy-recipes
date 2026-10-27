@@ -47,9 +47,8 @@ final class Installer {
 
 	/**
 	 * Activation hook. A network-wide activation provisions every site;
-	 * otherwise only the current one. (Network activation is not a tested
-	 * configuration in 1.0; README.md says so. It is handled rather than
-	 * refused so a network that does it is not left half-installed.)
+	 * otherwise only the current one. A site created later on a network
+	 * where the plugin is network-active is provisioned by initialize_site().
 	 *
 	 * @param bool $network_wide True when activated for the whole network.
 	 */
@@ -168,6 +167,28 @@ final class Installer {
 		}
 		update_option( Settings::FLUSH_OPTION, 0, true );
 		flush_rewrite_rules( false );
+	}
+
+	/**
+	 * Hooked to `wp_initialize_site` (priority 20, after core has made the
+	 * site's tables): provision a site created after the plugin was
+	 * network-activated, which the activation hook never saw.
+	 *
+	 * @param \WP_Site $site The new site.
+	 */
+	public static function initialize_site( \WP_Site $site ): void {
+		if ( ! function_exists( 'is_plugin_active_for_network' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
+		if ( ! is_plugin_active_for_network( plugin_basename( BFRC_FILE ) ) ) {
+			return;
+		}
+		switch_to_blog( (int) $site->blog_id );
+		try {
+			self::provision_site();
+		} finally {
+			restore_current_blog();
+		}
 	}
 
 	/**

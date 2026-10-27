@@ -30,8 +30,10 @@ The feature-by-feature guide is [FEATURES.md](FEATURES.md); what each version ch
 
 ## Notes for site owners
 
-- **Multisite:** 1.0 is a single-site product. On a network, activate the plugin on each
-  site; network activation is not supported in 1.0.
+- **Multisite:** network-activate the plugin or activate it on each site that uses it.
+  Every site, including one created after network activation, is set up on its own (its
+  own settings, roles and recipes); uninstalling cleans every site, each by its own Data
+  tab setting.
 - **Uninstall keeps your recipes** unless "Delete all data on uninstall" is on. With it on,
   a site with thousands of recipes may not finish inside one web request; run
   `wp plugin uninstall bluefairy-recipes` instead, or simply repeat the uninstall (profiles

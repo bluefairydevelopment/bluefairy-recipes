@@ -986,6 +986,14 @@ function get_user_by( string $field, mixed $value ): WP_User|false {
 	if ( 'id' === $field ) {
 		return get_userdata( (int) $value );
 	}
+	if ( 'email' === $field ) {
+		foreach ( $GLOBALS['bfrc_test_users'] ?? [] as $user ) {
+			if ( $user instanceof WP_User && isset( $user->user_email ) && $user->user_email === (string) $value ) {
+				return $user;
+			}
+		}
+		return false;
+	}
 	if ( 'slug' === $field ) {
 		foreach ( $GLOBALS['bfrc_test_users'] ?? [] as $user ) {
 			if ( $user instanceof WP_User && $user->user_nicename === (string) $value ) {

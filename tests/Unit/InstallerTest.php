@@ -178,4 +178,23 @@ final class InstallerTest extends TestCase {
 			restore_current_blog();
 		}
 	}
+
+	public function test_a_site_created_after_network_activation_is_provisioned_on_wp_initialize_site(): void {
+		$GLOBALS['bfrc_test_multisite']      = true;
+		$GLOBALS['bfrc_test_sites']          = [ 1, 3 ];
+		$GLOBALS['bfrc_test_network_active'] = true;
+		$site                                = new \WP_Site();
+		$site->blog_id                       = '3';
+		Installer::initialize_site( $site );
+		$this->assertSame( 1, get_current_blog_id(), 'back on the site it started on' );
+		switch_to_blog( 3 );
+		$this->assertSame( BFRC_DB_VERSION, get_option( 'bfrc_db_version' ), 'the new site is provisioned' );
+		$this->assertInstanceOf( \WP_Role::class, get_role( Capabilities::ROLE_WRITER ) );
+		restore_current_blog();
+		$GLOBALS['bfrc_test_network_active'] = false;
+		$GLOBALS['bfrc_test_switched']       = [];
+		$site->blog_id                       = '2';
+		Installer::initialize_site( $site );
+		$this->assertSame( [], $GLOBALS['bfrc_test_switched'], 'not network-active: the new site is left alone' );
+	}
 }

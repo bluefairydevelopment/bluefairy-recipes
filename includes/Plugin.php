@@ -50,6 +50,7 @@ final class Plugin {
 		// A changed archive slug (or a fresh activation) flags a rewrite flush; it
 		// runs once, late on init, after the post type and taxonomies exist.
 		add_action( 'init', [ Installer::class, 'maybe_flush_rewrite' ], 99 );
+		add_action( 'wp_initialize_site', [ Installer::class, 'initialize_site' ], 20 );
 
 		$settings = new Settings();
 		self::set( 'settings', $settings );
