@@ -26,6 +26,7 @@ final class PluginTest extends TestCase {
 					'settings' => Plugin::service( 'settings' ) instanceof Settings,
 					'booted'   => did_action( 'bfrc_booted' ),
 					'init'     => has_action( 'init', [ Installer::class, 'maybe_flush_rewrite' ] ),
+					'site'     => has_action( 'wp_initialize_site', [ Installer::class, 'initialize_site' ] ),
 				];
 			}
 		);
@@ -37,6 +38,7 @@ final class PluginTest extends TestCase {
 				'settings' => true,
 				'booted'   => 0,
 				'init'     => 99,
+				'site'     => 20,
 			],
 			$seen
 		);

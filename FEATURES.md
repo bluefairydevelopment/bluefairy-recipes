@@ -186,5 +186,6 @@ leaves it to WordPress:
   were linked).
 - **No Instagram share button.** Instagram has no web share address; the Magento toggle
   rendered a profile link, not a share. A writer's own Instagram link stays on their profile.
-- **No store-view scope.** 1.0 is a single-site product: on a multisite network, activate the
-  plugin on each site that needs it; network activation is not supported in 1.0.
+- **No store-view scope.** On a multisite network each site is its own recipe site, with its
+  own settings and recipes: network-activate the plugin or activate it on each site that
+  needs it, and a site created later is set up on its own.

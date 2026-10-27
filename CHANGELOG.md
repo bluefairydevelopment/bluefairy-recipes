@@ -3,6 +3,8 @@
 ## 1.0.0 — unreleased
 
 - Initial release.
+- Multisite: network activation is supported; a site created after it is set up on its
+  own.
 - Recipe edit screen: Recipe Details, Recipe Video, Ingredients, Steps and Nutrition panels
   with repeatable rows (keyboard, buttons or drag), in the block and classic editors; a
   refused video URL is reported; a panel that did not reach the server keeps its values.

@@ -16,6 +16,7 @@ use BlueFairy\Recipes\Content\Taxonomies;
 use BlueFairy\Recipes\Front\Blocks;
 use BlueFairy\Recipes\Front\RecipeQuery;
 use BlueFairy\Recipes\Front\Writers;
+use BlueFairy\Recipes\Installer;
 use BlueFairy\Recipes\Settings;
 use BlueFairy\Recipes\Tests\TestCase;
 
@@ -251,9 +252,17 @@ final class DocsTest extends TestCase {
 		$this->assertSame( $major * 10000 + $minor * 100, (int) $m[1], 'phpstan analyses the code as the PHP version the header promises, so a newer-only type fails the gate' );
 	}
 
+	public function test_the_multisite_notes_describe_what_the_installer_does(): void {
+		$this->assertStringContainsString( "add_action( 'wp_initialize_site', [ Installer::class, 'initialize_site' ], 20 );", (string) file_get_contents( BFRC_DIR . 'includes/Plugin.php' ), 'a site created later is provisioned' );
+		$this->assertStringContainsString( 'network-activate the plugin or activate it on each site that uses it', self::folded( $this->readme ) );
+		$this->assertStringContainsString( 'including one created after network activation', self::folded( $this->readme ) );
+		$this->assertStringContainsString( 'network-activate it or activate it on each site that uses it', self::folded( $this->readme_txt ) );
+		$this->assertStringContainsString( 'a site created later is set up on its own', self::folded( $this->features ) );
+	}
+
 	public function test_no_document_still_carries_a_placeholder(): void {
 		foreach ( [ 'FEATURES.md' => $this->features, 'README.md' => $this->readme, 'readme.txt' => $this->readme_txt, 'CHANGELOG.md' => $this->changelog ] as $name => $doc ) {
-			foreach ( [ 'later milestone', 'In development', 'TODO', 'TBD', 'lorem' ] as $placeholder ) {
+			foreach ( [ 'later milestone', 'In development', 'TODO', 'TBD', 'lorem', 'single-site product', 'network activation is not supported', 'not a tested' ] as $placeholder ) {
 				$this->assertStringNotContainsStringIgnoringCase( $placeholder, $doc, "$placeholder in $name" );
 			}
 		}
