@@ -21,6 +21,7 @@ if ( ! function_exists( 'wp_enqueue_media' ) ) {
 }
 if ( ! function_exists( 'wp_set_script_translations' ) ) {
 	function wp_set_script_translations( string $handle, string $domain = 'default', string $path = '' ): bool {
+		$GLOBALS['bfrc_test_script_translations'][ $handle ] = [ $domain, $path ];
 		return true;
 	}
 }
