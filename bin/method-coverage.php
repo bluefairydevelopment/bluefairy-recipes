@@ -5,7 +5,9 @@
  *
  * "Named" means the token stream of a file under tests/Unit/ (comments and
  * docblocks removed) contains `->method(`, `::method(` or the string literal
- * `'method'`. Private methods are reached through the public ones and are
+ * `'method'` outside a hook-registration check: `has_action( 'x', [ $o,
+ * 'method' ] )` names the hook, it does not run the method, so a literal
+ * inside add_/has_/remove_ action/filter calls does not count. Private methods are reached through the public ones and are
  * reported for information only. Exit 1 when a method is missing or when the
  * scan saw nothing (an empty or unparsable tree is a failure, not a pass).
  *
@@ -87,6 +89,11 @@ function bfrc_cov_test_text( string $dir ): string {
 	return $text;
 }
 
+/** The test text with every add_/has_/remove_ action/filter call taken out (its literals name callbacks, they run nothing). */
+function bfrc_cov_without_hook_checks( string $tests ): string {
+	return (string) preg_replace( '/\b(?:has|add|remove)_(?:action|filter)\s*\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\)/', '', $tests );
+}
+
 /**
  * @param array<string, array{visibility: string, file: string}> $methods
  * @return list<string> Unnamed public/protected methods.
@@ -101,7 +108,7 @@ function bfrc_cov_missing( array $methods, string $tests ): array {
 		if ( '__construct' === $method ) {
 			continue;
 		}
-		$named = str_contains( $tests, '->' . $method . '(' ) || str_contains( $tests, '::' . $method . '(' ) || str_contains( $tests, "'" . $method . "'" );
+		$named = str_contains( $tests, '->' . $method . '(' ) || str_contains( $tests, '::' . $method . '(' ) || str_contains( bfrc_cov_without_hook_checks( $tests ), "'" . $method . "'" );
 		if ( ! $named ) {
 			$missing[] = $name . ' (' . $info['file'] . ')';
 		}
@@ -127,7 +134,10 @@ if ( in_array( '--self-check', $argv, true ) ) {
 	file_put_contents( $scratch . '/Kinds.php', "<?php\nfinal readonly class Kinds {\n\tfinal public static function a(): void {}\n\tstatic protected function b(): void {}\n\tprivate function c(): void {}\n}\n" );
 	$kinds = bfrc_cov_methods( $scratch );
 	$ok    = $ok && isset( $kinds['Kinds::a'], $kinds['Kinds::b'], $kinds['Kinds::c'] ) && 'protected' === $kinds['Kinds::b']['visibility'];
-	// 4. An empty tree is a failure, not a pass: the script itself, pointed at an empty root, must exit 1.
+	// 4. A method named only as a hook check's callback is not covered.
+	$ok = $ok && in_array( 'Hooked::only_hooked (includes/Hooked.php)', bfrc_cov_missing( [ 'Hooked::only_hooked' => [ 'visibility' => 'public', 'file' => 'includes/Hooked.php' ] ], "\$this->assertSame( 10, has_action( 'init', [ \$o, 'only_hooked' ] ) );" ), true );
+	$ok = $ok && [] === bfrc_cov_missing( [ 'Hooked::only_hooked' => [ 'visibility' => 'public', 'file' => 'includes/Hooked.php' ] ], "\$cb = [ \$o, 'only_hooked' ]; \$cb();" );
+	// 5. An empty tree is a failure, not a pass: the script itself, pointed at an empty root, must exit 1.
 	$empty = $scratch . '/empty';
 	mkdir( $empty );
 	mkdir( $empty . '/includes' );

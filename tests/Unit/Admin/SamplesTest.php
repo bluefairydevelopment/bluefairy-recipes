@@ -209,6 +209,12 @@ final class SamplesTest extends TestCase {
 		$this->assertCount( 3, $record['recipes'] );
 		$GLOBALS['bfrc_test_upload_fails'] = false;
 		$this->samples->remove();
+		$GLOBALS['bfrc_test_attachment_insert_fails'] = true;
+		$record = $this->samples->install();
+		$this->assertSame( [], $record['attachments'], 'no attachment: the recipe keeps no photo' );
+		$this->assertSame( [ '/uploads/bfrc-sample-' . Samples::recipes()[0]['slug'] . '.jpg', '/uploads/bfrc-sample-' . Samples::recipes()[1]['slug'] . '.jpg', '/uploads/bfrc-sample-' . Samples::recipes()[2]['slug'] . '.jpg' ], $GLOBALS['bfrc_test_deleted_files'], 'each file written for it is deleted again: no orphan in uploads' );
+		$GLOBALS['bfrc_test_attachment_insert_fails'] = false;
+		$this->samples->remove();
 		$GLOBALS['bfrc_test_option_write_fails'] = [ Samples::OPTION ];
 		$this->assertSame( 'failed', $this->samples->install()->get_error_code(), 'an unrecorded set would be unremovable: refused and undone' );
 		$this->assertSame( [], $this->samples->installed() );

@@ -106,7 +106,12 @@ final class InstallerTest extends TestCase {
 	public function test_maybe_upgrade_provisions_a_site_with_no_version_before_init_without_touching_rewrite_rules(): void {
 		$GLOBALS['bfrc_test_fired']['init'] = 0; // plugins_loaded on a never-provisioned sub-site: core has no $wp_rewrite yet
 		Installer::maybe_upgrade();
-		$this->assertFalse( $GLOBALS['bfrc_test_taxonomies']['bfrc_meal_type']['args']['rewrite'], 'the stub, like core, would have thrown on a rewrite array here' );
+		$this->assertSame( [], $GLOBALS['bfrc_test_terms']['bfrc_meal_type'] ?? [], 'no starter terms before init: they would be English on any site, translations load at init' );
+		$this->assertSame( 20, has_action( 'init', [ Installer::class, 'seed_default_terms' ] ), 'they wait for init 20' );
+		Installer::maybe_upgrade();
+		$GLOBALS['bfrc_test_fired']['init'] = 1;
+		( new \BlueFairy\Recipes\Content\Taxonomies( new Settings() ) )->register(); // The base's own init 5.
+		Installer::seed_default_terms();
 		$this->assertSame( [ 'Breakfast', 'Dessert', 'Dinner', 'Lunch', 'Snack' ], get_terms( [ 'taxonomy' => 'bfrc_meal_type', 'fields' => 'names', 'hide_empty' => false ] ) );
 		$this->assertSame( '1', get_option( Settings::FLUSH_OPTION ), 'the real registration at init 5 adds the rules and the flag writes them' );
 		$this->assertSame( BFRC_DB_VERSION, get_option( 'bfrc_db_version' ) );

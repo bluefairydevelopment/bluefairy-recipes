@@ -398,6 +398,7 @@ final class Samples {
 			$post_id
 		);
 		if ( is_wp_error( $attachment ) || (int) $attachment <= 0 ) {
+			wp_delete_file( $bits['file'] ); // Written, but no attachment points at it: no orphan in uploads.
 			return 0;
 		}
 		$attachment = (int) $attachment;

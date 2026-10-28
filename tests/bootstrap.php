@@ -180,6 +180,8 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_user_insert_fails'] = false;
 	$GLOBALS['bfrc_test_post_insert_fails'] = false;
 	$GLOBALS['bfrc_test_upload_fails']     = false;
+	$GLOBALS['bfrc_test_attachment_insert_fails'] = false;
+	$GLOBALS['bfrc_test_deleted_files']    = [];
 	BlueFairy\Recipes\Front\Blocks::reset();
 	$_COOKIE                               = [];
 	$_REQUEST                              = [];
