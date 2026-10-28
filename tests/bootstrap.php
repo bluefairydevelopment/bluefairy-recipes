@@ -814,8 +814,23 @@ function get_date_from_gmt( string $date, string $format = 'Y-m-d H:i:s' ): stri
 	}
 	return $utc->setTimezone( bfrc_test_timezone() )->format( $format );
 }
+/**
+ * As core (5.3+): the date string is read as a time in the SITE timezone,
+ * whatever it is (a `_gmt` column handed in is misread the same way), and
+ * formatted there; 'U' and 'G' give the Unix timestamp.
+ */
 function mysql2date( string $format, string $date, bool $translate = true ): string|int|false {
-	return gmdate( $format, (int) strtotime( $date ) );
+	if ( '' === $date ) {
+		return false;
+	}
+	$datetime = date_create( $date, bfrc_test_timezone() );
+	if ( false === $datetime ) {
+		return false;
+	}
+	if ( 'G' === $format || 'U' === $format ) {
+		return $datetime->getTimestamp();
+	}
+	return $datetime->format( $format );
 }
 
 // ------------------------------------------------------------------
@@ -1154,7 +1169,16 @@ function wp_nonce_url( string $actionurl, string|int $action = -1, string $name 
 function wp_die( mixed $message = '', mixed $title = '', mixed $args = [] ): never {
 	throw new BfrcTestExit( 'die', $message, is_array( $args ) ? (int) ( $args['response'] ?? 500 ) : 500 );
 }
-function wp_safe_redirect( string $location, int $status = 302, string $x_redirect_by = 'WordPress' ): never {
+/**
+ * Throws, so a test catches the redirect where a site would end the request
+ * (bfrc_test_catch_exit()). In an exit probe (tests/exit-probe.php) it records
+ * and returns true, as core does, so the code after it, the exit itself, runs.
+ */
+function wp_safe_redirect( string $location, int $status = 302, string $x_redirect_by = 'WordPress' ): bool {
+	if ( ! empty( $GLOBALS['bfrc_test_redirect_returns'] ) ) {
+		$GLOBALS['bfrc_test_redirects'][] = [ $location, $status, $x_redirect_by ];
+		return true;
+	}
 	throw new BfrcTestExit( 'redirect', $location, $status );
 }
 function wp_redirect( string $location, int $status = 302, string $x_redirect_by = 'WordPress' ): never {
@@ -1345,6 +1369,11 @@ function wp_http_validate_url( string $url ): string|false {
 // Mail and cron, recorded.
 // ------------------------------------------------------------------
 function wp_mail( mixed $to, string $subject, string $message, mixed $headers = '', mixed $attachments = [] ): bool {
+	// As core (5.7+): a non-null pre_wp_mail answer is returned and nothing is sent.
+	$pre = apply_filters( 'pre_wp_mail', null, compact( 'to', 'subject', 'message', 'headers', 'attachments' ) );
+	if ( null !== $pre ) {
+		return (bool) $pre;
+	}
 	$GLOBALS['bfrc_test_mail'][] = compact( 'to', 'subject', 'message', 'headers' );
 	return true;
 }
@@ -1457,6 +1486,7 @@ class WP_Post {
 	public string $post_content = '';
 	public string $post_excerpt = '';
 	public string $post_password = '';
+	public int $post_parent = 0; // As core: 0 for a top-level post.
 	public function __construct( array $data = [] ) {
 		foreach ( $data as $key => $value ) {
 			$this->$key = $value;

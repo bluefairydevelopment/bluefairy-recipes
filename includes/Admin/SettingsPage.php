@@ -14,6 +14,7 @@ use BlueFairy\Recipes\Content\PostType;
 use BlueFairy\Recipes\Content\Taxonomies;
 use BlueFairy\Recipes\Front\Writers;
 use BlueFairy\Recipes\Settings;
+use BlueFairy\Recipes\Support\Terminate;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -104,6 +105,34 @@ final class SettingsPage {
 		add_action( 'admin_post_' . self::ACTION_SAVE, [ $this, 'save' ] );
 		add_action( 'admin_post_' . Samples::ACTION_INSTALL, [ $this, 'install_samples' ] );
 		add_action( 'admin_post_' . Samples::ACTION_REMOVE, [ $this, 'remove_samples' ] );
+		add_action( 'admin_notices', [ $this, 'slug_clash_notice' ] );
+	}
+
+	/**
+	 * `admin_notices`, on the Plugins screen (where activation lands) and
+	 * this settings page only, for a recipe manager: say so when a Page
+	 * already uses the archive slug's address, and where to change it.
+	 * One page lookup on those two screens; nothing on any other.
+	 */
+	public function slug_clash_notice(): void {
+		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+		$ours   = PostType::NAME . '_page_' . self::SLUG;
+		if ( ! is_object( $screen ) || ! in_array( (string) $screen->id, [ 'plugins', $ours ], true ) || ! Capabilities::current_user_can_manage() ) {
+			return;
+		}
+		$slug = (string) $this->settings->get( 'archive_slug' );
+		$page = Settings::slug_clash( $slug );
+		if ( null === $page ) {
+			return;
+		}
+		echo '<div class="notice notice-warning"><p>' . esc_html(
+			sprintf(
+				/* translators: 1: the archive address, e.g. /recipes/, 2: the Page's title */
+				__( 'The recipe archive address %1$s is also the address of the Page "%2$s", so one of them cannot be reached. Choose another archive slug in Recipes, Settings, or change the Page\'s slug.', 'bluefairy-recipes' ),
+				'/' . $slug . '/',
+				get_the_title( $page )
+			)
+		) . ' <a href="' . esc_url( $this->url() ) . '">' . esc_html__( 'Recipe settings', 'bluefairy-recipes' ) . '</a></p></div>';
 	}
 
 	/**
@@ -243,6 +272,7 @@ final class SettingsPage {
 		$texts = [
 			'saved'                   => [ 'success', __( 'Settings saved.', 'bluefairy-recipes' ) ],
 			'saved_adjusted'          => [ 'warning', __( 'Settings saved. A value was adjusted: the archive slug must not be a route WordPress owns, and recipes per page is 1 to 100. The stored values are shown.', 'bluefairy-recipes' ) ],
+			'slug_taken'              => [ 'warning', __( 'Settings saved, except the archive slug: a Page already uses that address, so the archive slug was not changed. Choose another slug, or change the Page\'s slug first.', 'bluefairy-recipes' ) ],
 			'failed'                  => [ 'error', __( 'The settings could not be saved. Try again.', 'bluefairy-recipes' ) ],
 			'samples_added'           => [ 'success', __( 'Sample recipes installed: three recipes by a sample writer, as drafts you can publish.', 'bluefairy-recipes' ) ],
 			'samples_removed'         => [ 'success', __( 'Sample recipes removed.', 'bluefairy-recipes' ) ],
@@ -280,7 +310,7 @@ final class SettingsPage {
 				$this->taxonomy_rows();
 				break;
 			case 'listing':
-				$this->number( 'per_page', __( 'Recipes per page', 'bluefairy-recipes' ), (int) $s['per_page'], 1, 100, '' );
+				$this->number( 'per_page', __( 'Recipes per page', 'bluefairy-recipes' ), (int) $s['per_page'], 1, 100 );
 				$this->checkbox( 'share_enabled', __( 'Social share', 'bluefairy-recipes' ), (bool) $s['share_enabled'], __( 'Share buttons on recipe pages.', 'bluefairy-recipes' ) );
 				$this->checkbox( 'share_facebook', __( 'Facebook', 'bluefairy-recipes' ), (bool) $s['share_facebook'], '' );
 				$this->checkbox( 'share_x', __( 'X', 'bluefairy-recipes' ), (bool) $s['share_x'], '' );
@@ -381,6 +411,15 @@ final class SettingsPage {
 				$values[ $key ] = sanitize_text_field( (string) $raw[ $key ] );
 			}
 		}
+		// A slug that is a Page's address is refused: the archive and the Page would shadow each other. The rest still saves.
+		$slug_taken = false;
+		if ( isset( $values['archive_slug'] ) ) {
+			$wanted = Settings::sanitize_slug( $values['archive_slug'] );
+			if ( $wanted !== (string) $this->settings->get( 'archive_slug' ) && null !== Settings::slug_clash( $wanted ) ) {
+				unset( $values['archive_slug'] );
+				$slug_taken = true;
+			}
+		}
 		$clean = $this->settings->patch( $values );
 		/**
 		 * The settings form was saved (through Settings::patch()).
@@ -397,7 +436,7 @@ final class SettingsPage {
 		// A value the sanitiser changed (a reserved archive slug, a page size outside 1..100) is said, not hidden behind "saved".
 		$adjusted = ( isset( $values['archive_slug'] ) && sanitize_title( (string) $values['archive_slug'] ) !== (string) $clean['archive_slug'] )
 			|| ( isset( $values['per_page'] ) && ( ! is_numeric( trim( (string) $values['per_page'] ) ) || (int) trim( (string) $values['per_page'] ) !== (int) $clean['per_page'] ) );
-		$this->redirect( $tab, $adjusted ? 'saved_adjusted' : 'saved' );
+		$this->redirect( $tab, $slug_taken ? 'slug_taken' : ( $adjusted ? 'saved_adjusted' : 'saved' ) );
 	}
 
 	/**
@@ -523,13 +562,9 @@ final class SettingsPage {
 	 * @param int    $value       Current value.
 	 * @param int    $min         Lowest allowed.
 	 * @param int    $max         Highest allowed.
-	 * @param string $description Help text ('' for none).
 	 */
-	private function number( string $key, string $label, int $value, int $min, int $max, string $description ): void {
+	private function number( string $key, string $label, int $value, int $min, int $max ): void {
 		echo '<tr><th scope="row"><label for="bfrc-' . esc_attr( $key ) . '">' . esc_html( $label ) . '</label></th><td><input type="number" class="small-text" id="bfrc-' . esc_attr( $key ) . '" name="bfrc[' . esc_attr( $key ) . ']" value="' . esc_attr( (string) $value ) . '" min="' . esc_attr( (string) $min ) . '" max="' . esc_attr( (string) $max ) . '">';
-		if ( '' !== $description ) {
-			echo '<p class="description">' . esc_html( $description ) . '</p>';
-		}
 		echo '</td></tr>';
 	}
 
@@ -540,7 +575,6 @@ final class SettingsPage {
 	 * @param string $notice Notice code.
 	 */
 	private function redirect( string $tab, string $notice ): never {
-		wp_safe_redirect( $this->url( $tab, $notice ) );
-		exit;
+		Terminate::redirect( $this->url( $tab, $notice ) );
 	}
 }

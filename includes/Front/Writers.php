@@ -365,10 +365,8 @@ final class Writers {
 			]
 		);
 		$users    = [];
-		foreach ( array_merge( (array) $by_role->get_results(), (array) $opted_in->get_results() ) as $row ) {
-			if ( ! is_object( $row ) || ! isset( $row->ID ) ) {
-				continue;
-			}
+		$rows     = array_filter( array_merge( (array) $by_role->get_results(), (array) $opted_in->get_results() ), static fn( mixed $row ): bool => is_object( $row ) && isset( $row->ID ) );
+		foreach ( $rows as $row ) {
 			$user                = new \WP_User();
 			$user->ID            = (int) $row->ID;
 			$user->display_name  = (string) ( $row->display_name ?? '' );

@@ -35,11 +35,11 @@ BlueFairy Recipes turns WordPress into a recipe site. Each recipe has ingredient
 
 = BlueFairy Recipes Pro =
 
-The Pro add-on adds visitor reviews with star ratings, moderation and a rating in Google results; recipe submissions from visitors with photos, approval and admin notes; WooCommerce shoppable ingredients, affiliate ingredient links and related recipes on product pages; and your own filter types beyond meal type, diet, season and cuisine.
+The Pro add-on adds visitor reviews with star ratings, moderation and a star rating in the recipe's search markup (Google decides whether to show it); recipe submissions from visitors with photos, approval and admin notes; WooCommerce shoppable ingredients, affiliate ingredient links and related recipes on product pages; and your own filter types beyond meal type, diet, season and cuisine.
 
 = Requirements =
 
-WordPress 6.7 or newer with pretty permalinks, PHP 8.1 or newer. On a multisite network, network-activate it or activate it on each site that uses it.
+WordPress 6.7 or newer (pretty permalinks recommended: with plain permalinks everything works, but the writer pages live at query-string addresses), PHP 8.1 or newer. On a multisite network, network-activate it or activate it on each site that uses it.
 
 == Installation ==
 
@@ -53,6 +53,14 @@ WordPress 6.7 or newer with pretty permalinks, PHP 8.1 or newer. On a multisite 
 = Does it work with my theme? =
 
 Yes. A block theme gets three templates (Single Recipe, Recipes Archive, Recipe Writers) to arrange in the Site Editor. A classic theme uses the plugin's templates, which you can override by copying them into a `bluefairy-recipes` folder in your theme.
+
+= I already have a page at /recipes/. =
+
+Then the recipe archive and that page compete for one address. After activation, the Plugins screen and Recipes → Settings say so; choose another archive slug there (a slug that is the address of an existing page is refused), or change the page's slug.
+
+= Writer pages show the username in the address. =
+
+Writer pages use the account's URL name (its "nicename"), which WordPress sets from the username and also uses for its own author pages. Give the account a different URL name, or untick "List this writer on the public writers page" on their profile (an unlisted writer has no public page).
 
 = How do I put the recipe archive in my menu? =
 
@@ -114,7 +122,15 @@ The Facebook, X and Pinterest share buttons on a recipe page are plain links to 
 
 == Development ==
 
-The blocks' JavaScript is built with @wordpress/scripts from the `src/` directory shipped with the plugin (`npm install && npm run build`). Source, tests and the full history: https://github.com/bluefairydevelopment/bluefairy-recipes (public from the first release).
+The blocks' JavaScript is built with @wordpress/scripts from the `src/` directory shipped with the plugin (`npm install && npm run build`). Source and tests: https://github.com/bluefairydevelopment/bluefairy-recipes (public from the first release).
+
+== Screenshots ==
+
+1. A recipe page: photo, timings, filter tags, ingredients, method and nutrition facts.
+2. The recipe archive with its filter panel and card grid.
+3. A writer's public page.
+4. The recipe edit screen's panels: details, video, ingredients, steps and nutrition.
+5. Recipes → Settings.
 
 == Changelog ==
 

@@ -15,7 +15,7 @@ The feature-by-feature guide is [FEATURES.md](FEATURES.md); what each version ch
 
 ## Requirements
 
-- WordPress 6.7 or newer, with pretty permalinks
+- WordPress 6.7 or newer (pretty permalinks recommended; see Plain permalinks below)
 - PHP 8.1 or newer
 
 ## Installation
@@ -85,3 +85,13 @@ GPL-2.0-or-later. See `LICENSE`.
 This plugin is free and always will be. If it saves you time, you can [buy us a coffee on Ko-fi](https://ko-fi.com/bluefairydevelopment) ☕ — it helps keep the free plugins tested and maintained.
 
 Found a bug or have an idea? [Open an issue](../../issues/new/choose). Security problems: see [SECURITY.md](SECURITY.md).
+
+## Releasing: the changelog date
+
+Between releases the newest `CHANGELOG.md` heading reads `## X.Y.Z — RELEASE-DATE`. The date
+is set on the day the release is tagged, never guessed in advance:
+
+1. On the tag day, before building the zip: `php bin/release-date.php --set` (today's date;
+   `--set=YYYY-MM-DD` for an explicit one). Commit the change.
+2. `php bin/release-date.php --check` exits 1 while the placeholder remains; run it before the
+   zip is built. The unit suite accepts the placeholder, so this check is the gate.

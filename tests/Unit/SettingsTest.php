@@ -186,6 +186,31 @@ final class SettingsTest extends TestCase {
 		$this->assertTrue( Settings::to_bool( 2 ), 'any non-zero int is true, as (bool) casts' );
 	}
 
+	public function test_a_stored_change_drops_the_taxonomy_registrys_cached_definitions(): void {
+		$settings   = new Settings(); // One instance, as the plugin shares one.
+		$taxonomies = new \BlueFairy\Recipes\Content\Taxonomies( $settings );
+		\BlueFairy\Recipes\Plugin::set( 'content.taxonomies', $taxonomies );
+		try {
+			$this->assertSame( 20, $taxonomies->definitions()['diet']['sort_order'], 'read and cached' );
+			$settings->patch( [ 'taxonomies' => [ 'diet' => [ 'sort_order' => 7 ] ] ] );
+			$this->assertSame( 7, $taxonomies->definitions()['diet']['sort_order'], 'the registry the plugin runs on reads the new order, not its cached copy' );
+		} finally {
+			\BlueFairy\Recipes\Plugin::reset();
+		}
+	}
+
+	public function test_slug_clash_names_a_top_level_page_at_the_address_and_nothing_else(): void {
+		$this->assertNull( Settings::slug_clash( '' ) );
+		$this->assertNull( Settings::slug_clash( 'recipes' ), 'no Page' );
+		bfrc_test_add_post( [ 'ID' => 80, 'post_type' => 'post', 'post_status' => 'publish', 'post_name' => 'recipes', 'post_parent' => 0 ] );
+		$this->assertNull( Settings::slug_clash( 'recipes' ), 'a blog post lives under its own permalink structure, not at /recipes/' );
+		update_option( 'permalink_structure', '/%postname%/' );
+		$this->assertSame( 80, Settings::slug_clash( 'recipes' )?->ID, 'unless the structure is /%postname%/: then the post is at /recipes/' );
+		update_option( 'permalink_structure', '/%year%/%postname%/' );
+		bfrc_test_add_post( [ 'ID' => 81, 'post_type' => 'page', 'post_status' => 'private', 'post_name' => 'recipes', 'post_parent' => 0 ] );
+		$this->assertSame( 81, Settings::slug_clash( 'recipes' )?->ID, 'any status but trash holds the address' );
+	}
+
 	public function test_sanitize_slug_normalises_and_never_returns_empty(): void {
 		$this->assertSame( 'our-recipes', Settings::sanitize_slug( ' Our Recipes! ' ) );
 		$this->assertSame( 'my_recipes', Settings::sanitize_slug( 'my_recipes' ), 'core keeps underscores; so do we' );

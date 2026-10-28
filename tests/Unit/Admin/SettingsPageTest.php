@@ -167,6 +167,61 @@ final class SettingsPageTest extends TestCase {
 		$this->assertStringContainsString( 'bfrc_notice=failed', (string) $exit->payload );
 	}
 
+	public function test_save_refuses_an_archive_slug_a_page_already_uses_and_saves_the_rest(): void {
+		bfrc_test_add_post( [ 'ID' => 70, 'post_type' => 'page', 'post_status' => 'publish', 'post_name' => 'cookbook', 'post_title' => 'Cookbook', 'post_parent' => 0 ] );
+		$_POST = [ 'bfrc_tab' => 'general', 'bfrc' => [ 'archive_slug' => 'Cookbook', 'archive_title' => 'Our Kitchen' ] ];
+		$exit  = bfrc_test_catch_exit( fn() => $this->page->save() );
+		$this->assertStringEndsWith( 'tab=general&bfrc_notice=slug_taken', (string) $exit->payload, 'said, not hidden behind "saved"' );
+		$all = ( new Settings() )->all();
+		$this->assertSame( [ 'recipes', 'Our Kitchen' ], [ $all['archive_slug'], $all['archive_title'] ], 'the slug is kept as it was; the rest of the tab saves' );
+		$this->assertStringContainsString( 'a Page already uses that address', $this->render_notice_for( 'slug_taken' ) );
+		$GLOBALS['bfrc_test_posts'][70]->post_status = 'trash';
+		$exit = bfrc_test_catch_exit( fn() => $this->page->save() );
+		$this->assertStringEndsWith( 'bfrc_notice=saved', (string) $exit->payload, 'a Page in the trash does not hold the address' );
+		$this->assertSame( 'cookbook', ( new Settings() )->all()['archive_slug'] );
+		$GLOBALS['bfrc_test_posts'][70]->post_status = 'draft';
+		$exit = bfrc_test_catch_exit( fn() => $this->page->save() );
+		$this->assertStringEndsWith( 'bfrc_notice=saved', (string) $exit->payload, 'the slug already stored is not refused on a re-save: the notice says it instead' );
+		bfrc_test_add_post( [ 'ID' => 71, 'post_type' => 'page', 'post_status' => 'publish', 'post_name' => 'dishes', 'post_title' => 'Child', 'post_parent' => 70 ] );
+		$_POST['bfrc']['archive_slug'] = 'dishes';
+		$exit                          = bfrc_test_catch_exit( fn() => $this->page->save() );
+		$this->assertStringEndsWith( 'bfrc_notice=saved', (string) $exit->payload, 'a child Page lives at /cookbook/dishes/, not /dishes/' );
+	}
+
+	public function test_the_slug_clash_notice_shows_on_the_plugins_screen_and_the_settings_page_only_to_managers(): void {
+		$this->page->register_hooks();
+		$this->assertSame( 10, has_action( 'admin_notices', [ $this->page, 'slug_clash_notice' ] ) );
+		$notice = function (): string {
+			ob_start();
+			$this->page->slug_clash_notice();
+			return (string) ob_get_clean();
+		};
+		bfrc_test_set_screen( 'plugins' );
+		$this->assertSame( '', $notice(), 'no Page at /recipes/: nothing to say' );
+		bfrc_test_add_post( [ 'ID' => 72, 'post_type' => 'page', 'post_status' => 'publish', 'post_name' => 'recipes', 'post_title' => 'Recipes & More', 'post_parent' => 0 ] );
+		$html = $notice();
+		$this->assertStringContainsString( 'The recipe archive address /recipes/ is also the address of the Page &quot;Recipes &amp; More&quot;', $html, 'escaped' );
+		$this->assertStringContainsString( 'page=bfrc-settings', $html, 'with the way to fix it' );
+		bfrc_test_set_screen( 'bfrc_recipe_page_bfrc-settings' );
+		$this->assertNotSame( '', $notice(), 'and on the settings page' );
+		bfrc_test_set_screen( 'dashboard' );
+		$this->assertSame( '', $notice(), 'not on every admin screen: no lookup there' );
+		bfrc_test_set_screen( null );
+		$this->assertSame( '', $notice() );
+		bfrc_test_set_screen( 'plugins' );
+		wp_set_current_user( 5 );
+		$this->assertSame( '', $notice(), 'a writer cannot change the slug: not told' );
+	}
+
+	/** The notice HTML for a code. */
+	private function render_notice_for( string $code ): string {
+		$_GET[ SettingsPage::NOTICE_VAR ] = $code;
+		ob_start();
+		$this->page->render_notice();
+		unset( $_GET[ SettingsPage::NOTICE_VAR ] );
+		return (string) ob_get_clean();
+	}
+
 	public function test_save_checks_the_capability_then_the_nonce(): void {
 		wp_set_current_user( 5 );
 		$_POST = [ 'bfrc_tab' => 'general', 'bfrc' => [ 'enabled' => '1' ] ];

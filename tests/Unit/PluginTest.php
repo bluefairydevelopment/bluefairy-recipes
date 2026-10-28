@@ -132,6 +132,8 @@ final class PluginTest extends TestCase {
 		$composer = json_decode( (string) file_get_contents( BFRC_DIR . 'composer.json' ), true );
 		$this->assertIsArray( $composer );
 		$this->assertArrayNotHasKey( 'version', $composer, 'composer.json carries no version: the header is the one declaration' );
+		$package = json_decode( (string) file_get_contents( BFRC_DIR . 'package.json' ), true );
+		$this->assertSame( BFRC_VERSION, $package['version'] ?? null, 'package.json ships in the zip: its version agrees' );
 		$this->assertStringContainsString( '## 1.0.0', (string) file_get_contents( BFRC_DIR . 'CHANGELOG.md' ) );
 		$this->assertStringContainsString( " * Requires at least: 6.7\n", $source, 'register_block_template and the Interactivity API need 6.7' );
 		$this->assertStringContainsString( " * Requires PHP:      8.1\n", $source );

@@ -188,10 +188,7 @@ final class Capabilities {
 				continue;
 			}
 			foreach ( $caps as $cap ) {
-				if ( self::MANAGE === $cap ) {
-					continue;
-				}
-				$object->remove_cap( $cap );
+				$object->remove_cap( $cap ); // MANAGE is in no grant but the administrator's, skipped above.
 			}
 		}
 	}

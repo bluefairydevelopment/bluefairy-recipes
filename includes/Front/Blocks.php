@@ -676,7 +676,7 @@ final class Blocks {
 	}
 
 	/**
-	 * The front-end stylesheet and the view module (the A4 archive script
+	 * The front-end stylesheet and the view module (the archive script
 	 * binds nothing on a block page, so it is not loaded here).
 	 */
 	private function enqueue(): void {

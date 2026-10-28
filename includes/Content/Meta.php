@@ -767,10 +767,13 @@ final class Meta {
 
 	/**
 	 * Nutrition: every NUTRITION_FIELDS key, each a number in 0..MAX_NUTRITION
-	 * with two decimals, or null when empty, not a number or ambiguous
-	 * (hidden on display). A single comma with no dot is a decimal comma
-	 * (`12,5`), except a comma followed by exactly three digits (`1,200`),
-	 * which could be a thousands separator and is refused rather than guessed.
+	 * with two decimals, or null when empty or not a number (hidden on
+	 * display). Typed separators are read by the site's language
+	 * (`$wp_locale`): where the decimal point is a dot, `1,200` and
+	 * `1,200.5` are twelve hundred (grouped thousands); where it is a comma,
+	 * `1.200` and `1.200,5` are, and `12,5` is twelve and a half. A lone comma
+	 * that cannot be a thousands group (`12,5`, `0,500`) is a decimal comma in
+	 * either language.
 	 *
 	 * @param mixed $value Raw.
 	 * @return array<string, float|null>
@@ -781,13 +784,7 @@ final class Meta {
 		foreach ( array_keys( self::NUTRITION_FIELDS ) as $field ) {
 			$v = $raw[ $field ] ?? null;
 			if ( is_string( $v ) ) {
-				$v = trim( $v );
-				if ( 1 === substr_count( $v, ',' ) && ! str_contains( $v, '.' ) ) {
-					if ( 1 === preg_match( '/^(?!0,)\d*,\d{3}$/', $v ) ) {
-						continue; // Ambiguous: 1,200 could be twelve hundred or one point two (0,500 can only be a half).
-					}
-					$v = str_replace( ',', '.', $v );
-				}
+				$v = self::typed_number( trim( $v ) );
 			}
 			if ( null === $v || '' === $v || is_bool( $v ) || ! is_numeric( $v ) || ! is_finite( (float) $v ) ) {
 				continue;
@@ -799,6 +796,28 @@ final class Meta {
 			$out[ $field ] = 0.0 === $number ? 0.0 : $number; // never -0.0.
 		}
 		return $out;
+	}
+
+	/**
+	 * A typed number with the site language's separators, as a dot-decimal
+	 * string PHP reads (anything else is returned as given and refused by the
+	 * caller's is_numeric()).
+	 *
+	 * @param string $v Trimmed input.
+	 */
+	private static function typed_number( string $v ): string {
+		global $wp_locale;
+		$decimal_comma = is_object( $wp_locale ) && isset( $wp_locale->number_format['decimal_point'] ) && ',' === $wp_locale->number_format['decimal_point'];
+		if ( $decimal_comma ) {
+			if ( 1 === preg_match( '/^\d{1,3}(\.\d{3})+(,\d+)?$/', $v ) ) {
+				return str_replace( [ '.', ',' ], [ '', '.' ], $v ); // 1.200,5
+			}
+			return 1 === substr_count( $v, ',' ) && ! str_contains( $v, '.' ) ? str_replace( ',', '.', $v ) : $v;
+		}
+		if ( 1 === preg_match( '/^\d{1,3}(,\d{3})+(\.\d+)?$/', $v ) && 1 !== preg_match( '/^0,/', $v ) ) {
+			return str_replace( ',', '', $v ); // Grouped thousands, with or without a decimal part.
+		}
+		return 1 === substr_count( $v, ',' ) && ! str_contains( $v, '.' ) ? str_replace( ',', '.', $v ) : $v; // 12,5
 	}
 
 	/**

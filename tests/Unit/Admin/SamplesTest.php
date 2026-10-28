@@ -222,9 +222,40 @@ final class SamplesTest extends TestCase {
 
 	public function test_terms_attach_on_a_translated_site_because_the_names_share_the_starter_terms_msgids(): void {
 		add_filter( 'gettext', static fn( string $tr, string $orig, string $domain ): string => 'bluefairy-recipes' === $domain && 'Dinner' === $orig ? 'Abendessen' : $tr, 10, 3 );
-		wp_insert_term( 'Abendessen', 'bfrc_meal_type' ); // What Taxonomies::ensure_default_terms() seeds on a German site.
+		unset( $GLOBALS['bfrc_test_terms']['bfrc_meal_type'] ); // A German site with no term at the slug `dinner`:
+		wp_insert_term( 'Abendessen', 'bfrc_meal_type' ); // its term made by hand, slug `abendessen`. The name still matches.
 		$record = $this->samples->install();
-		$this->assertSame( [ 'Abendessen' ], array_map( static fn( \WP_Term $t ): string => $t->name, get_the_terms( $record['recipes'][0], 'bfrc_meal_type' ) ), 'looked up by the translated name, so the term attaches' );
+		$this->assertSame( [ 'Abendessen' ], array_map( static fn( \WP_Term $t ): string => $t->name, get_the_terms( $record['recipes'][0], 'bfrc_meal_type' ) ), 'no slug match: looked up by the translated name, so the term attaches' );
+	}
+
+	public function test_terms_attach_by_their_stable_slug_when_the_site_was_seeded_in_another_language_or_renamed_them(): void {
+		unset( $GLOBALS['bfrc_test_terms']['bfrc_meal_type'], $GLOBALS['bfrc_test_terms']['bfrc_diet'] );
+		wp_insert_term( 'Dîner', 'bfrc_meal_type', [ 'slug' => 'dinner' ] ); // Seeded on a French site: English slug, French name.
+		wp_insert_term( 'Sans gluten (maison)', 'bfrc_diet', [ 'slug' => 'gluten-free' ] ); // And renamed by the owner since.
+		$record = $this->samples->install(); // Installed by an English-speaking administrator.
+		$this->assertSame( [ 'dinner' ], array_map( static fn( \WP_Term $t ): string => $t->slug, get_the_terms( $record['recipes'][0], 'bfrc_meal_type' ) ?: [] ), 'found by slug: the names differ by language' );
+		$this->assertSame( [ 'gluten-free' ], array_map( static fn( \WP_Term $t ): string => $t->slug, get_the_terms( $record['recipes'][0], 'bfrc_diet' ) ?: [] ), 'found by slug after a rename' );
+	}
+
+	public function test_starter_terms_are_seeded_with_their_english_slug_in_every_language(): void {
+		add_filter( 'gettext', static fn( string $tr, string $orig, string $domain ): string => 'bluefairy-recipes' === $domain && 'Gluten-Free' === $orig ? 'Glutenfrei' : $tr, 10, 3 );
+		unset( $GLOBALS['bfrc_test_terms']['bfrc_diet'] ); // No diet terms yet: they are seeded.
+		( new \BlueFairy\Recipes\Content\Taxonomies( new \BlueFairy\Recipes\Settings() ) )->ensure_default_terms();
+		$term = get_term_by( 'slug', 'gluten-free', 'bfrc_diet' );
+		$this->assertInstanceOf( \WP_Term::class, $term, 'the slug is the English source\'s' );
+		$this->assertSame( 'Glutenfrei', $term->name, 'the name is the site language\'s' );
+	}
+
+	public function test_without_the_photos_the_samples_install_and_simply_have_no_image(): void {
+		$empty   = sys_get_temp_dir() . '/bfrc-no-photos-' . getmypid();
+		@mkdir( $empty ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$samples = new Samples( $empty );
+		$record  = $samples->install();
+		$this->assertIsArray( $record );
+		$this->assertCount( 3, $record['recipes'] );
+		$this->assertSame( [], $record['attachments'], 'a missing photo is skipped, not an error' );
+		$this->assertSame( '', (string) get_post_meta( $record['recipes'][0], '_thumbnail_id', true ) );
+		@rmdir( $empty ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 	}
 
 	public function test_the_set_is_three_new_recipes_with_shipped_photos(): void {

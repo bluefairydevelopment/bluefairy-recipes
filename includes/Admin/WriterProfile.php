@@ -193,10 +193,7 @@ final class WriterProfile {
 			return;
 		}
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each field is sanitised by kind below.
-		$raw = isset( $_POST[ self::FIELD ] ) && is_array( $_POST[ self::FIELD ] ) ? wp_unslash( $_POST[ self::FIELD ] ) : [];
-		if ( ! is_array( $raw ) ) {
-			$raw = [];
-		}
+		$raw = isset( $_POST[ self::FIELD ] ) && is_array( $_POST[ self::FIELD ] ) ? (array) wp_unslash( $_POST[ self::FIELD ] ) : [];
 		foreach ( self::FIELDS as $key => $kind ) {
 			$value = $raw[ $key ] ?? null;
 			switch ( $kind ) {

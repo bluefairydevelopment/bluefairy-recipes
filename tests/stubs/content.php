@@ -214,3 +214,18 @@ if ( ! function_exists( 'bfrc_test_meta_storage' ) ) {
 		return is_int( $value ) || is_float( $value ) ? (string) $value : $value;
 	}
 }
+
+if ( ! function_exists( 'get_page_by_path' ) ) {
+	/**
+	 * As core: the post of the given type(s) whose path is $page_path, in any
+	 * status (trash included); a one-segment path matches a top-level post only.
+	 */
+	function get_page_by_path( string $page_path, string $output = OBJECT, string|array $post_type = 'page' ): ?WP_Post {
+		foreach ( $GLOBALS['bfrc_test_posts'] ?? [] as $post ) {
+			if ( $post instanceof WP_Post && in_array( $post->post_type, (array) $post_type, true ) && (string) ( $post->post_name ?? '' ) === $page_path && 0 === (int) ( $post->post_parent ?? 0 ) ) {
+				return $post;
+			}
+		}
+		return null;
+	}
+}

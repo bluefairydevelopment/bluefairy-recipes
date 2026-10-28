@@ -44,6 +44,16 @@ final class Samples {
 	public const WRITER_LOGIN   = 'bfrc_sample_writer';
 
 	/**
+	 * Build the samples. The photo folder is the plugin's `assets/samples/`;
+	 * a test may point it elsewhere (a folder without the photos).
+	 *
+	 * @param string $photo_dir The folder holding `{slug}.jpg` ('' for the plugin's own).
+	 */
+	public function __construct( private string $photo_dir = '' ) {
+		$this->photo_dir = '' === $photo_dir ? BFRC_DIR . 'assets/samples/' : trailingslashit( $photo_dir );
+	}
+
+	/**
 	 * The sample set. Terms are the starter terms' names, translated as the
 	 * starter terms are seeded (skipped when a site renamed or removed
 	 * them); measures with a unit are translatable too; the images live in
@@ -72,10 +82,10 @@ final class Samples {
 					'sodium'        => 640,
 				],
 				'terms'       => [
-					'meal_type' => __( 'Dinner', 'bluefairy-recipes' ),
-					'diet'      => __( 'Gluten-Free', 'bluefairy-recipes' ),
-					'season'    => __( 'Autumn', 'bluefairy-recipes' ),
-					'cuisine'   => __( 'American', 'bluefairy-recipes' ),
+					'meal_type' => [ 'dinner', __( 'Dinner', 'bluefairy-recipes' ) ],
+					'diet'      => [ 'gluten-free', __( 'Gluten-Free', 'bluefairy-recipes' ) ],
+					'season'    => [ 'autumn', __( 'Autumn', 'bluefairy-recipes' ) ],
+					'cuisine'   => [ 'american', __( 'American', 'bluefairy-recipes' ) ],
 				],
 			],
 			[
@@ -99,10 +109,10 @@ final class Samples {
 					'sodium'        => 480,
 				],
 				'terms'       => [
-					'meal_type' => __( 'Lunch', 'bluefairy-recipes' ),
-					'diet'      => __( 'Vegan', 'bluefairy-recipes' ),
-					'season'    => __( 'Summer', 'bluefairy-recipes' ),
-					'cuisine'   => __( 'Mediterranean', 'bluefairy-recipes' ),
+					'meal_type' => [ 'lunch', __( 'Lunch', 'bluefairy-recipes' ) ],
+					'diet'      => [ 'vegan', __( 'Vegan', 'bluefairy-recipes' ) ],
+					'season'    => [ 'summer', __( 'Summer', 'bluefairy-recipes' ) ],
+					'cuisine'   => [ 'mediterranean', __( 'Mediterranean', 'bluefairy-recipes' ) ],
 				],
 			],
 			[
@@ -126,10 +136,10 @@ final class Samples {
 					'sodium'        => 390,
 				],
 				'terms'       => [
-					'meal_type' => __( 'Breakfast', 'bluefairy-recipes' ),
-					'diet'      => __( 'Vegetarian', 'bluefairy-recipes' ),
-					'season'    => __( 'Spring', 'bluefairy-recipes' ),
-					'cuisine'   => __( 'American', 'bluefairy-recipes' ),
+					'meal_type' => [ 'breakfast', __( 'Breakfast', 'bluefairy-recipes' ) ],
+					'diet'      => [ 'vegetarian', __( 'Vegetarian', 'bluefairy-recipes' ) ],
+					'season'    => [ 'spring', __( 'Spring', 'bluefairy-recipes' ) ],
+					'cuisine'   => [ 'american', __( 'American', 'bluefairy-recipes' ) ],
 				],
 			],
 		];
@@ -240,11 +250,8 @@ final class Samples {
 				$this->delete_record( $record, 0, ! $adopted );
 				return new \WP_Error( 'failed', $post_id->get_error_message() );
 			}
-			$post_id = (int) $post_id;
-			if ( $post_id <= 0 ) {
-				$this->delete_record( $record, 0, ! $adopted );
-				return new \WP_Error( 'failed', __( 'The recipe could not be created.', 'bluefairy-recipes' ) );
-			}
+			// With $wp_error true core answers a WP_Error or an ID, never 0.
+			$post_id             = (int) $post_id;
 			$record['recipes'][] = $post_id;
 			update_post_meta( $post_id, Meta::PREP_MINUTES, (int) $recipe['prep'] );
 			update_post_meta( $post_id, Meta::COOK_MINUTES, (int) $recipe['cook'] );
@@ -267,10 +274,10 @@ final class Samples {
 			);
 			update_post_meta( $post_id, Meta::STEPS, Meta::sanitize_steps( array_map( static fn( string $text ): array => [ 'text' => $text ], $recipe['steps'] ) ) );
 			update_post_meta( $post_id, Meta::NUTRITION, Meta::sanitize_nutrition( $recipe['nutrition'] ) );
-			foreach ( $recipe['terms'] as $code => $name ) {
-				$term = get_term_by( 'name', $name, Taxonomies::taxonomy_name( (string) $code ) );
-				if ( $term instanceof \WP_Term ) {
-					wp_set_object_terms( $post_id, [ (int) $term->term_id ], Taxonomies::taxonomy_name( (string) $code ) );
+			foreach ( $recipe['terms'] as $code => [ $slug, $name ] ) {
+				$term_id = self::term_for( Taxonomies::taxonomy_name( (string) $code ), $slug, $name );
+				if ( $term_id > 0 ) {
+					wp_set_object_terms( $post_id, [ $term_id ], Taxonomies::taxonomy_name( (string) $code ) );
 				}
 			}
 			$attachment = $this->sideload_photo( (string) $recipe['slug'], $post_id, (string) $recipe['title'] );
@@ -284,6 +291,28 @@ final class Samples {
 			return new \WP_Error( 'failed', __( 'The record of the sample recipes could not be saved.', 'bluefairy-recipes' ) );
 		}
 		return $record;
+	}
+
+	/**
+	 * A sample's term: by its stable slug (the starter terms are seeded with
+	 * their English slug in every language, so a site seeded in one language
+	 * and installing samples in another, or that renamed the term, still
+	 * matches), else by its name in the current language. 0 when the site
+	 * has neither (it deleted the term): the sample is not filed there, and
+	 * no term the owner removed is made again.
+	 *
+	 * @param string $taxonomy The taxonomy.
+	 * @param string $slug     The English slug, e.g. `gluten-free`.
+	 * @param string $name     The translated name.
+	 */
+	private static function term_for( string $taxonomy, string $slug, string $name ): int {
+		foreach ( [ [ 'slug', $slug ], [ 'name', $name ] ] as [ $field, $value ] ) {
+			$term = get_term_by( $field, $value, $taxonomy );
+			if ( $term instanceof \WP_Term ) {
+				return (int) $term->term_id;
+			}
+		}
+		return 0;
 	}
 
 	/**
@@ -351,15 +380,11 @@ final class Samples {
 		$reassign = $reassign_to > 0 ? $reassign_to : (int) get_current_user_id();
 		$reassign = $reassign > 0 && $reassign !== $writer ? $reassign : null;
 		if ( $writer > 0 && ( null !== $reassign || $created_now ) && self::is_sample_writer( $writer ) ) {
-			if ( ! function_exists( 'wp_delete_user' ) ) {
-				require_once ABSPATH . 'wp-admin/includes/user.php';
-			}
+			require_once ABSPATH . 'wp-admin/includes/user.php'; // Loaded already in the admin; require_once makes it free.
 			if ( is_multisite() ) {
 				wp_delete_user( $writer, $reassign ); // This site's posts reassigned, the account removed from the site.
 				if ( [] === get_blogs_of_user( $writer ) && current_user_can( 'delete_users' ) ) {
-					if ( ! function_exists( 'wpmu_delete_user' ) ) {
-						require_once ABSPATH . 'wp-admin/includes/ms.php';
-					}
+					require_once ABSPATH . 'wp-admin/includes/ms.php';
 					wpmu_delete_user( $writer ); // Nowhere else and allowed: the network row goes too.
 				}
 			} else {
@@ -380,7 +405,7 @@ final class Samples {
 	 * @param string $title   The recipe title (the attachment's title and alt text).
 	 */
 	private function sideload_photo( string $slug, int $post_id, string $title ): int {
-		$file = BFRC_DIR . 'assets/samples/' . $slug . '.jpg';
+		$file = $this->photo_dir . $slug . '.jpg';
 		if ( ! is_readable( $file ) ) {
 			return 0;
 		}
@@ -402,9 +427,7 @@ final class Samples {
 			return 0;
 		}
 		$attachment = (int) $attachment;
-		if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {
-			require_once ABSPATH . 'wp-admin/includes/image.php';
-		}
+		require_once ABSPATH . 'wp-admin/includes/image.php';
 		wp_update_attachment_metadata( $attachment, wp_generate_attachment_metadata( $attachment, $bits['file'] ) );
 		update_post_meta( $attachment, '_wp_attachment_image_alt', $title );
 		return $attachment;
