@@ -34,10 +34,12 @@ function bfrc_gate_methods( string $clover, string $extra ): array {
 		return [];
 	}
 	$ran = [];
+	$GLOBALS['bfrc_gate_probe_lines'] = 0;
 	foreach ( '' !== $extra && is_dir( $extra ) ? (array) glob( rtrim( $extra, '/' ) . '/*.json' ) : [] as $json ) {
 		foreach ( (array) json_decode( (string) file_get_contents( (string) $json ), true ) as $file => $lines ) {
 			foreach ( (array) $lines as $line ) {
 				$ran[ (string) realpath( (string) $file ) ][ (int) $line ] = true;
+				++$GLOBALS['bfrc_gate_probe_lines'];
 			}
 		}
 	}
@@ -77,7 +79,7 @@ function bfrc_gate_report( string $clover, string $extra ): int {
 		}
 	}
 	$total = count( $methods );
-	printf( "pcov methods fully executed: %d/%d\n", $total - count( $partial ), $total );
+	printf( "pcov methods fully executed: %d/%d (statements recorded by exit probes, seen to end the process: %d)\n", $total - count( $partial ), $total, (int) ( $GLOBALS['bfrc_gate_probe_lines'] ?? 0 ) );
 	foreach ( $partial as $line ) {
 		echo "  NOT FULLY RUN: $line\n";
 	}

@@ -250,7 +250,8 @@ final class Samples {
 				$this->delete_record( $record, 0, ! $adopted );
 				return new \WP_Error( 'failed', $post_id->get_error_message() );
 			}
-			$post_id = (int) $post_id; // With $wp_error true core answers a WP_Error or an ID, never 0.
+			// With $wp_error true core answers a WP_Error or an ID, never 0.
+			$post_id             = (int) $post_id;
 			$record['recipes'][] = $post_id;
 			update_post_meta( $post_id, Meta::PREP_MINUTES, (int) $recipe['prep'] );
 			update_post_meta( $post_id, Meta::COOK_MINUTES, (int) $recipe['cook'] );

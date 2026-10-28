@@ -815,7 +815,7 @@ final class Meta {
 			return 1 === substr_count( $v, ',' ) && ! str_contains( $v, '.' ) ? str_replace( ',', '.', $v ) : $v;
 		}
 		if ( 1 === preg_match( '/^\d{1,3}(,\d{3})+(\.\d+)?$/', $v ) && 1 !== preg_match( '/^0,/', $v ) ) {
-			return str_replace( ',', '', $v ); // 1,200 and 1,200.5
+			return str_replace( ',', '', $v ); // Grouped thousands, with or without a decimal part.
 		}
 		return 1 === substr_count( $v, ',' ) && ! str_contains( $v, '.' ) ? str_replace( ',', '.', $v ) : $v; // 12,5
 	}
