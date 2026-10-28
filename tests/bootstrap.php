@@ -814,8 +814,23 @@ function get_date_from_gmt( string $date, string $format = 'Y-m-d H:i:s' ): stri
 	}
 	return $utc->setTimezone( bfrc_test_timezone() )->format( $format );
 }
+/**
+ * As core (5.3+): the date string is read as a time in the SITE timezone,
+ * whatever it is (a `_gmt` column handed in is misread the same way), and
+ * formatted there; 'U' and 'G' give the Unix timestamp.
+ */
 function mysql2date( string $format, string $date, bool $translate = true ): string|int|false {
-	return gmdate( $format, (int) strtotime( $date ) );
+	if ( '' === $date ) {
+		return false;
+	}
+	$datetime = date_create( $date, bfrc_test_timezone() );
+	if ( false === $datetime ) {
+		return false;
+	}
+	if ( 'G' === $format || 'U' === $format ) {
+		return $datetime->getTimestamp();
+	}
+	return $datetime->format( $format );
 }
 
 // ------------------------------------------------------------------
