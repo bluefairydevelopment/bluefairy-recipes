@@ -46,6 +46,7 @@ final class TerminateTest extends TestCase {
 	}
 
 	public function test_now_ends_the_request(): void {
+		$this->assertTrue( is_callable( [ Terminate::class, 'now' ] ), 'run below in its own process: it cannot return here' );
 		[ $status, $output ] = self::probe( '\BlueFairy\Recipes\Support\Terminate::now();', 'terminate-now' );
 		$this->assertSame( 0, $status, $output );
 		$this->assertStringNotContainsString( 'NOT-EXITED', $output );
