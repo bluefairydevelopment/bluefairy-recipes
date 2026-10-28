@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-28T01:21:31+00:00\n"
+"POT-Creation-Date: 2026-10-28T04:50:37+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: bluefairy-recipes\n"
@@ -88,7 +88,7 @@ msgstr ""
 #: includes/Admin/ListTable.php:188
 #: includes/Front/Blocks.php:395
 #: includes/Front/Renderer.php:116
-#: build/blocks/recipe-list/index.js:2
+#: src/blocks/recipe-list/index.js:50
 #, php-format,js-format
 msgid "All %s"
 msgstr ""
@@ -792,7 +792,7 @@ msgid "Archive title"
 msgstr ""
 
 #: includes/Admin/SettingsPage.php:283
-#: build/blocks/recipe-list/index.js:1
+#: src/blocks/recipe-list/index.js:24
 msgid "Recipes per page"
 msgstr ""
 
@@ -988,7 +988,8 @@ msgstr ""
 
 #: includes/Content/PostType.php:89
 #: includes/Content/PostType.php:91
-#: build/blocks/recipe-card/index.js:1
+#: src/blocks/recipe-card/index.js:34
+#: src/blocks/recipe-card/index.js:36
 msgid "Recipe"
 msgstr ""
 
@@ -1130,7 +1131,9 @@ msgstr ""
 
 #: includes/Front/Blocks.php:208
 #: includes/Front/Blocks.php:270
-#: build/blocks/featured-recipes/index.js:1
+#: src/blocks/featured-recipes/index.js:15
+#: src/blocks/featured-recipes/index.js:19
+#: src/blocks/featured-recipes/index.js:30
 msgid "Featured recipes"
 msgstr ""
 
@@ -1485,141 +1488,141 @@ msgstr ""
 msgid "The recipe card as the archive renders it."
 msgstr ""
 
-#: build/blocks/featured-recipes/index.js:1
+#: src/blocks/featured-recipes/index.js:21
 msgid "Heading"
 msgstr ""
 
-#: build/blocks/featured-recipes/index.js:1
+#: src/blocks/featured-recipes/index.js:22
 msgid "Leave empty for no heading."
 msgstr ""
 
-#: build/blocks/featured-recipes/index.js:1
+#: src/blocks/featured-recipes/index.js:27
 msgid "Show"
 msgstr ""
 
-#: build/blocks/featured-recipes/index.js:1
+#: src/blocks/featured-recipes/index.js:31
 msgid "Most recent recipes"
 msgstr ""
 
-#: build/blocks/featured-recipes/index.js:1
+#: src/blocks/featured-recipes/index.js:36
 msgid "How many"
 msgstr ""
 
-#: build/blocks/featured-recipes/index.js:1
+#: src/blocks/featured-recipes/index.js:48
 msgid "No recipes to show yet: mark some recipes as featured, or show the most recent ones."
 msgstr ""
 
-#: build/blocks/recipe-card/index.js:1
+#: src/blocks/recipe-card/index.js:37
 msgid "Type to search published recipes by title."
 msgstr ""
 
-#: build/blocks/recipe-card/index.js:1
+#: src/blocks/recipe-card/index.js:50
 msgid "This recipe is not published."
 msgstr ""
 
-#: build/blocks/recipe-card/index.js:1
+#: src/blocks/recipe-card/index.js:53
 msgid "Choose a recipe in the block settings."
 msgstr ""
 
-#: build/blocks/recipe-list/index.js:1
+#: src/blocks/recipe-list/index.js:22
 msgid "List"
 msgstr ""
 
-#: build/blocks/recipe-list/index.js:1
+#: src/blocks/recipe-list/index.js:25
 msgid "0 uses the Recipes per page setting."
 msgstr ""
 
-#: build/blocks/recipe-list/index.js:1
+#: src/blocks/recipe-list/index.js:32
 msgid "Show the filter form"
 msgstr ""
 
-#: build/blocks/recipe-list/index.js:1
+#: src/blocks/recipe-list/index.js:37
 msgid "Show pagination"
 msgstr ""
 
-#: build/blocks/recipe-list/index.js:1
+#: src/blocks/recipe-list/index.js:42
 msgid "Fixed filters"
 msgstr ""
 
-#: build/blocks/featured-recipes/block.json
+#: src/blocks/featured-recipes/block.json
 msgctxt "block title"
 msgid "Featured Recipes"
 msgstr ""
 
-#: build/blocks/featured-recipes/block.json
+#: src/blocks/featured-recipes/block.json
 msgctxt "block description"
 msgid "The featured recipes, or the most recent ones, as cards."
 msgstr ""
 
-#: build/blocks/featured-recipes/block.json
-#: build/blocks/recipe-card/block.json
-#: build/blocks/recipe-filters/block.json
-#: build/blocks/recipe-list/block.json
+#: src/blocks/featured-recipes/block.json
+#: src/blocks/recipe-card/block.json
+#: src/blocks/recipe-filters/block.json
+#: src/blocks/recipe-list/block.json
 msgctxt "block keyword"
 msgid "recipe"
 msgstr ""
 
-#: build/blocks/featured-recipes/block.json
+#: src/blocks/featured-recipes/block.json
 msgctxt "block keyword"
 msgid "featured"
 msgstr ""
 
-#: build/blocks/featured-recipes/block.json
+#: src/blocks/featured-recipes/block.json
 msgctxt "block keyword"
 msgid "recent"
 msgstr ""
 
-#: build/blocks/recipe-card/block.json
+#: src/blocks/recipe-card/block.json
 msgctxt "block title"
 msgid "Recipe Card"
 msgstr ""
 
-#: build/blocks/recipe-card/block.json
+#: src/blocks/recipe-card/block.json
 msgctxt "block description"
 msgid "One recipe as a card: photo, title, times, writer and short description."
 msgstr ""
 
-#: build/blocks/recipe-card/block.json
+#: src/blocks/recipe-card/block.json
 msgctxt "block keyword"
 msgid "card"
 msgstr ""
 
-#: build/blocks/recipe-filters/block.json
+#: src/blocks/recipe-filters/block.json
 msgctxt "block title"
 msgid "Recipe Filters"
 msgstr ""
 
-#: build/blocks/recipe-filters/block.json
+#: src/blocks/recipe-filters/block.json
 msgctxt "block description"
 msgid "The recipe filter form, for a Recipe List block elsewhere on the page. Changing a filter updates the list without a reload."
 msgstr ""
 
-#: build/blocks/recipe-filters/block.json
+#: src/blocks/recipe-filters/block.json
 msgctxt "block keyword"
 msgid "filter"
 msgstr ""
 
-#: build/blocks/recipe-filters/block.json
+#: src/blocks/recipe-filters/block.json
 msgctxt "block keyword"
 msgid "search"
 msgstr ""
 
-#: build/blocks/recipe-list/block.json
+#: src/blocks/recipe-list/block.json
 msgctxt "block title"
 msgid "Recipe List"
 msgstr ""
 
-#: build/blocks/recipe-list/block.json
+#: src/blocks/recipe-list/block.json
 msgctxt "block description"
 msgid "A page of recipes with filters and pagination. Fix a filter to list one meal type, diet, season or cuisine."
 msgstr ""
 
-#: build/blocks/recipe-list/block.json
+#: src/blocks/recipe-list/block.json
 msgctxt "block keyword"
 msgid "list"
 msgstr ""
 
-#: build/blocks/recipe-list/block.json
+#: src/blocks/recipe-list/block.json
 msgctxt "block keyword"
 msgid "grid"
 msgstr ""
