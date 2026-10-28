@@ -72,10 +72,10 @@ final class Samples {
 					'sodium'        => 640,
 				],
 				'terms'       => [
-					'meal_type' => __( 'Dinner', 'bluefairy-recipes' ),
-					'diet'      => __( 'Gluten-Free', 'bluefairy-recipes' ),
-					'season'    => __( 'Autumn', 'bluefairy-recipes' ),
-					'cuisine'   => __( 'American', 'bluefairy-recipes' ),
+					'meal_type' => [ 'dinner', __( 'Dinner', 'bluefairy-recipes' ) ],
+					'diet'      => [ 'gluten-free', __( 'Gluten-Free', 'bluefairy-recipes' ) ],
+					'season'    => [ 'autumn', __( 'Autumn', 'bluefairy-recipes' ) ],
+					'cuisine'   => [ 'american', __( 'American', 'bluefairy-recipes' ) ],
 				],
 			],
 			[
@@ -99,10 +99,10 @@ final class Samples {
 					'sodium'        => 480,
 				],
 				'terms'       => [
-					'meal_type' => __( 'Lunch', 'bluefairy-recipes' ),
-					'diet'      => __( 'Vegan', 'bluefairy-recipes' ),
-					'season'    => __( 'Summer', 'bluefairy-recipes' ),
-					'cuisine'   => __( 'Mediterranean', 'bluefairy-recipes' ),
+					'meal_type' => [ 'lunch', __( 'Lunch', 'bluefairy-recipes' ) ],
+					'diet'      => [ 'vegan', __( 'Vegan', 'bluefairy-recipes' ) ],
+					'season'    => [ 'summer', __( 'Summer', 'bluefairy-recipes' ) ],
+					'cuisine'   => [ 'mediterranean', __( 'Mediterranean', 'bluefairy-recipes' ) ],
 				],
 			],
 			[
@@ -126,10 +126,10 @@ final class Samples {
 					'sodium'        => 390,
 				],
 				'terms'       => [
-					'meal_type' => __( 'Breakfast', 'bluefairy-recipes' ),
-					'diet'      => __( 'Vegetarian', 'bluefairy-recipes' ),
-					'season'    => __( 'Spring', 'bluefairy-recipes' ),
-					'cuisine'   => __( 'American', 'bluefairy-recipes' ),
+					'meal_type' => [ 'breakfast', __( 'Breakfast', 'bluefairy-recipes' ) ],
+					'diet'      => [ 'vegetarian', __( 'Vegetarian', 'bluefairy-recipes' ) ],
+					'season'    => [ 'spring', __( 'Spring', 'bluefairy-recipes' ) ],
+					'cuisine'   => [ 'american', __( 'American', 'bluefairy-recipes' ) ],
 				],
 			],
 		];
@@ -267,10 +267,10 @@ final class Samples {
 			);
 			update_post_meta( $post_id, Meta::STEPS, Meta::sanitize_steps( array_map( static fn( string $text ): array => [ 'text' => $text ], $recipe['steps'] ) ) );
 			update_post_meta( $post_id, Meta::NUTRITION, Meta::sanitize_nutrition( $recipe['nutrition'] ) );
-			foreach ( $recipe['terms'] as $code => $name ) {
-				$term = get_term_by( 'name', $name, Taxonomies::taxonomy_name( (string) $code ) );
-				if ( $term instanceof \WP_Term ) {
-					wp_set_object_terms( $post_id, [ (int) $term->term_id ], Taxonomies::taxonomy_name( (string) $code ) );
+			foreach ( $recipe['terms'] as $code => [ $slug, $name ] ) {
+				$term_id = self::term_for( Taxonomies::taxonomy_name( (string) $code ), $slug, $name );
+				if ( $term_id > 0 ) {
+					wp_set_object_terms( $post_id, [ $term_id ], Taxonomies::taxonomy_name( (string) $code ) );
 				}
 			}
 			$attachment = $this->sideload_photo( (string) $recipe['slug'], $post_id, (string) $recipe['title'] );
@@ -284,6 +284,28 @@ final class Samples {
 			return new \WP_Error( 'failed', __( 'The record of the sample recipes could not be saved.', 'bluefairy-recipes' ) );
 		}
 		return $record;
+	}
+
+	/**
+	 * A sample's term: by its stable slug (the starter terms are seeded with
+	 * their English slug in every language, so a site seeded in one language
+	 * and installing samples in another, or that renamed the term, still
+	 * matches), else by its name in the current language. 0 when the site
+	 * has neither (it deleted the term): the sample is not filed there, and
+	 * no term the owner removed is made again.
+	 *
+	 * @param string $taxonomy The taxonomy.
+	 * @param string $slug     The English slug, e.g. `gluten-free`.
+	 * @param string $name     The translated name.
+	 */
+	private static function term_for( string $taxonomy, string $slug, string $name ): int {
+		foreach ( [ [ 'slug', $slug ], [ 'name', $name ] ] as [ $field, $value ] ) {
+			$term = get_term_by( $field, $value, $taxonomy );
+			if ( $term instanceof \WP_Term ) {
+				return (int) $term->term_id;
+			}
+		}
+		return 0;
 	}
 
 	/**

@@ -349,8 +349,10 @@ final class Taxonomies {
 				continue;
 			}
 			$inserted[ $code ] = 0;
-			foreach ( $def['terms'] as $name ) {
-				if ( ! is_wp_error( wp_insert_term( $name, $taxonomy ) ) ) {
+			foreach ( $def['terms'] as $i => $name ) {
+				// The slug from the English source in every language: stable addresses, and the samples find the term by it.
+				$args = [ 'slug' => sanitize_title( (string) ( self::SYSTEM[ $code ]['terms'][ $i ] ?? $name ) ) ];
+				if ( ! is_wp_error( wp_insert_term( $name, $taxonomy, $args ) ) ) {
 					++$inserted[ $code ];
 				}
 			}
