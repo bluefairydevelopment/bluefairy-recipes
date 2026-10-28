@@ -279,4 +279,24 @@ final class HarnessTest extends TestCase {
 		$this->assertSame( '1 hour', human_time_diff( bfrc_test_now() - 3600 ) );
 		$this->assertSame( '2 days', human_time_diff( 1_700_000_000, 1_700_172_800 ) );
 	}
+
+	/**
+	 * The suite must run on the PHP the plugin requires (8.1): phpstan does not
+	 * analyse the test tree, and a standalone true/false/null type (8.2) in the
+	 * bootstrap is a fatal error at load on 8.1.
+	 */
+	public function test_the_harness_uses_no_php_8_2_only_types(): void {
+		$found = [];
+		$files = new \RecursiveIteratorIterator( new \RecursiveDirectoryIterator( dirname( __DIR__ ), \FilesystemIterator::SKIP_DOTS ) );
+		foreach ( $files as $file ) {
+			if ( 'php' !== $file->getExtension() ) {
+				continue;
+			}
+			$code = (string) file_get_contents( (string) $file );
+			if ( 1 === preg_match( '/\)\s*:\s*\??(true|false|null)\s*\{|readonly\s+class\b/', $code, $m ) ) {
+				$found[] = $file->getFilename() . ': ' . $m[0];
+			}
+		}
+		$this->assertSame( [], $found );
+	}
 }

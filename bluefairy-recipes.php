@@ -30,8 +30,23 @@ if ( defined( 'BFRC_VERSION' ) ) {
 define( 'BFRC_FILE', __FILE__ );
 define( 'BFRC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BFRC_URL', plugin_dir_url( __FILE__ ) );
+/**
+ * The plugin's version.
+ *
+ * @api
+ * @since 1.0.0
+ */
 define( 'BFRC_VERSION', '1.0.0' );
 define( 'BFRC_DB_VERSION', '1.0.0' );
+
+/**
+ * The base's public PHP API version (docs/ARCHITECTURE.md, "Static API an
+ * add-on may use"). Raised only by a change that breaks a listed symbol.
+ *
+ * @api
+ * @since 1.0.0
+ */
+define( 'BFRC_API_VERSION', 1 );
 
 // Autoloader — no Composer required at runtime. Only this plugin's namespace;
 // the Pro add-on loads its own classes. The class name is validated before it
@@ -62,6 +77,9 @@ if ( ! function_exists( 'bfrc_plugin' ) ) {
 	 * The loaded plugin's version, for the Pro add-on to confirm the base is
 	 * really loaded. BFRC_VERSION alone is not proof: a constant can be
 	 * defined by anything. Pro checks for this function AND the constant.
+	 *
+	 * @api
+	 * @since 1.0.0
 	 */
 	function bfrc_plugin(): string {
 		return BFRC_VERSION;
