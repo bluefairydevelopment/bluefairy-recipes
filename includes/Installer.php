@@ -87,20 +87,32 @@ final class Installer {
 		if ( ( new Settings() )->get( 'grant_core_roles' ) ) {
 			Capabilities::grant_core_roles();
 		}
-		// The taxonomies are registered here on the fly before their default terms
-		// are seeded: activation runs after `init`, but a never-provisioned site
-		// (a network sub-site) reaches this from plugins_loaded, before core has
-		// built $wp_rewrite, so register() adds no rewrite rules then (the real
-		// registration at init 5 does, and the flush flag covers the rules).
-		$taxonomies = new Content\Taxonomies( new Settings() );
-		$taxonomies->register();
-		$taxonomies->ensure_default_terms();
+		// Activation runs after `init`: the taxonomies are registered on the fly
+		// and their starter terms seeded now. A never-provisioned site (a network
+		// sub-site) reaches this from plugins_loaded, before init: its terms wait
+		// for init 20 (seed_default_terms()), when the taxonomies are registered
+		// and translations load, so a German site gets German starter terms.
+		if ( did_action( 'init' ) ) {
+			$taxonomies = new Content\Taxonomies( new Settings() );
+			$taxonomies->register();
+			$taxonomies->ensure_default_terms();
+		} elseif ( false === has_action( 'init', [ self::class, 'seed_default_terms' ] ) ) {
+			add_action( 'init', [ self::class, 'seed_default_terms' ], 20 );
+		}
 		update_option( 'bfrc_version', BFRC_VERSION, true );
 		add_option( Settings::FLUSH_OPTION, 0, '', true );
 		update_option( 'bfrc_db_version', BFRC_DB_VERSION, true );
 		if ( BFRC_DB_VERSION === (string) get_option( 'bfrc_db_version', '' ) ) {
 			self::request_rewrite_flush();
 		}
+	}
+
+	/**
+	 * `init` 20 on a site provisioned before init: seed the starter terms of
+	 * the system filter types, in the site's language.
+	 */
+	public static function seed_default_terms(): void {
+		( new Content\Taxonomies( new Settings() ) )->ensure_default_terms();
 	}
 
 	/**

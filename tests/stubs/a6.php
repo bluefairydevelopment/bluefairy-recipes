@@ -176,8 +176,20 @@ if ( ! function_exists( 'wp_upload_bits' ) ) {
 		return [ 'file' => '/uploads/' . $name, 'url' => 'https://example.com/wp-content/uploads/' . $name, 'type' => 'image/jpeg', 'error' => false ];
 	}
 }
+if ( ! function_exists( 'wp_delete_file' ) ) {
+	/** As core: deletes a file when it is there; the suite records the path. */
+	function wp_delete_file( string $file ): void {
+		$GLOBALS['bfrc_test_deleted_files'][] = $file;
+		if ( is_file( $file ) ) {
+			unlink( $file );
+		}
+	}
+}
 if ( ! function_exists( 'wp_insert_attachment' ) ) {
 	function wp_insert_attachment( array $args, mixed $file = false, int $parent = 0, bool $wp_error = false ): int|WP_Error {
+		if ( ! empty( $GLOBALS['bfrc_test_attachment_insert_fails'] ) ) {
+			return $wp_error ? new WP_Error( 'db_insert_error', 'Could not insert attachment into the database.' ) : 0;
+		}
 		$id = (int) ( $GLOBALS['bfrc_test_next_post_id'] ?? 9000 );
 		$GLOBALS['bfrc_test_next_post_id'] = $id + 1;
 		bfrc_test_add_attachment( $id, (string) ( $args['post_mime_type'] ?? 'image/jpeg' ), 'https://example.com/wp-content/uploads/' . basename( (string) $file ) );
