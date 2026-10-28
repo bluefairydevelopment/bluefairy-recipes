@@ -175,6 +175,9 @@ if ( ! function_exists( 'get_post_meta' ) ) {
 	}
 	/** As core: fires updated_post_meta (existing key) or added_post_meta (new key) with (meta_id, object_id, key, value). */
 	function update_post_meta( int $post_id, string $key, mixed $value, mixed $prev = '' ): int|bool {
+		if ( ! empty( $GLOBALS['bfrc_test_meta_fails'][ $key ] ) ) {
+			return false; // As core when the database refuses the write.
+		}
 		$value = wp_unslash( $value ); // As core's update_metadata(): callers pass slashed data.
 		$value = bfrc_test_meta_storage( $value );
 		$existed = array_key_exists( $key, $GLOBALS['bfrc_test_post_meta'][ $post_id ] ?? [] );
