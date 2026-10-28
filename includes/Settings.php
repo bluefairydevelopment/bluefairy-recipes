@@ -439,8 +439,9 @@ final class Settings {
 	 *
 	 * A top-level Page (published, draft, private or pending) at the same
 	 * path as the archive competes with it for one address, so one of the
-	 * two cannot be reached. A Page in the trash, or a child Page (its path
-	 * has a parent segment), does not count. Used by the settings form (a clashing slug is refused) and
+	 * two cannot be reached; so does a blog post when the permalink
+	 * structure is `/%postname%/`. A post in the trash, or a child Page (its
+	 * path has a parent segment), does not count. Used by the settings form (a clashing slug is refused) and
 	 * the admin notice (activation on a site where the address is taken).
 	 *
 	 * @param string $slug A sanitised archive slug.
@@ -452,11 +453,14 @@ final class Settings {
 		if ( '' === $slug ) {
 			return null;
 		}
-		$page = get_page_by_path( $slug, OBJECT, 'page' );
-		if ( ! $page instanceof \WP_Post || 'trash' === $page->post_status || 0 !== (int) $page->post_parent ) {
-			return null;
+		$types = '/%postname%/' === (string) get_option( 'permalink_structure' ) ? [ 'page', 'post' ] : [ 'page' ];
+		foreach ( $types as $type ) {
+			$found = get_page_by_path( $slug, OBJECT, $type );
+			if ( $found instanceof \WP_Post && 'trash' !== $found->post_status && 0 === (int) $found->post_parent ) {
+				return $found;
+			}
 		}
-		return $page;
+		return null;
 	}
 
 	/**

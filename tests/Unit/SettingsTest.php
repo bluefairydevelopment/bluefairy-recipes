@@ -191,6 +191,9 @@ final class SettingsTest extends TestCase {
 		$this->assertNull( Settings::slug_clash( 'recipes' ), 'no Page' );
 		bfrc_test_add_post( [ 'ID' => 80, 'post_type' => 'post', 'post_status' => 'publish', 'post_name' => 'recipes', 'post_parent' => 0 ] );
 		$this->assertNull( Settings::slug_clash( 'recipes' ), 'a blog post lives under its own permalink structure, not at /recipes/' );
+		update_option( 'permalink_structure', '/%postname%/' );
+		$this->assertSame( 80, Settings::slug_clash( 'recipes' )?->ID, 'unless the structure is /%postname%/: then the post is at /recipes/' );
+		update_option( 'permalink_structure', '/%year%/%postname%/' );
 		bfrc_test_add_post( [ 'ID' => 81, 'post_type' => 'page', 'post_status' => 'private', 'post_name' => 'recipes', 'post_parent' => 0 ] );
 		$this->assertSame( 81, Settings::slug_clash( 'recipes' )?->ID, 'any status but trash holds the address' );
 	}
