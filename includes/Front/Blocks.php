@@ -636,24 +636,38 @@ final class Blocks {
 		wp_interactivity_config(
 			self::STORE,
 			[
-				'vars'         => [
+				'vars'        => [
 					's'      => Templates::SEARCH_VAR,
 					'filter' => Templates::FILTER_VAR,
 					'page'   => RecipeQuery::PAGE_VAR,
 				],
-				'searchMax'    => Templates::SEARCH_MAX,
-				'emptyText'    => Renderer::empty_text(),
-				'loadingText'  => __( 'Loading recipes…', 'bluefairy-recipes' ),
-				'errorText'    => __( 'The recipes could not be loaded. Press Filter to reload the page.', 'bluefairy-recipes' ),
-				/* translators: %s: a number */
-				'foundOneText' => __( '%s recipe shown.', 'bluefairy-recipes' ),
-				/* translators: %s: a number */
-				'foundText'    => __( '%s recipes shown.', 'bluefairy-recipes' ),
-				'prevText'     => esc_html__( '&laquo; Previous', 'bluefairy-recipes' ),
-				'nextText'     => esc_html__( 'Next &raquo;', 'bluefairy-recipes' ),
-				'debounce'     => self::DEBOUNCE_MS,
+				'searchMax'   => Templates::SEARCH_MAX,
+				'emptyText'   => Renderer::empty_text(),
+				'loadingText' => __( 'Loading recipes…', 'bluefairy-recipes' ),
+				'errorText'   => __( 'The recipes could not be loaded. Press Filter to reload the page.', 'bluefairy-recipes' ),
+				'foundTexts'  => self::found_texts(),
+				'prevText'    => esc_html__( '&laquo; Previous', 'bluefairy-recipes' ),
+				'nextText'    => esc_html__( 'Next &raquo;', 'bluefairy-recipes' ),
+				'debounce'    => self::DEBOUNCE_MS,
 			]
 		);
+	}
+
+	/**
+	 * "N recipes shown." for every count a page can show (0 to
+	 * RecipeQuery::MAX_PER_PAGE), each through _n(): a language with more
+	 * than two plural forms (Polish, Russian, Arabic…) needs the form for
+	 * the count, which the browser cannot choose from two strings.
+	 *
+	 * @return list<string> Indexed by the count.
+	 */
+	public static function found_texts(): array {
+		$texts = [];
+		for ( $n = 0; $n <= RecipeQuery::MAX_PER_PAGE; $n++ ) {
+			/* translators: %s: the number of recipes shown */
+			$texts[] = sprintf( _n( '%s recipe shown.', '%s recipes shown.', $n, 'bluefairy-recipes' ), number_format_i18n( $n ) );
+		}
+		return $texts;
 	}
 
 	/**

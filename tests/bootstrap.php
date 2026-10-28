@@ -1026,6 +1026,13 @@ function get_user_by( string $field, mixed $value ): WP_User|false {
 			}
 		}
 	}
+	if ( 'login' === $field ) {
+		foreach ( $GLOBALS['bfrc_test_users'] ?? [] as $user ) {
+			if ( $user instanceof WP_User && isset( $user->user_login ) && $user->user_login === (string) $value ) {
+				return $user;
+			}
+		}
+	}
 	return false;
 }
 function is_admin(): bool {

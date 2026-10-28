@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-28T18:27:49+00:00\n"
+"POT-Creation-Date: 2026-10-28T21:44:31+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: bluefairy-recipes\n"
@@ -1186,14 +1186,14 @@ msgid "Reset"
 msgstr ""
 
 #: includes/Front/Blocks.php:475
-#: includes/Front/Blocks.php:652
+#: includes/Front/Blocks.php:649
 #: includes/Front/Renderer.php:331
 #: includes/Front/Renderer.php:381
 msgid "&laquo; Previous"
 msgstr ""
 
 #: includes/Front/Blocks.php:487
-#: includes/Front/Blocks.php:653
+#: includes/Front/Blocks.php:650
 #: includes/Front/Renderer.php:332
 #: includes/Front/Renderer.php:382
 msgid "Next &raquo;"
@@ -1207,17 +1207,13 @@ msgstr ""
 msgid "The recipes could not be loaded. Press Filter to reload the page."
 msgstr ""
 
-#. translators: %s: a number
-#: includes/Front/Blocks.php:649
+#. translators: %s: the number of recipes shown
+#: includes/Front/Blocks.php:668
 #, php-format
 msgid "%s recipe shown."
-msgstr ""
-
-#. translators: %s: a number
-#: includes/Front/Blocks.php:651
-#, php-format
-msgid "%s recipes shown."
-msgstr ""
+msgid_plural "%s recipes shown."
+msgstr[0] ""
+msgstr[1] ""
 
 #. translators: %s: number of minutes
 #: includes/Front/RecipeData.php:160
@@ -1274,7 +1270,7 @@ msgid "No recipes match. Try fewer filters."
 msgstr ""
 
 #: includes/Front/Renderer.php:350
-#: includes/Front/Templates.php:712
+#: includes/Front/Templates.php:723
 msgid "Recipe writers"
 msgstr ""
 
@@ -1354,45 +1350,51 @@ msgstr ""
 msgid "By %s"
 msgstr ""
 
-#: includes/Front/Templates.php:235
-#: includes/Front/Templates.php:254
+#: includes/Front/Templates.php:240
+#: includes/Front/Templates.php:259
 msgid "Single Recipe"
 msgstr ""
 
-#: includes/Front/Templates.php:236
+#: includes/Front/Templates.php:241
 msgid "The recipe the template is showing."
 msgstr ""
 
-#: includes/Front/Templates.php:244
-#: includes/Front/Templates.php:263
+#: includes/Front/Templates.php:249
+#: includes/Front/Templates.php:268
 msgid "Recipes Archive"
 msgstr ""
 
-#: includes/Front/Templates.php:245
+#: includes/Front/Templates.php:250
 msgid "The recipe grid with filters, a filter type, a writer, or the writers list."
 msgstr ""
 
-#: includes/Front/Templates.php:255
+#: includes/Front/Templates.php:260
 msgid "A recipe: photo or video, timings, ingredients, steps, nutrition and sharing."
 msgstr ""
 
-#: includes/Front/Templates.php:264
+#: includes/Front/Templates.php:269
 msgid "The recipe grid with filters, or a filter type's recipes."
 msgstr ""
 
-#: includes/Front/Templates.php:274
+#: includes/Front/Templates.php:279
 msgid "Recipe Writers"
 msgstr ""
 
-#: includes/Front/Templates.php:275
+#: includes/Front/Templates.php:280
 msgid "The writers list and a writer's page with their recipes."
 msgstr ""
 
-#: includes/Front/Templates.php:753
+#. translators: %s: a page number
+#: includes/Front/Templates.php:762
+#, php-format
+msgid "Page %s"
+msgstr ""
+
+#: includes/Front/Templates.php:802
 msgid "The recipe shows here: its title, writer, timings, photo or video, ingredients, method, nutrition and share buttons. Publish a recipe to preview one."
 msgstr ""
 
-#: includes/Front/Templates.php:776
+#: includes/Front/Templates.php:825
 msgid "This block renders from the recipe template on the site; inside a post's own text it shows nothing. Use the Recipe List, Featured Recipes or Recipe Card block here."
 msgstr ""
 

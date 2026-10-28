@@ -74,9 +74,14 @@ test( 'the PHP and JS pagination fixtures are the same string', async () => {
 
 test( 'statusText picks the singular for one and fills the count', async () => {
 	const { statusText, isFiltered } = await load();
-	assert.equal( statusText( '%s recipe shown.', '%s recipes shown.', 3 ), '3 recipes shown.' );
-	assert.equal( statusText( '%s recipe shown.', '%s recipes shown.', 1 ), '1 recipe shown.' );
-	assert.equal( statusText( '%s recipe shown.', '%s recipes shown.', 0 ), '0 recipes shown.' );
+	// Polish has three forms: the server's list carries the right one for each count.
+	const pl = [ '0 przepisów.', '1 przepis.', '2 przepisy.', '3 przepisy.', '4 przepisy.', '5 przepisów.' ];
+	assert.equal( statusText( pl, 1 ), '1 przepis.' );
+	assert.equal( statusText( pl, 3 ), '3 przepisy.' );
+	assert.equal( statusText( pl, 5 ), '5 przepisów.', 'not the "many" of a two-string choice' );
+	assert.equal( statusText( pl, 0 ), '0 przepisów.' );
+	assert.equal( statusText( pl, 9 ), '9', 'no text for the count: the number' );
+	assert.equal( statusText( undefined, 2 ), '2' );
 	assert.equal( isFiltered( { s: '', filter: { diet: '' } } ), false );
 	assert.equal( isFiltered( { s: '', filter: { diet: 'vegan' } } ), true );
 	assert.equal( isFiltered( { s: 'pie', filter: {} } ), true );
