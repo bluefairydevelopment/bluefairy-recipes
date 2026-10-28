@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0 — RELEASE-DATE
+## 1.0.0 — 2026-10-28
 
 - Initial release.
 - The Print recipe button appears only where it can work (with JavaScript).
