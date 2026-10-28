@@ -125,6 +125,7 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_terms']            = []; // taxonomy => term_id => WP_Term.
 	$GLOBALS['bfrc_test_next_term_id']     = 100;
 	$GLOBALS['bfrc_test_post_meta']        = []; // post id => key => value.
+	$GLOBALS['bfrc_test_meta_fails']       = []; // meta key => true: update_post_meta refuses it.
 	$GLOBALS['bfrc_test_autosaves']        = []; // post ids wp_is_post_autosave() reports.
 	$GLOBALS['bfrc_test_revisions']        = []; // post ids wp_is_post_revision() reports.
 	$GLOBALS['bfrc_test_meta_boxes']       = []; // add_meta_box() calls.
@@ -1265,6 +1266,11 @@ function wp_remote_request( string $url, array $args = [] ): array|WP_Error {
 		'url'  => $url,
 		'args' => $args,
 	];
+	$next = $GLOBALS['bfrc_test_http_queue'][0] ?? null;
+	if ( is_callable( $next ) ) {
+		array_shift( $GLOBALS['bfrc_test_http_queue'] );
+		return $next( $url, $args ); // A queued callable answers from the request (a server serving a file written moments before).
+	}
 	if ( [] === $GLOBALS['bfrc_test_http_queue'] ) {
 		return [
 			'response' => [
