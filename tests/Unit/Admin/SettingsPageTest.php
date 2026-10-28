@@ -111,6 +111,7 @@ final class SettingsPageTest extends TestCase {
 		$GLOBALS['wp_rewrite']->permalink_structure = '/%postname%/';
 		$data = $this->render( 'data' );
 		$this->assertStringContainsString( 'bfrc[delete_data_on_uninstall]', $data );
+		$this->assertStringContainsString( 'Either way the Recipe Writer and Recipe Manager roles are removed, and a writer with no other role becomes a subscriber', $data, 'the setting says what uninstall does whatever it is set to' );
 		$this->assertStringContainsString( 'value="bfrc_install_samples"', $data, 'nothing installed: the Install button' );
 		$this->assertStringContainsString( 'id="bfrc-install-samples"', $data, 'its own id: the Save button on the same tab is #submit' );
 		$this->assertSame( 1, substr_count( $data, 'id="submit"' ), 'one #submit on the page' );

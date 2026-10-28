@@ -73,6 +73,7 @@
 /* The script hides a fixed filter's select, the empty nav and the Reset link with the hidden attribute; a theme
    without a [hidden] rule would let the display rules above show them (seen on Twenty Twenty-One). */
 .bfrc-filters__field[hidden],
+.bfrc-button--print[hidden],
 .bfrc-pagination[hidden],
 .bfrc-filters__reset[hidden] {
 	display: none !important;

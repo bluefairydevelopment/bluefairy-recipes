@@ -318,7 +318,7 @@ final class RendererTest extends TestCase {
 		$this->assertStringContainsString( 'https://twitter.com/intent/tweet?url=', $html );
 		$this->assertStringContainsString( '&#038;media=https%3A%2F%2Fexample.test%2Fuploads%2F77.jpg', $html, 'Pinterest media = the recipe photo' );
 		$this->assertStringContainsString( 'target="_blank" rel="noopener nofollow">Share on X<span class="screen-reader-text"> (opens in a new tab)</span></a>', $html );
-		$this->assertStringContainsString( 'data-bfrc-print', $html );
+		$this->assertStringContainsString( '<button type="button" class="bfrc-button bfrc-button--print" data-bfrc-print hidden>', $html, 'hidden until the script shows it: without JavaScript it would do nothing' );
 		$this->assertStringNotContainsString( 'bfrc-recipe__content', $html, 'no body content: no block' );
 	}
 
