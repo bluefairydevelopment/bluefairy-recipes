@@ -445,9 +445,6 @@ final class Settings {
 	 * the admin notice (activation on a site where the address is taken).
 	 *
 	 * @param string $slug A sanitised archive slug.
-	 *
-	 * @api
-	 * @since 1.0.0
 	 */
 	public static function slug_clash( string $slug ): ?\WP_Post {
 		if ( '' === $slug ) {

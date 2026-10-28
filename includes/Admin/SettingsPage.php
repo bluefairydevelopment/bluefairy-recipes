@@ -14,6 +14,7 @@ use BlueFairy\Recipes\Content\PostType;
 use BlueFairy\Recipes\Content\Taxonomies;
 use BlueFairy\Recipes\Front\Writers;
 use BlueFairy\Recipes\Settings;
+use BlueFairy\Recipes\Support\Terminate;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -309,7 +310,7 @@ final class SettingsPage {
 				$this->taxonomy_rows();
 				break;
 			case 'listing':
-				$this->number( 'per_page', __( 'Recipes per page', 'bluefairy-recipes' ), (int) $s['per_page'], 1, 100, '' );
+				$this->number( 'per_page', __( 'Recipes per page', 'bluefairy-recipes' ), (int) $s['per_page'], 1, 100 );
 				$this->checkbox( 'share_enabled', __( 'Social share', 'bluefairy-recipes' ), (bool) $s['share_enabled'], __( 'Share buttons on recipe pages.', 'bluefairy-recipes' ) );
 				$this->checkbox( 'share_facebook', __( 'Facebook', 'bluefairy-recipes' ), (bool) $s['share_facebook'], '' );
 				$this->checkbox( 'share_x', __( 'X', 'bluefairy-recipes' ), (bool) $s['share_x'], '' );
@@ -561,13 +562,9 @@ final class SettingsPage {
 	 * @param int    $value       Current value.
 	 * @param int    $min         Lowest allowed.
 	 * @param int    $max         Highest allowed.
-	 * @param string $description Help text ('' for none).
 	 */
-	private function number( string $key, string $label, int $value, int $min, int $max, string $description ): void {
+	private function number( string $key, string $label, int $value, int $min, int $max ): void {
 		echo '<tr><th scope="row"><label for="bfrc-' . esc_attr( $key ) . '">' . esc_html( $label ) . '</label></th><td><input type="number" class="small-text" id="bfrc-' . esc_attr( $key ) . '" name="bfrc[' . esc_attr( $key ) . ']" value="' . esc_attr( (string) $value ) . '" min="' . esc_attr( (string) $min ) . '" max="' . esc_attr( (string) $max ) . '">';
-		if ( '' !== $description ) {
-			echo '<p class="description">' . esc_html( $description ) . '</p>';
-		}
 		echo '</td></tr>';
 	}
 
@@ -578,7 +575,6 @@ final class SettingsPage {
 	 * @param string $notice Notice code.
 	 */
 	private function redirect( string $tab, string $notice ): never {
-		wp_safe_redirect( $this->url( $tab, $notice ) );
-		exit;
+		Terminate::redirect( $this->url( $tab, $notice ) );
 	}
 }

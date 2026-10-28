@@ -186,6 +186,19 @@ final class SettingsTest extends TestCase {
 		$this->assertTrue( Settings::to_bool( 2 ), 'any non-zero int is true, as (bool) casts' );
 	}
 
+	public function test_a_stored_change_drops_the_taxonomy_registrys_cached_definitions(): void {
+		$settings   = new Settings(); // One instance, as the plugin shares one.
+		$taxonomies = new \BlueFairy\Recipes\Content\Taxonomies( $settings );
+		\BlueFairy\Recipes\Plugin::set( 'content.taxonomies', $taxonomies );
+		try {
+			$this->assertSame( 20, $taxonomies->definitions()['diet']['sort_order'], 'read and cached' );
+			$settings->patch( [ 'taxonomies' => [ 'diet' => [ 'sort_order' => 7 ] ] ] );
+			$this->assertSame( 7, $taxonomies->definitions()['diet']['sort_order'], 'the registry the plugin runs on reads the new order, not its cached copy' );
+		} finally {
+			\BlueFairy\Recipes\Plugin::reset();
+		}
+	}
+
 	public function test_slug_clash_names_a_top_level_page_at_the_address_and_nothing_else(): void {
 		$this->assertNull( Settings::slug_clash( '' ) );
 		$this->assertNull( Settings::slug_clash( 'recipes' ), 'no Page' );

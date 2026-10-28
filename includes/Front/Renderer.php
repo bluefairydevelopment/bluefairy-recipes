@@ -244,10 +244,7 @@ final class Renderer {
 		if ( '' === trim( $content ) ) {
 			return false;
 		}
-		$blocks = function_exists( 'parse_blocks' ) ? parse_blocks( $content ) : [];
-		if ( [] === $blocks ) {
-			return self::has_text_or_media( $content );
-		}
+		$blocks = parse_blocks( $content ); // Never empty for non-empty content: plain HTML is one freeform block.
 		foreach ( $blocks as $block ) {
 			if ( self::block_has_body( $block ) ) {
 				return true;
@@ -263,15 +260,12 @@ final class Renderer {
 	 * paragraph, heading, list or group, a spacer or a separator is none of
 	 * those.
 	 *
-	 * @param mixed $block A parse_blocks() entry.
+	 * @param array<string, mixed> $block A parse_blocks() entry.
 	 */
-	private static function block_has_body( mixed $block ): bool {
-		if ( ! is_array( $block ) ) {
-			return false;
-		}
+	private static function block_has_body( array $block ): bool {
 		$children = is_array( $block['innerBlocks'] ?? null ) ? $block['innerBlocks'] : [];
 		foreach ( $children as $child ) {
-			if ( self::block_has_body( $child ) ) {
+			if ( is_array( $child ) && self::block_has_body( $child ) ) {
 				return true;
 			}
 		}
@@ -291,9 +285,6 @@ final class Renderer {
 	 * @param string $name Block name.
 	 */
 	private static function block_is_dynamic( string $name ): bool {
-		if ( ! class_exists( '\\WP_Block_Type_Registry' ) ) {
-			return true;
-		}
 		$type = \WP_Block_Type_Registry::get_instance()->get_registered( $name );
 		return ! $type instanceof \WP_Block_Type || $type->is_dynamic();
 	}
@@ -810,11 +801,8 @@ final class Renderer {
 	private function social_links( array $links ): string {
 		$labels = WriterProfile::url_labels();
 		$items  = '';
-		foreach ( $links as $key => $url ) {
-			$href = esc_url( $url, [ 'http', 'https' ] );
-			if ( '' === $href ) {
-				continue;
-			}
+		$hrefs  = array_filter( array_map( static fn( string $url ): string => esc_url( $url, [ 'http', 'https' ] ), $links ) ); // Re-checked: an empty answer drops the link.
+		foreach ( $hrefs as $key => $href ) {
 			$items .= '<li><a class="bfrc-writer__link bfrc-writer__link--' . esc_attr( sanitize_html_class( str_replace( 'bfrc_', '', $key ) ) ) . '" href="' . $href . '" rel="noopener nofollow me" target="_blank">' . esc_html( $labels[ $key ] ?? $key ) . self::new_tab_hint() . '</a></li>';
 		}
 		return '' === $items ? '' : '<ul class="bfrc-writer__links">' . $items . '</ul>';

@@ -156,6 +156,9 @@ final class SchemaTest extends TestCase {
 		ob_start();
 		$this->schema->print_head();
 		$this->assertSame( $html, ob_get_clean() );
+		delete_post_meta( 41, '_thumbnail_id' );
+		$this->assertSame( '', $this->schema->head_markup(), 'no photo: build() gives nothing, so no script tag at all' );
+		update_post_meta( 41, '_thumbnail_id', 77 );
 		$this->settings->update( [ 'rich_snippets' => false ] + $this->settings->all() );
 		$this->assertSame( '', $this->schema->head_markup(), 'Rich snippets off' );
 		$this->settings->update( [ 'rich_snippets' => true, 'enabled' => false ] + $this->settings->all() );

@@ -1169,7 +1169,16 @@ function wp_nonce_url( string $actionurl, string|int $action = -1, string $name 
 function wp_die( mixed $message = '', mixed $title = '', mixed $args = [] ): never {
 	throw new BfrcTestExit( 'die', $message, is_array( $args ) ? (int) ( $args['response'] ?? 500 ) : 500 );
 }
-function wp_safe_redirect( string $location, int $status = 302, string $x_redirect_by = 'WordPress' ): never {
+/**
+ * Throws, so a test catches the redirect where a site would end the request
+ * (bfrc_test_catch_exit()). In an exit probe (tests/exit-probe.php) it records
+ * and returns true, as core does, so the code after it, the exit itself, runs.
+ */
+function wp_safe_redirect( string $location, int $status = 302, string $x_redirect_by = 'WordPress' ): bool {
+	if ( ! empty( $GLOBALS['bfrc_test_redirect_returns'] ) ) {
+		$GLOBALS['bfrc_test_redirects'][] = [ $location, $status, $x_redirect_by ];
+		return true;
+	}
 	throw new BfrcTestExit( 'redirect', $location, $status );
 }
 function wp_redirect( string $location, int $status = 302, string $x_redirect_by = 'WordPress' ): never {

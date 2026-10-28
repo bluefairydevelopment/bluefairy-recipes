@@ -246,6 +246,18 @@ final class SamplesTest extends TestCase {
 		$this->assertSame( 'Glutenfrei', $term->name, 'the name is the site language\'s' );
 	}
 
+	public function test_without_the_photos_the_samples_install_and_simply_have_no_image(): void {
+		$empty   = sys_get_temp_dir() . '/bfrc-no-photos-' . getmypid();
+		@mkdir( $empty ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$samples = new Samples( $empty );
+		$record  = $samples->install();
+		$this->assertIsArray( $record );
+		$this->assertCount( 3, $record['recipes'] );
+		$this->assertSame( [], $record['attachments'], 'a missing photo is skipped, not an error' );
+		$this->assertSame( '', (string) get_post_meta( $record['recipes'][0], '_thumbnail_id', true ) );
+		@rmdir( $empty ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+	}
+
 	public function test_the_set_is_three_new_recipes_with_shipped_photos(): void {
 		$set = Samples::recipes();
 		$this->assertCount( 3, $set );

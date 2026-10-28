@@ -232,6 +232,18 @@ final class TemplatesTest extends TestCase {
 		$this->assertSame( 'page', Writers::pagination_base(), 'an empty base (no rewrite object yet) falls back to core\'s default' );
 	}
 
+	public function test_the_view_blocks_script_is_not_registered_without_its_build_and_the_guard_stays_out_of_the_admin(): void {
+		$this->assertFalse( \BlueFairy\Recipes\Front\Templates::register_view_blocks_script( BFRC_DIR . 'build/no-such.asset.php' ), 'a source checkout without build/: core\'s auto-registered preview stays' );
+		$this->assertNotContains( \BlueFairy\Recipes\Front\Templates::VIEW_BLOCKS_SCRIPT, array_keys( $GLOBALS['bfrc_test_registered_scripts'] ?? [] ) );
+		$q                             = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'nobody' ], 'author' );
+		$GLOBALS['bfrc_test_is_admin'] = true;
+		$this->templates->guard();
+		$this->assertFalse( $q->is_404(), 'never in the admin: an unknown writer there is not a front-end 404' );
+		$GLOBALS['bfrc_test_is_admin'] = false;
+		$this->templates->guard();
+		$this->assertTrue( $q->is_404(), 'control: the same query on the site is a 404' );
+	}
+
 	public function test_guard_leaves_no_trace_of_a_hidden_writer_or_a_recipe_on_the_404(): void {
 		$q                    = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'bob' ], 'author' );
 		$q->queried_object    = get_userdata( 6 );

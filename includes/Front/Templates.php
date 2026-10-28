@@ -12,6 +12,7 @@ namespace BlueFairy\Recipes\Front;
 use BlueFairy\Recipes\Content\PostType;
 use BlueFairy\Recipes\Content\Taxonomies;
 use BlueFairy\Recipes\Settings;
+use BlueFairy\Recipes\Support\Terminate;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -184,9 +185,11 @@ final class Templates {
 	 * when the build is absent (a source checkout), in which case the handle
 	 * the blocks name stays unregistered and they keep core's auto-registered
 	 * preview.
+	 *
+	 * @param string $asset_file The asset file ('' for the plugin's build; a test names a missing one).
 	 */
-	public static function register_view_blocks_script(): bool {
-		$asset_file = BFRC_DIR . 'build/view-blocks.asset.php';
+	public static function register_view_blocks_script( string $asset_file = '' ): bool {
+		$asset_file = '' === $asset_file ? BFRC_DIR . 'build/view-blocks.asset.php' : $asset_file;
 		if ( ! is_readable( $asset_file ) ) {
 			return false;
 		}
@@ -481,10 +484,7 @@ final class Templates {
 		if ( ! $in_query || ! Writers::uses_permalinks() ) {
 			return;
 		}
-		$url = $this->canonical_url( $query );
-		if ( '' === $url ) {
-			return;
-		}
+		$url = $this->canonical_url( $query ); // Never '' here: guard() calls this only for a listing it allows or a public writer.
 		if ( $query->is_feed() ) {
 			// A feed's URL is core's, so a pretty feed is never redirected; but `?author_name=` on a
 			// writer's feed URL would serve another writer's items there, so that override goes to
@@ -497,8 +497,7 @@ final class Templates {
 				// query argument), the requested format kept when it is not the default.
 				$feed   = (string) $query->get( 'feed' );
 				$suffix = 'feed/' . ( in_array( $feed, Writers::feed_formats(), true ) && 'feed' !== $feed && get_default_feed() !== $feed ? $feed . '/' : '' ); // Only a format core serves (the same list the writer routes use); never a caller's string in the Location.
-				wp_safe_redirect( trailingslashit( $this->writers->url( $writer ) ) . $suffix, 301, 'BlueFairy Recipes' );
-				exit;
+				Terminate::redirect( trailingslashit( $this->writers->url( $writer ) ) . $suffix, 301, 'BlueFairy Recipes' );
 			}
 			return;
 		}
@@ -514,8 +513,7 @@ final class Templates {
 		if ( [] !== $keep ) {
 			$url = add_query_arg( $keep, $url );
 		}
-		wp_safe_redirect( $url, 301, 'BlueFairy Recipes' );
-		exit;
+		Terminate::redirect( $url, 301, 'BlueFairy Recipes' );
 	}
 
 	/**

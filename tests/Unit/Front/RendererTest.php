@@ -501,6 +501,16 @@ final class RendererTest extends TestCase {
 		$this->assertStringContainsString( 'opens in a new tab', Renderer::new_tab_hint() );
 	}
 
+	public function test_term_badges_skip_what_is_not_a_term_and_share_buttons_need_one_service_on(): void {
+		$GLOBALS['bfrc_test_taxonomies']['bfrc_diet'] = [ 'object_type' => [ 'bfrc_recipe' ], 'args' => [] ];
+		$GLOBALS['bfrc_test_object_terms'][42]['bfrc_diet'] = [ 'stray', new \WP_Term( [ 'term_id' => 5, 'name' => 'Vegan', 'slug' => 'vegan', 'taxonomy' => 'bfrc_diet' ] ) ];
+		$html = $this->renderer->term_badges( get_post( 42 ) );
+		$this->assertStringContainsString( 'Vegan', $html, 'a filter on get_the_terms may hand back anything: the terms are kept' );
+		$this->assertStringNotContainsString( 'stray', $html, 'and anything else is skipped' );
+		$this->settings->update( [ 'share_enabled' => true, 'share_facebook' => false, 'share_x' => false, 'share_pinterest' => false ] + $this->settings->all() );
+		$this->assertSame( '', $this->renderer->share_buttons( get_post( 42 ) ), 'sharing on, every service off: no empty list' );
+	}
+
 	public function test_format_amount(): void {
 		$this->assertSame( '250', Renderer::format_amount( 250.0 ) );
 		$this->assertSame( '12.5', Renderer::format_amount( 12.5 ) );

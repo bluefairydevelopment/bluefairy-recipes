@@ -386,10 +386,7 @@ final class RecipeEditor {
 			return;
 		}
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- every field below goes through its Content\Meta sanitiser.
-		$raw = isset( $_POST[ self::FIELD ] ) && is_array( $_POST[ self::FIELD ] ) ? wp_unslash( $_POST[ self::FIELD ] ) : [];
-		if ( ! is_array( $raw ) ) {
-			$raw = [];
-		}
+		$raw = isset( $_POST[ self::FIELD ] ) && is_array( $_POST[ self::FIELD ] ) ? (array) wp_unslash( $_POST[ self::FIELD ] ) : [];
 		$has = is_array( $raw['_has'] ?? null ) ? $raw['_has'] : [];
 		foreach ( self::SECTIONS as $section ) {
 			$has[ $section ] = isset( $has[ $section ] ) && '1' === $has[ $section ];
