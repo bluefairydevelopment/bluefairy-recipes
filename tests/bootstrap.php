@@ -1369,6 +1369,11 @@ function wp_http_validate_url( string $url ): string|false {
 // Mail and cron, recorded.
 // ------------------------------------------------------------------
 function wp_mail( mixed $to, string $subject, string $message, mixed $headers = '', mixed $attachments = [] ): bool {
+	// As core (5.7+): a non-null pre_wp_mail answer is returned and nothing is sent.
+	$pre = apply_filters( 'pre_wp_mail', null, compact( 'to', 'subject', 'message', 'headers', 'attachments' ) );
+	if ( null !== $pre ) {
+		return (bool) $pre;
+	}
 	$GLOBALS['bfrc_test_mail'][] = compact( 'to', 'subject', 'message', 'headers' );
 	return true;
 }
