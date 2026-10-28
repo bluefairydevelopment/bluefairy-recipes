@@ -22,13 +22,13 @@ final class VideoUrlTest extends TestCase {
 			'youtube embed'     => [ 'http://youtube.com/embed/dQw4w9WgXcQ?rel=0', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ' ],
 			'youtube shorts'    => [ 'https://m.youtube.com/shorts/dQw4w9WgXcQ', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ' ],
 			'youtube nocookie'  => [ 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ' ],
-			'vimeo'             => [ 'https://vimeo.com/123456789', 'https://vimeo.com/123456789', 'https://player.vimeo.com/video/123456789' ],
-			'vimeo player'      => [ 'https://player.vimeo.com/video/123456789?h=abc', 'https://vimeo.com/123456789', 'https://player.vimeo.com/video/123456789' ],
-			'vimeo unlisted'    => [ '  https://vimeo.com/123456789/abcdef  ', 'https://vimeo.com/123456789/abcdef', 'https://player.vimeo.com/video/123456789?h=abcdef' ],
-			'vimeo unlisted h'  => [ 'https://vimeo.com/123456789?h=Ab12cd', 'https://vimeo.com/123456789/Ab12cd', 'https://player.vimeo.com/video/123456789?h=Ab12cd' ],
-			'vimeo channel'     => [ 'https://vimeo.com/channels/staff/123456789', 'https://vimeo.com/123456789', 'https://player.vimeo.com/video/123456789' ],
-			'vimeo group'       => [ 'https://vimeo.com/groups/food/videos/123456789', 'https://vimeo.com/123456789', 'https://player.vimeo.com/video/123456789' ],
-			'vimeo album'       => [ 'https://vimeo.com/album/1/video/123456789', 'https://vimeo.com/123456789', 'https://player.vimeo.com/video/123456789' ],
+			'vimeo'             => [ 'https://vimeo.com/123456789', 'https://vimeo.com/123456789', 'https://player.vimeo.com/video/123456789?dnt=1' ],
+			'vimeo player'      => [ 'https://player.vimeo.com/video/123456789?h=abc', 'https://vimeo.com/123456789', 'https://player.vimeo.com/video/123456789?dnt=1' ],
+			'vimeo unlisted'    => [ '  https://vimeo.com/123456789/abcdef  ', 'https://vimeo.com/123456789/abcdef', 'https://player.vimeo.com/video/123456789?h=abcdef&dnt=1' ],
+			'vimeo unlisted h'  => [ 'https://vimeo.com/123456789?h=Ab12cd', 'https://vimeo.com/123456789/Ab12cd', 'https://player.vimeo.com/video/123456789?h=Ab12cd&dnt=1' ],
+			'vimeo channel'     => [ 'https://vimeo.com/channels/staff/123456789', 'https://vimeo.com/123456789', 'https://player.vimeo.com/video/123456789?dnt=1' ],
+			'vimeo group'       => [ 'https://vimeo.com/groups/food/videos/123456789', 'https://vimeo.com/123456789', 'https://player.vimeo.com/video/123456789?dnt=1' ],
+			'vimeo album'       => [ 'https://vimeo.com/album/1/video/123456789', 'https://vimeo.com/123456789', 'https://player.vimeo.com/video/123456789?dnt=1' ],
 		];
 	}
 

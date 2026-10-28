@@ -436,7 +436,7 @@ final class RendererTest extends TestCase {
 		$GLOBALS['bfrc_test_posts'][41]->post_title = 'Mom&#8217;s Soup';
 		$this->settings->update( [ 'share_x' => false, 'share_facebook' => false ] + $this->settings->all() );
 		$html = $this->renderer->single( get_post( 41 ) );
-		$this->assertStringContainsString( '<div class="bfrc-recipe__hero"><div class="bfrc-recipe__video"><iframe src="https://player.vimeo.com/video/123456789?h=abc123" title="Mom&#8217;s Soup" loading="lazy"', $html );
+		$this->assertStringContainsString( '<div class="bfrc-recipe__hero"><div class="bfrc-recipe__video"><iframe src="https://player.vimeo.com/video/123456789?h=abc123&#038;dnt=1" title="Mom&#8217;s Soup" loading="lazy"', $html );
 		$this->assertStringNotContainsString( 'bfrc-recipe__ingredients', $html, 'no rows: no section' );
 		$this->assertStringContainsString( 'bfrc-share__link--pinterest', $html );
 		$this->assertStringContainsString( 'description=Mom%E2%80%99s%20Soup', $html, 'entities decoded for the share text' );
