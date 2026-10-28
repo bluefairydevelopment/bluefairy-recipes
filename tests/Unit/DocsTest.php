@@ -276,7 +276,9 @@ final class DocsTest extends TestCase {
 
 	public function test_the_shipped_changelog_dates_the_current_version_and_the_header_names_the_languages_folder(): void {
 		$this->assertSame( 1, preg_match( '/^## ' . preg_quote( $this->header['Version'], '/' ) . ' — (\S+)$/m', $this->changelog, $m ), 'a heading for the current version' );
-		$this->assertMatchesRegularExpression( '/^\d{4}-\d{2}-\d{2}$/', $m[1], 'dated, never "unreleased": the zip ships this file' );
+		// Between releases the heading holds the placeholder; bin/release-date.php --set dates it on the tag day and
+		// --check (exit 1) stops a zip built before that. Never "unreleased", never a guessed date.
+		$this->assertMatchesRegularExpression( '/^(\d{4}-\d{2}-\d{2}|RELEASE-DATE)$/', $m[1], 'a date, or the placeholder the release step replaces' );
 		$entry = (string) file_get_contents( BFRC_DIR . 'bluefairy-recipes.php' );
 		$this->assertMatchesRegularExpression( '/^ \* Domain Path:\s*\/languages$/m', $entry );
 		$this->assertFileExists( BFRC_DIR . 'languages/bluefairy-recipes.pot' );
