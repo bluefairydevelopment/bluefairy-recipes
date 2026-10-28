@@ -44,7 +44,7 @@ final class ProUpsell {
 	 */
 	public function features(): array {
 		return [
-			__( 'Visitor reviews with star ratings, moderation and a rating in Google results', 'bluefairy-recipes' ),
+			__( 'Visitor reviews with star ratings, moderation and a star rating in the recipe\'s search markup', 'bluefairy-recipes' ),
 			__( 'Recipe submissions from visitors, with photos, approval and admin notes', 'bluefairy-recipes' ),
 			__( 'WooCommerce: add a recipe\'s ingredients to the cart, affiliate ingredient links, related recipes on product pages', 'bluefairy-recipes' ),
 			__( 'Your own filter types beyond meal type, diet, season and cuisine', 'bluefairy-recipes' ),

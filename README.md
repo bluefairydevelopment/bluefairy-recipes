@@ -15,7 +15,7 @@ The feature-by-feature guide is [FEATURES.md](FEATURES.md); what each version ch
 
 ## Requirements
 
-- WordPress 6.7 or newer, with pretty permalinks
+- WordPress 6.7 or newer (pretty permalinks recommended; see Plain permalinks below)
 - PHP 8.1 or newer
 
 ## Installation

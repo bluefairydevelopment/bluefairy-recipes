@@ -246,7 +246,11 @@ final class DocsTest extends TestCase {
 		$this->assertStringContainsString( 'https://github.com/bluefairydevelopment/bluefairy-recipes', $txt, 'the Development section links the source' );
 		$this->assertStringContainsString( '- WordPress ' . $this->header['Requires at least'] . ' or newer', $this->readme );
 		$this->assertStringContainsString( '- PHP ' . $this->header['Requires PHP'] . ' or newer', $this->readme );
-		$this->assertStringContainsString( 'WordPress ' . $this->header['Requires at least'] . ' or newer with pretty permalinks, PHP ' . $this->header['Requires PHP'] . ' or newer', $txt );
+		$this->assertStringContainsString( 'WordPress ' . $this->header['Requires at least'] . ' or newer (pretty permalinks recommended: with plain permalinks everything works, but the writer pages live at query-string addresses), PHP ' . $this->header['Requires PHP'] . ' or newer', $txt, 'one story with README.md\'s Plain permalinks note' );
+		$this->assertStringContainsString( '**Plain permalinks** (no permalink structure) are not recommended', $this->readme );
+		$this->assertStringNotContainsString( 'full history', $txt, 'the public repository is promised for source and tests, not its history' );
+		$this->assertStringContainsString( "\n== Screenshots ==\n", $txt, 'the WordPress.org listing has screenshots (screenshot-1..5 in the SVN assets folder, in this order)' );
+		$this->assertSame( 5, preg_match_all( '/^\d\. /m', (string) strstr( (string) strstr( $txt, '== Screenshots ==' ), '== Changelog ==', true ) ), 'one caption per image in docs/images' );
 		[ $major, $minor ] = array_map( 'intval', explode( '.', $this->header['Requires PHP'] ) );
 		$this->assertSame( 1, preg_match( '/^\s*phpVersion:\s*(\d+)/m', (string) file_get_contents( BFRC_DIR . 'phpstan.neon' ), $m ) );
 		$this->assertSame( $major * 10000 + $minor * 100, (int) $m[1], 'phpstan analyses the code as the PHP version the header promises, so a newer-only type fails the gate' );
