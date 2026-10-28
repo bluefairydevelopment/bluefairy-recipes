@@ -70,7 +70,7 @@ export function createStore( api ) {
 			state.total = Number( response.headers.get( 'X-WP-Total' ) ) || 0;
 			state.totalPages = Number( response.headers.get( 'X-WP-TotalPages' ) ) || 0;
 			state.hasPages = state.totalPages > 1;
-			state.status = statusText( config.foundOneText, config.foundText, state.cards.length );
+			state.status = statusText( config.foundTexts, state.cards.length );
 			state.version = ( state.version || 0 ) + 1;
 			if ( wantFocus ) {
 				focusVersion = state.version; // renderPagination() moves focus once it has written this version's nav.

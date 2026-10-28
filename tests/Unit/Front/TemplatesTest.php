@@ -62,6 +62,9 @@ final class TemplatesTest extends TestCase {
 		foreach ( [ 'wpseo_canonical', 'rank_math/frontend/canonical', 'aioseo_canonical_url' ] as $hook ) {
 			$this->assertSame( 10, has_filter( $hook, [ $t, 'seo_plugin_canonical' ] ), "$hook: the SEO plugin prints our canonical, not the post type's" );
 		}
+		foreach ( [ 'wpseo_title', 'rank_math/frontend/title', 'aioseo_title' ] as $hook ) {
+			$this->assertSame( 10, has_filter( $hook, [ $t, 'seo_plugin_title' ] ), "$hook: the SEO plugin prints the writer view's title, not the post type's" );
+		}
 		$this->assertSame( 10, has_filter( 'bfst_canonical_url', [ $t, 'seo_plugin_canonical' ] ), 'BlueFairy SEO Toolkit reads its canonical (og:url, Pro rel=canonical) through bfst_canonical_url' );
 		$this->assertFalse( has_filter( 'wp_sitemaps_users_query_args', [ $this->writers, 'sitemap_users_query' ] ), 'Writers registers its own hooks' );
 	}
@@ -81,7 +84,11 @@ final class TemplatesTest extends TestCase {
 	public function test_shape_query_ignores_a_keyword_or_filter_on_a_writers_page(): void {
 		$_GET = [ 'bfrc_s' => 'soup', 'bfrc_filter' => [ 'diet' => 'vegan' ] ];
 		$q    = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		$this->assertTrue( $q->is_author, 'core parsed author_name as an author archive' );
 		$this->templates->shape_query( $q );
+		$this->assertFalse( $q->is_author, 'our view, not the theme\'s author archive: an SEO plugin\'s "author archives off" must not redirect it' );
+		$this->assertSame( 'ann', $q->get( 'author_name' ), 'the recipes are still that writer\'s' );
+		$this->assertTrue( $q->is_post_type_archive );
 		$this->assertSame( 12, $q->get( 'posts_per_page' ) );
 		$this->assertSame( '', $q->get( 's' ), 'no filter form on a writer page, so nothing silently narrows it' );
 		$this->assertSame( '', $q->get( 'tax_query' ) );
@@ -89,6 +96,26 @@ final class TemplatesTest extends TestCase {
 		$this->templates->shape_query( $archive );
 		$this->assertSame( 'soup', $archive->get( 's' ), 'the archive honours them' );
 		$_GET = [];
+	}
+
+	public function test_seo_plugin_title_gives_the_writer_views_their_own_title_and_passes_everything_else(): void {
+		$t = $this->templates;
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		$this->assertSame( 'Ann - Test Site', $t->seo_plugin_title( 'Recipes Archive - Test Site' ), 'Yoast would name the post-type archive' );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann', 'paged' => 3 ], 'author' );
+		$this->assertSame( 'Ann - Page 3 - Test Site', $t->seo_plugin_title( 'x' ), 'past the first page, the page number' );
+		add_filter( 'document_title_separator', static fn(): string => '|' );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writers' => '1' ] );
+		$this->assertSame( 'Recipe writers | Test Site', $t->seo_plugin_title( 'Recipes - Test Site' ), 'the listing; core\'s separator filter applies' );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
+		$this->assertSame( 'Recipes - Test Site', $t->seo_plugin_title( 'Recipes - Test Site' ), 'the archive: the SEO plugin\'s own' );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'nobody' ], 'author' );
+		$this->assertSame( 'kept', $t->seo_plugin_title( 'kept' ), 'no public writer: nothing to name' );
+		$q = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		$q->set_404();
+		$this->assertSame( 'Not found', $t->seo_plugin_title( 'Not found' ) );
+		bfrc_test_front_query( [ 'post_type' => 'post', 'bfrc_writers' => '1' ] );
+		$this->assertSame( 'Blog', $t->seo_plugin_title( 'Blog' ), 'a stray writer var elsewhere is not ours' );
 	}
 
 	public function test_seo_plugin_canonical_replaces_the_plugins_url_on_writer_views_only(): void {

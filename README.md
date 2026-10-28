@@ -68,7 +68,8 @@ npm test           # node --test tests/js/*.test.js
 `build/` is committed so a checkout works without Node; rebuild and commit it with any change
 under `src/`. The release zip ships `build/`, `src/`, `package.json`, `package-lock.json` and
 `webpack.config.js` (WordPress.org requires the source of built JavaScript), never
-`node_modules/`, `tests/`, `docs/`, `FEATURES.md` or this file; `readme.txt` is the plugin directory's readme.
+`node_modules/`, `tests/`, `FEATURES.md` or this file; of `docs/` only the features guide
+(`docs/BlueFairyRecipesFeaturesGuide.pdf`) ships; `readme.txt` is the plugin directory's readme.
 
 `tests/Unit/DocsTest.php` checks the names, defaults, limits, roles and hooks quoted in
 FEATURES.md, README.md and readme.txt against the code, so the documentation cannot drift

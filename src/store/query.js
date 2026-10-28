@@ -153,9 +153,9 @@ export function paginationHtml( current, total, urlFor, labels ) {
 	return html + '</ul>';
 }
 
-/** "%s recipe shown." / "%s recipes shown." with the count. */
-export function statusText( oneTemplate, manyTemplate, count ) {
-	return String( count === 1 ? oneTemplate : manyTemplate ).replace( '%s', String( count ) );
+/** The server's "N recipes shown." for the count (each made with _n(), so every plural form is right); the bare number if the list has none for it. */
+export function statusText( texts, count ) {
+	return Array.isArray( texts ) && typeof texts[ count ] === 'string' ? texts[ count ] : String( count );
 }
 
 /** Is anything chosen in the form? */

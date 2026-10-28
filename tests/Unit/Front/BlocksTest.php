@@ -148,7 +148,11 @@ final class BlocksTest extends TestCase {
 		$config = $GLOBALS['bfrc_test_interactivity_config']['bfrc/recipes'];
 		$this->assertSame( [ 's' => 'bfrc_s', 'filter' => 'bfrc_filter', 'page' => 'bfrc_page' ], $config['vars'] );
 		$this->assertSame( 'No recipes match. Try fewer filters.', $config['emptyText'] );
-		$this->assertSame( [ '%s recipe shown.', '%s recipes shown.', 600, 100 ], [ $config['foundOneText'], $config['foundText'], $config['debounce'], $config['searchMax'] ] );
+		$this->assertSame( [ 600, 100 ], [ $config['debounce'], $config['searchMax'] ] );
+		$this->assertSame( Blocks::found_texts(), $config['foundTexts'] );
+		$this->assertCount( RecipeQuery::MAX_PER_PAGE + 1, $config['foundTexts'], 'a text for every count a page can show' );
+		$this->assertSame( [ '0 recipes shown.', '1 recipe shown.', '2 recipes shown.' ], array_slice( $config['foundTexts'], 0, 3 ) );
+		$this->assertSame( '100 recipes shown.', $config['foundTexts'][100] );
 		$this->assertSame( [ Blocks::MODULE ], $GLOBALS['bfrc_test_enqueued_modules'] );
 		$this->assertContains( 'bfrc-recipes', $GLOBALS['bfrc_test_enqueued']['style'] ?? [] );
 		$this->assertSame( [], $GLOBALS['bfrc_test_enqueued']['script'] ?? [], 'the archive script binds nothing on a block page: not loaded' );

@@ -81,6 +81,11 @@ final class Templates {
 		add_filter( 'comments_open', [ $this, 'comments_closed' ], 10, 2 );
 		add_filter( 'body_class', [ $this, 'body_class' ] );
 		add_filter( 'document_title_parts', [ $this, 'document_title' ] );
+		// The SEO plugins replace the whole document title (`pre_get_document_title`) with the
+		// post-type archive's on a writer view: hand them the writer view's own.
+		add_filter( 'wpseo_title', [ $this, 'seo_plugin_title' ] );
+		add_filter( 'rank_math/frontend/title', [ $this, 'seo_plugin_title' ] );
+		add_filter( 'aioseo_title', [ $this, 'seo_plugin_title' ] );
 		add_action( 'wp_head', [ $this, 'rel_canonical' ] );
 		add_action( 'enqueue_block_assets', [ self::class, 'register_assets' ], 1 ); // Before core enqueues the blocks' editor_style handle (priority 10); not at init, where it would build WP_Scripts on requests that never print HTML.
 		add_filter( 'rest_queried_resource_route', [ $this, 'rest_resource_route' ] );
@@ -353,6 +358,12 @@ final class Templates {
 		}
 		$query->set( 'posts_per_page', $this->per_page() );
 		if ( (bool) $query->get( Writers::QUERY_VAR ) ) {
+			// A writer's page is that writer's recipes, filtered by `author_name`, but it is our
+			// view, not the theme's author archive: with `is_author` set, an SEO plugin's "author
+			// archives off" (Yoast, Rank Math) redirects it to the home page. The SQL still filters
+			// by author: get_posts() reads the query var, not the flag. The queried object is the
+			// post type either way (core's order puts the post-type archive first).
+			$query->is_author = false;
 			return; // A writer's page has no filter form: a keyword or filter in its URL is ignored, not silently applied.
 		}
 		$search = $this->requested_search();
@@ -717,6 +728,44 @@ final class Templates {
 			}
 		}
 		return $parts;
+	}
+
+	/**
+	 * `wpseo_title`, `rank_math/frontend/title`, `aioseo_title`: on a writer
+	 * view, the writer's name (or "Recipe writers"), the page number past
+	 * the first, and the site name, in place of the SEO plugin's post-type
+	 * archive title. Plain text: each plugin escapes the title it prints.
+	 * Anything else is passed through.
+	 *
+	 * @param mixed $title The SEO plugin's title.
+	 * @return mixed
+	 */
+	public function seo_plugin_title( mixed $title ): mixed {
+		global $wp_query;
+		if ( ! $wp_query instanceof \WP_Query || $wp_query->is_404() || ! $this->is_recipe_query( $wp_query ) || ! self::is_writer_view( $wp_query ) ) {
+			return $title;
+		}
+		$parts = $this->document_title(
+			[
+				'title' => '',
+				'site'  => (string) get_bloginfo( 'name' ), // Raw: the SEO plugin escapes the whole title.
+			]
+		);
+		if ( '' === $parts['title'] ) {
+			return $title; // A writer without a public page: guard() 404s it.
+		}
+		$page = max( 1, (int) $wp_query->get( 'paged' ) );
+		if ( $page > 1 ) {
+			$parts = [
+				'title' => $parts['title'],
+				/* translators: %s: a page number */
+				'page'  => sprintf( __( 'Page %s', 'bluefairy-recipes' ), number_format_i18n( $page ) ),
+				'site'  => $parts['site'],
+			];
+		}
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- core's own separator filter, as wp_get_document_title() applies it.
+		$sep = (string) apply_filters( 'document_title_separator', '-' );
+		return implode( ' ' . $sep . ' ', array_filter( $parts, static fn( mixed $p ): bool => '' !== (string) $p ) );
 	}
 
 	/**
