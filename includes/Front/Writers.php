@@ -11,6 +11,7 @@ namespace BlueFairy\Recipes\Front;
 
 use BlueFairy\Recipes\Admin\WriterProfile;
 use BlueFairy\Recipes\Capabilities;
+use BlueFairy\Recipes\Content\Cache;
 use BlueFairy\Recipes\Content\PostType;
 use BlueFairy\Recipes\Plugin;
 use BlueFairy\Recipes\Settings;
@@ -26,7 +27,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * URL is a 404. The listing at `{archive}/chef/` is paginated at 24, name
  * order, and bounded: at most LIMIT writers are ever considered. Results
  * are memoised for the request, so the guard, the title and the view ask
- * once.
+ * once, and cached across requests (see all_listed()).
  *
  * The opt-out hides a writer from the plugin's own pages and from core's
  * users sitemap; core's author archive and REST users list are core's, and
@@ -41,6 +42,10 @@ final class Writers {
 	public const SEGMENT   = 'chef';
 	/** WP_User_Query flag read by exclude_opted_out(). */
 	public const NOT_OPTED_OUT = 'bfrc_not_opted_out';
+	/** Incrementor group of the cached listing: bumped when a user's role, listing switch, name or account changes. */
+	public const LAST_CHANGED_GROUP = 'bfrc_writers';
+	/** How long the cached listing lives at most (a role granted outside core's hooks shows within this). */
+	public const CACHE_TTL = HOUR_IN_SECONDS;
 
 	/**
 	 * Memo of public_writer() per nicename, per request.
@@ -71,6 +76,32 @@ final class Writers {
 	public function register_hooks(): void {
 		add_filter( 'wp_sitemaps_users_query_args', [ $this, 'sitemap_users_query' ] );
 		add_action( 'pre_user_query', [ $this, 'exclude_opted_out' ] );
+		foreach ( [ 'set_user_role', 'add_user_role', 'remove_user_role', 'profile_update', 'user_register', 'deleted_user' ] as $hook ) {
+			add_action( $hook, [ self::class, 'bump' ] );
+		}
+		foreach ( [ 'added_user_meta', 'updated_user_meta', 'deleted_user_meta' ] as $hook ) {
+			add_action( $hook, [ self::class, 'on_user_meta' ], 10, 3 );
+		}
+	}
+
+	/**
+	 * Start a new generation of the cached listing.
+	 */
+	public static function bump(): void {
+		wp_cache_set_last_changed( self::LAST_CHANGED_GROUP );
+	}
+
+	/**
+	 * A user meta write: the listing switch changes who is listed.
+	 *
+	 * @param mixed  $meta_id  Meta id(s).
+	 * @param mixed  $user_id  The user.
+	 * @param string $meta_key The key written.
+	 */
+	public static function on_user_meta( mixed $meta_id, mixed $user_id, string $meta_key ): void {
+		if ( WriterProfile::LISTED === $meta_key ) {
+			self::bump();
+		}
 	}
 
 	/**
@@ -281,6 +312,36 @@ final class Writers {
 		if ( null !== $this->all_listed ) {
 			return $this->all_listed;
 		}
+		// Cached across requests by both incrementors: a recipe published or
+		// unpublished changes the counts, a role or switch changes who is in.
+		$key    = 'writers:' . wp_cache_get_last_changed( self::LAST_CHANGED_GROUP ) . ':' . Cache::last_changed();
+		$cached = wp_cache_get( $key, Cache::GROUP );
+		if ( is_array( $cached ) ) {
+			$writers = [];
+			foreach ( $cached as $row ) {
+				$user                = new \WP_User();
+				$user->ID            = (int) $row[0];
+				$user->display_name  = (string) $row[1];
+				$user->user_nicename = (string) $row[2];
+				$writers[]           = [
+					'user'  => $user,
+					'count' => (int) $row[3],
+				];
+			}
+			$this->all_listed = $writers;
+			return $writers;
+		}
+		$this->all_listed = $this->compute_listed();
+		wp_cache_set( $key, array_map( static fn( array $w ): array => [ $w['user']->ID, $w['user']->display_name, $w['user']->user_nicename, $w['count'] ], $this->all_listed ), Cache::GROUP, self::CACHE_TTL );
+		return $this->all_listed;
+	}
+
+	/**
+	 * The uncached listing (see all_listed()).
+	 *
+	 * @return array<int, array{user: \WP_User, count: int}>
+	 */
+	private function compute_listed(): array {
 		$by_role  = new \WP_User_Query(
 			[
 				'role__in'          => [ Capabilities::ROLE_WRITER ],
@@ -315,7 +376,6 @@ final class Writers {
 			$users[ $user->ID ]  = $user;
 		}
 		if ( [] === $users ) {
-			$this->all_listed = [];
 			return [];
 		}
 		$counts  = count_many_users_posts( array_keys( $users ), PostType::NAME, true );
@@ -336,7 +396,6 @@ final class Writers {
 				return 0 !== $by_name ? $by_name : $a['user']->ID <=> $b['user']->ID;
 			}
 		);
-		$this->all_listed = $writers;
 		return $writers;
 	}
 

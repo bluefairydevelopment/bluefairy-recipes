@@ -244,6 +244,7 @@ final class RendererTest extends TestCase {
 		update_user_meta( 5, 'bfrc_youtube', 'javascript:alert(1)' );
 		bfrc_test_add_attachment( 78 );
 		$this->writers->reset();
+		\BlueFairy\Recipes\Front\Writers::bump(); // core's user_register hook, which the stubs do not fire.
 		$page = $this->renderer->archive( $q );
 		$this->assertSame( $page, $this->renderer->writer_page( get_userdata( 5 ), $q ), 'archive() delegates to writer_page()' );
 		$this->assertStringContainsString( '<div class="bfrc-writer__header"><img src="https://example.test/uploads/78.jpg"', $page );
@@ -267,6 +268,7 @@ final class RendererTest extends TestCase {
 			bfrc_test_add_post( [ 'ID' => 300 + $i, 'post_type' => 'bfrc_recipe', 'post_status' => 'publish', 'post_author' => 200 + $i ] );
 		}
 		$this->writers->reset();
+		\BlueFairy\Recipes\Front\Writers::bump(); // core's user_register hook, which the stubs do not fire.
 		$html = $this->renderer->writers_list( 2 );
 		$this->assertSame( 1, substr_count( $html, '<li class="bfrc-writer-card">' ) );
 		$call = $GLOBALS['bfrc_test_paginate_calls'][0];

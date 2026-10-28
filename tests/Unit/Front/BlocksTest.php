@@ -338,6 +338,7 @@ final class BlocksTest extends TestCase {
 			bfrc_test_add_post( [ 'ID' => 300 + $i, 'post_type' => 'bfrc_recipe', 'post_status' => 'publish', 'post_author' => 200 + $i ] );
 		}
 		$this->writers->reset();
+		\BlueFairy\Recipes\Front\Writers::bump(); // core's user_register hook, which the stubs do not fire.
 		$_GET['bfrc_page'] = '2';
 		$html              = $this->blocks->shortcode_writers();
 		$this->assertStringStartsWith( '<div class="bfrc-writers"><ul class="bfrc-writers__grid">', $html, 'no h1 and no "All recipes" link inside a page' );
