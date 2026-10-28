@@ -350,7 +350,15 @@ final class MetaTest extends TestCase {
 		$this->assertSame( array_keys( Meta::NUTRITION_FIELDS ), array_keys( $n ) );
 		$this->assertSame( 250.0, $n['calories'] );
 		$this->assertSame( 12.34, $n['fat'], 'a decimal comma is accepted' );
-		$this->assertNull( Meta::sanitize_nutrition( [ 'sodium' => '1,200' ] )['sodium'], 'a comma followed by exactly three digits is ambiguous (thousands or decimal) and is refused rather than stored as 1.2' );
+		$this->assertSame( 1200.0, Meta::sanitize_nutrition( [ 'sodium' => '1,200' ] )['sodium'], 'where the decimal point is a dot (no $wp_locale: core\'s default), 1,200 is twelve hundred, not dropped' );
+		$this->assertSame( [ 1200.5, 12345.0, 0.5, 12.5 ], array_values( array_slice( Meta::sanitize_nutrition( [ 'calories' => '1,200.5', 'fat' => '12,345', 'saturated_fat' => '0,500', 'carbohydrates' => '12,5' ] ), 0, 4 ) ), 'grouped thousands with a decimal; a lone comma that cannot be a group is a decimal comma' );
+		$this->assertNull( Meta::sanitize_nutrition( [ 'sodium' => '1,20,0' ] )['sodium'], 'not a number in any language' );
+		$GLOBALS['wp_locale'] = (object) [ 'number_format' => [ 'decimal_point' => ',', 'thousands_sep' => '.' ] ];
+		try {
+			$this->assertSame( [ 1.2, 1200.0, 1200.5, 12.5 ], array_values( array_slice( Meta::sanitize_nutrition( [ 'calories' => '1,200', 'fat' => '1.200', 'saturated_fat' => '1.200,5', 'carbohydrates' => '12.5' ] ), 0, 4 ) ), 'where the decimal point is a comma, 1,200 is one point two and 1.200 twelve hundred' );
+		} finally {
+			unset( $GLOBALS['wp_locale'] );
+		}
 		$this->assertSame( 1.2, Meta::sanitize_nutrition( [ 'sodium' => '1.200' ] )['sodium'], 'a dot is always decimal' );
 		$this->assertSame( 12.5, Meta::sanitize_nutrition( [ 'sodium' => '12,5' ] )['sodium'] );
 		$this->assertNull( Meta::sanitize_nutrition( [ 'sodium' => '1,2,3' ] )['sodium'] );
