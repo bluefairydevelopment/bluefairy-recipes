@@ -102,7 +102,8 @@ final class VideoUrl {
 
 	/**
 	 * The iframe src for a stored URL, or '' when it does not parse. Built from
-	 * the validated tokens only; YouTube through its no-cookie host.
+	 * the validated tokens only; YouTube through its no-cookie host, Vimeo
+	 * with `dnt=1` (Vimeo's do-not-track flag: its player sets no tracking cookies).
 	 *
 	 * @param string $url A stored (normalised) URL.
 	 */
@@ -114,7 +115,7 @@ final class VideoUrl {
 		if ( self::YOUTUBE === $video['provider'] ) {
 			return 'https://www.youtube-nocookie.com/embed/' . $video['id'];
 		}
-		return 'https://player.vimeo.com/video/' . $video['id'] . ( '' !== $video['hash'] ? '?h=' . $video['hash'] : '' );
+		return 'https://player.vimeo.com/video/' . $video['id'] . ( '' !== $video['hash'] ? '?h=' . $video['hash'] . '&dnt=1' : '?dnt=1' );
 	}
 
 	/**
