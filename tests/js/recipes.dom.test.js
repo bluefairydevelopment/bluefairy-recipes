@@ -13,7 +13,7 @@ function form( search ) {
 		'<select name="bfrc_filter[cuisine]"><option value="">All</option><option value="thai">Thai</option></select>' +
 		'<input type="search" name="bfrc_s" value="' + ( search || '' ) + '">' +
 		'<button type="submit">Filter</button></form>' +
-		'<button type="button" data-bfrc-print>Print</button>';
+		'<button type="button" data-bfrc-print hidden>Print</button>';
 }
 
 // Timers run at once so the 600 ms debounce does not slow the suite; submit is observed, not navigated.
@@ -152,7 +152,7 @@ test( 'Filter with every field empty goes to the plain archive URL instead of su
 test( 'the stylesheet pins the hidden attribute and reserves the status line', () => {
 	// A theme without a [hidden] rule (Twenty Twenty-One) let the display rules show a hidden select; the loading text shifted the grid.
 	const css = fs.readFileSync( path.join( __dirname, '../../assets/front/recipes.css' ), 'utf8' );
-	assert.match( css, /\.bfrc-filters__field\[hidden\],\s*\.bfrc-pagination\[hidden\],\s*\.bfrc-filters__reset\[hidden\]\s*\{\s*display:\s*none\s*!important;?\s*\}/ );
+	assert.match( css, /\.bfrc-filters__field\[hidden\],\s*\.bfrc-button--print\[hidden\],\s*\.bfrc-pagination\[hidden\],\s*\.bfrc-filters__reset\[hidden\]\s*\{\s*display:\s*none\s*!important;?\s*\}/ );
 	assert.match( css, /\.bfrc-list__status\s*\{[^}]*line-height:\s*1\.5;[^}]*min-height:\s*1\.5em/, 'one line exactly: the reservation equals the text\'s height' );
 	assert.doesNotMatch( css, /\.bfrc-list__status:empty/ );
 	assert.match( css, /@media print \{\s*(\/\*[^*]*\*\/\s*)?\.bfrc-filters, \.bfrc-pagination, \.bfrc-list__status \{ display: none !important; \}/, 'the plugin\'s own controls never print, unscoped' );
@@ -176,6 +176,7 @@ test( 'the stylesheet is brace-balanced and keeps its print rules scoped', () =>
 
 test( 'the print button prints', () => {
 	const p = page( form() );
+	assert.equal( p.doc.querySelector( '[data-bfrc-print]' ).hidden, false, 'the script shows the button it can work' );
 	p.doc.querySelector( '[data-bfrc-print]' ).click();
 	assert.equal( p.win.printed, 1 );
 } );

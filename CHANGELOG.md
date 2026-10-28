@@ -3,6 +3,7 @@
 ## 1.0.0 — unreleased
 
 - Initial release.
+- The Print recipe button appears only where it can work (with JavaScript).
 - Multisite: network activation is supported; a site created after it is set up on its
   own.
 - Recipe edit screen: Recipe Details, Recipe Video, Ingredients, Steps and Nutrition panels

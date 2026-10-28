@@ -496,7 +496,7 @@ final class Renderer {
 		$html .= $this->seam( 'bfrc_single_after_steps', $post->ID );
 		$html .= $this->nutrition( $data );
 		$html .= $this->seam( 'bfrc_single_after_nutrition', $post->ID );
-		$html .= '<footer class="bfrc-recipe__footer">' . $this->share_buttons( $post ) . '<button type="button" class="bfrc-button bfrc-button--print" data-bfrc-print>' . esc_html__( 'Print recipe', 'bluefairy-recipes' ) . '</button>';
+		$html .= '<footer class="bfrc-recipe__footer">' . $this->share_buttons( $post ) . '<button type="button" class="bfrc-button bfrc-button--print" data-bfrc-print hidden>' . esc_html__( 'Print recipe', 'bluefairy-recipes' ) . '</button>';
 		$html .= $this->seam( 'bfrc_single_footer', $post->ID );
 		return $html . '</footer></article>';
 	}

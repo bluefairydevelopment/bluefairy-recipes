@@ -292,7 +292,7 @@ final class SettingsPage {
 				$this->checkbox( 'grant_core_roles', __( 'Grant core roles', 'bluefairy-recipes' ), (bool) $s['grant_core_roles'], __( 'Authors can write recipes and Editors can manage them. Turning it off takes those capabilities back; Administrators can always do everything.', 'bluefairy-recipes' ) );
 				break;
 			case 'data':
-				$this->checkbox( 'delete_data_on_uninstall', __( 'Delete all data on uninstall', 'bluefairy-recipes' ), (bool) $s['delete_data_on_uninstall'], __( 'Off: deleting the plugin keeps your recipes, terms and writer profiles. On: everything the plugin created is removed.', 'bluefairy-recipes' ) );
+				$this->checkbox( 'delete_data_on_uninstall', __( 'Delete all data on uninstall', 'bluefairy-recipes' ), (bool) $s['delete_data_on_uninstall'], __( 'Off: deleting the plugin keeps your recipes, terms and writer profiles. On: everything the plugin created is removed. Either way the Recipe Writer and Recipe Manager roles are removed, and a writer with no other role becomes a subscriber: give them the role again after reinstalling.', 'bluefairy-recipes' ) );
 				break;
 		}
 		echo '</tbody></table>';

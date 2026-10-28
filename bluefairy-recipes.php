@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       BlueFairy Recipes
  * Plugin URI:        https://wordpress.bluefairydevelopment.com/bluefairy-recipes/
- * Description:       Recipes for WordPress: ingredients, numbered steps, timings, servings, nutrition facts, photo or video, writer profiles, four browse taxonomies, a filterable recipe archive, Recipe JSON-LD for Google and a featured-recipes block. Add BlueFairy Recipes Pro for reviews, visitor submissions, WooCommerce shoppable ingredients and custom filter types.
+ * Description:       Recipes for WordPress: ingredients, steps, timings, nutrition, writer profiles, a filterable archive and Recipe rich results.
  * Version:           1.0.0
  * Requires at least: 6.7
  * Requires PHP:      8.1

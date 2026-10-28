@@ -131,6 +131,7 @@
 	window.addEventListener( 'pageshow', restoreFields );
 
 	document.querySelectorAll( '[data-bfrc-print]' ).forEach( function ( button ) {
+		button.hidden = false; // Rendered hidden: without this script it could not print.
 		button.addEventListener( 'click', function () {
 			window.print();
 		} );
