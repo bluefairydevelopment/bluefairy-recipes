@@ -116,6 +116,7 @@ final class WritersTest extends TestCase {
 		$this->writers->public_writer( 'ann' );
 		$this->assertSame( $before, count( $GLOBALS['bfrc_test_count_calls'] ), 'memoised: the guard, the title and the view ask once' );
 		$this->writers->reset();
+		\BlueFairy\Recipes\Front\Writers::bump(); // core's user_register hook, which the stubs do not fire.
 		$this->writers->public_writer( 'ann' );
 		$this->assertSame( $before + 1, count( $GLOBALS['bfrc_test_count_calls'] ) );
 	}
@@ -145,6 +146,35 @@ final class WritersTest extends TestCase {
 		$this->assertSame( [], $this->writers->listed( 2 )['writers'], 'past the last page' );
 		$this->assertCount( 2, $GLOBALS['bfrc_test_user_queries'], 'computed once per request' );
 		$this->assertSame( $page, $this->writers->listed( 0 ), 'page 0 is page 1' );
+	}
+
+	public function test_the_listing_is_cached_across_requests_and_rebuilt_when_writers_or_recipes_change(): void {
+		$first = $this->writers->listed( 1 );
+		$this->assertCount( 2, $GLOBALS['bfrc_test_user_queries'] );
+		$next = new Writers( $this->settings );
+		$this->assertSame( array_map( static fn( array $w ): int => $w['user']->ID, $first['writers'] ), array_map( static fn( array $w ): int => $w['user']->ID, $next->listed( 1 )['writers'] ) );
+		$this->assertCount( 2, $GLOBALS['bfrc_test_user_queries'], 'a later request reads the cache: no user query, no count query' );
+		$this->assertSame( [ 2, 1 ], array_column( $next->listed( 1 )['writers'], 'count' ) );
+		foreach ( [ static fn() => Writers::bump(), static fn() => Writers::on_user_meta( 1, 5, 'bfrc_listed' ), static fn() => \BlueFairy\Recipes\Content\Cache::bump() ] as $i => $change ) {
+			$change();
+			$before = count( $GLOBALS['bfrc_test_user_queries'] );
+			( new Writers( $this->settings ) )->listed( 1 );
+			$this->assertSame( $before + 2, count( $GLOBALS['bfrc_test_user_queries'] ), 'change #' . $i . ' starts a new key' );
+		}
+		$before = count( $GLOBALS['bfrc_test_user_queries'] );
+		Writers::on_user_meta( 1, 5, 'some_other_meta' );
+		( new Writers( $this->settings ) )->listed( 1 );
+		$this->assertSame( $before, count( $GLOBALS['bfrc_test_user_queries'] ), 'unrelated user meta keeps the cache' );
+	}
+
+	public function test_register_hooks_bumps_the_listing_on_role_account_and_switch_changes(): void {
+		$this->writers->register_hooks();
+		foreach ( [ 'set_user_role', 'add_user_role', 'remove_user_role', 'profile_update', 'user_register', 'deleted_user' ] as $hook ) {
+			$this->assertNotFalse( has_action( $hook, [ Writers::class, 'bump' ] ), $hook );
+		}
+		foreach ( [ 'added_user_meta', 'updated_user_meta', 'deleted_user_meta' ] as $hook ) {
+			$this->assertNotFalse( has_action( $hook, [ Writers::class, 'on_user_meta' ] ), $hook );
+		}
 	}
 
 	public function test_listed_paginates_at_24_and_orders_names_case_insensitively_with_the_id_as_tiebreak(): void {

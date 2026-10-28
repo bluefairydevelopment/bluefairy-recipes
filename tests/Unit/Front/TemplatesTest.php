@@ -43,6 +43,7 @@ final class TemplatesTest extends TestCase {
 	private function with_settings( array $changes ): void {
 		$this->settings->update( $changes + $this->settings->all() );
 		$this->writers->reset();
+		\BlueFairy\Recipes\Front\Writers::bump(); // core's user_register hook, which the stubs do not fire.
 	}
 
 	public function test_register_hooks(): void {
@@ -155,6 +156,7 @@ final class TemplatesTest extends TestCase {
 			bfrc_test_add_post( [ 'ID' => 300 + $i, 'post_type' => 'bfrc_recipe', 'post_status' => 'publish', 'post_author' => 200 + $i ] );
 		}
 		$this->writers->reset();
+		\BlueFairy\Recipes\Front\Writers::bump(); // core's user_register hook, which the stubs do not fire.
 		Plugin::service( 'front.renderer' )->writers_list( 1 );
 		$this->assertSame( 'seite/%#%/', $GLOBALS['bfrc_test_paginate_calls'][0]['format'] );
 		$GLOBALS['wp_rewrite']->pagination_base = '';
@@ -251,6 +253,7 @@ final class TemplatesTest extends TestCase {
 			bfrc_test_add_post( [ 'ID' => 300 + $i, 'post_type' => 'bfrc_recipe', 'post_status' => 'publish', 'post_author' => 200 + $i ] );
 		}
 		$this->writers->reset();
+		\BlueFairy\Recipes\Front\Writers::bump(); // core's user_register hook, which the stubs do not fire.
 		$this->assertSame( 2, $this->writers->listed( 1 )['pages'] );
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writers' => '1', 'paged' => 2 ] );
 		$this->templates->guard();
@@ -260,6 +263,7 @@ final class TemplatesTest extends TestCase {
 		$this->assertTrue( $GLOBALS['wp_query']->is_404(), 'one past the last page' );
 		$GLOBALS['bfrc_test_users'] = [];
 		$this->writers->reset();
+		\BlueFairy\Recipes\Front\Writers::bump(); // core's user_register hook, which the stubs do not fire.
 		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writers' => '1' ] );
 		$this->templates->guard();
 		$this->assertFalse( $GLOBALS['wp_query']->is_404(), 'no writers at all: page 1 is an empty listing, not a 404' );
