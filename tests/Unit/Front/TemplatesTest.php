@@ -62,6 +62,7 @@ final class TemplatesTest extends TestCase {
 		foreach ( [ 'wpseo_canonical', 'rank_math/frontend/canonical', 'aioseo_canonical_url' ] as $hook ) {
 			$this->assertSame( 10, has_filter( $hook, [ $t, 'seo_plugin_canonical' ] ), "$hook: the SEO plugin prints our canonical, not the post type's" );
 		}
+		$this->assertSame( 10, has_filter( 'bfst_canonical_url', [ $t, 'seo_plugin_canonical' ] ), 'BlueFairy SEO Toolkit reads its canonical (og:url, Pro rel=canonical) through bfst_canonical_url' );
 		$this->assertFalse( has_filter( 'wp_sitemaps_users_query_args', [ $this->writers, 'sitemap_users_query' ] ), 'Writers registers its own hooks' );
 	}
 
@@ -120,6 +121,74 @@ final class TemplatesTest extends TestCase {
 		$silence = static fn(): string => '';
 		add_filter( 'bfrc_writer_canonical', $silence, 20 );
 		$this->assertSame( 'https://example.com/recipes/', $this->templates->seo_plugin_canonical( 'https://example.com/recipes/' ), 'an empty answer leaves the SEO plugin\'s own canonical' );
+	}
+
+	/**
+	 * A stand-in for BlueFairy SEO Toolkit's HeadManager: `$canonical` is
+	 * whether a canonical renderer is registered (Pro), `$will` what
+	 * `will_render( 'canonical' )` answers (paused for another SEO plugin,
+	 * or the feature switched off, is false).
+	 */
+	private function fake_seo_toolkit( bool $canonical, bool $will, ?string $page = 'https://example.com/recipes/' ): void {
+		if ( ! class_exists( 'BlueFairy\\SeoToolkit\\PageContext', false ) ) {
+			eval( 'namespace BlueFairy\\SeoToolkit; final class PageContext { public static ?self $instance = null; public function __construct( public readonly string $canonical ) {} public static function current(): ?self { return self::$instance; } }' );
+		}
+		\BlueFairy\SeoToolkit\PageContext::$instance = null === $page ? null : new \BlueFairy\SeoToolkit\PageContext( $page );
+		if ( ! class_exists( 'BlueFairy\\SeoToolkit\\Head\\HeadManager', false ) ) {
+			eval( 'namespace BlueFairy\\SeoToolkit\\Head; final class HeadManager { public static bool $canonical = false; public static bool $will = false; public static function get_renderer( string $k ): ?object { return ( "canonical" === $k && self::$canonical ) ? new \\stdClass() : null; } public static function will_render( string $k ): bool { return self::$will; } }' );
+		}
+		\BlueFairy\SeoToolkit\Head\HeadManager::$canonical = $canonical;
+		\BlueFairy\SeoToolkit\Head\HeadManager::$will      = $will;
+	}
+
+	private function printed_canonical(): string {
+		ob_start();
+		$this->templates->rel_canonical();
+		return (string) ob_get_clean();
+	}
+
+	public function test_without_seo_toolkit_the_plugin_prints_its_own_canonical(): void {
+		$this->assertFalse( Templates::seo_toolkit_prints_canonical(), 'no SEO Toolkit in the harness' );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		$this->assertSame( '<link rel="canonical" href="https://example.com/recipes/chef/ann/">' . "\n", $this->printed_canonical(), 'Recipes must not need SEO Toolkit for its canonical' );
+	}
+
+	#[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+	public function test_with_seo_toolkit_pro_printing_the_canonical_the_plugin_hands_it_over_and_prints_none(): void {
+		$this->fake_seo_toolkit( true, true );
+		$this->assertTrue( Templates::seo_toolkit_prints_canonical() );
+		$this->templates->register_hooks();
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		$this->assertSame( '', $this->printed_canonical(), 'SEO Toolkit Pro prints the canonical: a second tag would make two' );
+		$this->assertSame( 'https://example.com/recipes/chef/ann/', apply_filters( 'bfst_canonical_url', 'https://example.com/recipes/', null ), 'the toolkit would name the post-type archive' );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writers' => '1', 'paged' => 2 ] );
+		$this->assertSame( '', $this->printed_canonical() );
+		$this->assertSame( 'https://example.com/recipes/chef/page/2/', apply_filters( 'bfst_canonical_url', 'https://example.com/recipes/', null ), 'the toolkit strips /page/N/; the listing page keeps its own' );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
+		$this->assertSame( 'https://example.com/recipes/', apply_filters( 'bfst_canonical_url', 'https://example.com/recipes/', null ), 'the archive is the toolkit\'s own' );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		add_filter( 'bfrc_writer_canonical', static fn(): string => '' );
+		$this->assertSame( 'https://example.com/recipes/', apply_filters( 'bfst_canonical_url', 'https://example.com/recipes/', null ), 'an empty answer leaves the toolkit its own value' );
+	}
+
+	#[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+	public function test_with_seo_toolkit_free_only_or_its_canonical_off_the_plugin_still_prints_its_own(): void {
+		$tag = '<link rel="canonical" href="https://example.com/recipes/chef/ann/">' . "\n";
+		$this->fake_seo_toolkit( false, true );
+		$this->assertFalse( Templates::seo_toolkit_prints_canonical(), 'the free toolkit prints og:url only' );
+		bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'ann' ], 'author' );
+		$this->assertSame( $tag, $this->printed_canonical(), 'free toolkit: no canonical of its own, so ours is the only one' );
+		$this->assertSame( 'https://example.com/recipes/chef/ann/', $this->templates->seo_plugin_canonical( 'https://example.com/recipes/' ), 'og:url names the writer page too' );
+		$this->fake_seo_toolkit( true, false );
+		$this->assertFalse( Templates::seo_toolkit_prints_canonical(), 'Pro paused for another SEO plugin, or its canonical switched off' );
+		$this->assertSame( $tag, $this->printed_canonical() );
+		$this->fake_seo_toolkit( true, true, '' );
+		$this->assertFalse( Templates::seo_toolkit_prints_canonical(), 'Pro prints nothing when its page canonical is empty (a search, a 404)' );
+		$this->assertSame( $tag, $this->printed_canonical() );
+		$this->fake_seo_toolkit( true, true, null );
+		$this->assertFalse( Templates::seo_toolkit_prints_canonical(), 'no page context: Pro prints nothing' );
+		$this->fake_seo_toolkit( true, true );
+		$this->assertTrue( Templates::seo_toolkit_prints_canonical(), 'control: the same fake does print' );
 	}
 
 	public function test_under_plain_permalinks_the_writer_views_live_at_their_query_string_urls(): void {

@@ -88,6 +88,8 @@ final class Templates {
 		add_filter( 'wpseo_canonical', [ $this, 'seo_plugin_canonical' ] );
 		add_filter( 'rank_math/frontend/canonical', [ $this, 'seo_plugin_canonical' ] );
 		add_filter( 'aioseo_canonical_url', [ $this, 'seo_plugin_canonical' ] );
+		// BlueFairy SEO Toolkit 1.1.2+: its og:url (and, with Pro, its rel=canonical) reads this filter.
+		add_filter( 'bfst_canonical_url', [ $this, 'seo_plugin_canonical' ] );
 	}
 
 	/**
@@ -119,7 +121,33 @@ final class Templates {
 	}
 
 	/**
-	 * `wpseo_canonical`, `rank_math/frontend/canonical`, `aioseo_canonical_url`:
+	 * Will BlueFairy SEO Toolkit print a `rel=canonical` on this request?
+	 * Only its Pro add-on registers a canonical renderer; the free plugin
+	 * prints `og:url` alone, so with the free plugin the canonical stays
+	 * ours. Off when the toolkit pauses for another SEO plugin or the
+	 * feature is switched off (`HeadManager::will_render()`, 1.1.0+), and
+	 * when its page context has no canonical (it prints none then).
+	 */
+	public static function seo_toolkit_prints_canonical(): bool {
+		$manager  = 'BlueFairy\\SeoToolkit\\Head\\HeadManager';
+		$context  = 'BlueFairy\\SeoToolkit\\PageContext';
+		$renderer = [ $manager, 'get_renderer' ];
+		$will     = [ $manager, 'will_render' ];
+		$current  = [ $context, 'current' ];
+		// Never autoloaded: without the toolkit loaded there is nothing to defer to.
+		if ( ! class_exists( $manager, false ) || ! class_exists( $context, false ) || ! is_callable( $renderer ) || ! is_callable( $will ) || ! is_callable( $current ) ) {
+			return false;
+		}
+		if ( null === call_user_func( $renderer, 'canonical' ) || ! call_user_func( $will, 'canonical' ) ) {
+			return false;
+		}
+		$page = call_user_func( $current );
+		return is_object( $page ) && isset( $page->canonical ) && '' !== $page->canonical;
+	}
+
+	/**
+	 * `wpseo_canonical`, `rank_math/frontend/canonical`, `aioseo_canonical_url`,
+	 * `bfst_canonical_url`:
 	 * the writer view's URL in place of what the SEO plugin computed.
 	 *
 	 * @param mixed $url The SEO plugin's canonical.
@@ -499,7 +527,7 @@ final class Templates {
 	 */
 	public function rel_canonical(): void {
 		global $wp_query;
-		if ( self::seo_plugin_present() || ! $wp_query instanceof \WP_Query || $wp_query->is_404() || ! $this->is_recipe_query( $wp_query ) ) {
+		if ( self::seo_plugin_present() || self::seo_toolkit_prints_canonical() || ! $wp_query instanceof \WP_Query || $wp_query->is_404() || ! $this->is_recipe_query( $wp_query ) ) {
 			return; // With an SEO plugin, its canonical carries ours (seo_plugin_canonical()); two tags would cancel out.
 		}
 		$url = $this->canonical_url( $wp_query );
