@@ -31,9 +31,18 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Authors get the writer set, Editors the manager set without MANAGE, and
  * Administrators everything — so a site's existing authors can write
  * recipes without being re-assigned. Administrators always hold MANAGE.
+ *
+ * @api
+ * @since 1.0.0
  */
 final class Capabilities {
 
+	/**
+	 * The capability that manages recipe settings and moderation.
+	 *
+	 * @api
+	 * @since 1.0.0
+	 */
 	public const MANAGE = 'bfrc_manage_recipes';
 
 	public const ROLE_WRITER  = 'bfrc_writer';
@@ -202,6 +211,9 @@ final class Capabilities {
 
 	/**
 	 * Can the current user manage recipes (settings, taxonomies, every recipe)?
+	 *
+	 * @api
+	 * @since 1.0.0
 	 */
 	public static function current_user_can_manage(): bool {
 		return current_user_can( self::MANAGE );

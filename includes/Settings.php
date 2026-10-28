@@ -33,6 +33,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * Both normalise through the same rules, so an out-of-range value cannot be
  * stored whichever path wrote it.
+ *
+ * @api
+ * @since 1.0.0
  */
 final class Settings {
 
@@ -57,12 +60,18 @@ final class Settings {
 	 * A filter-type code: 2–27 characters, so `bfrc_{code}` stays inside the
 	 * 32-character taxonomy-name limit core enforces. `\z` (not `$`): a
 	 * trailing newline must not slip through into a taxonomy name.
+	 *
+	 * @api
+	 * @since 1.0.0
 	 */
 	public const TAXONOMY_CODE_PATTERN = '/^[a-z][a-z0-9_]{1,26}\z/';
 
 	/**
 	 * Custom filter types the map keeps on top of the system four. The map
 	 * lives in an autoloaded option, so it is bounded.
+	 *
+	 * @api
+	 * @since 1.0.0
 	 */
 	public const MAX_CUSTOM_TAXONOMIES = 50;
 
@@ -148,7 +157,15 @@ final class Settings {
 		'per_page' => [ 1, 100 ],
 	];
 
-	private const SORT_ORDER_BOUNDS = [ 0, 999 ];
+	/**
+	 * Highest sort order a filter type's switch keeps (0 is first).
+	 *
+	 * @api
+	 * @since 1.0.0
+	 */
+	public const SORT_ORDER_MAX = 999;
+
+	private const SORT_ORDER_BOUNDS = [ 0, self::SORT_ORDER_MAX ];
 
 	private const SLUG_MAX_LENGTH  = 64;
 	private const TITLE_MAX_LENGTH = 120;
@@ -184,6 +201,9 @@ final class Settings {
 	 * One setting.
 	 *
 	 * @param string $key Setting name.
+	 *
+	 * @api
+	 * @since 1.0.0
 	 */
 	public function get( string $key ): mixed {
 		$all = $this->all();
@@ -207,6 +227,9 @@ final class Settings {
 	 *
 	 * @param array<string, mixed> $values The keys to change.
 	 * @return array<string, mixed> What was meant to be stored.
+	 *
+	 * @api
+	 * @since 1.0.0
 	 */
 	public function patch( array $values ): array {
 		$current = $this->all();
@@ -219,7 +242,34 @@ final class Settings {
 	}
 
 	/**
+	 * Remove one add-on filter type's switch from the taxonomies map, keeping
+	 * every other setting and switch as stored. A system code is never
+	 * removed (false); a code with no switch is already gone (true).
+	 *
+	 * @param string $code The filter type's code.
+	 * @return bool The switch is gone.
+	 *
+	 * @api
+	 * @since 1.0.0
+	 */
+	public function remove_taxonomy_switch( string $code ): bool {
+		if ( in_array( $code, self::SYSTEM_TAXONOMIES, true ) ) {
+			return false;
+		}
+		$current = $this->all();
+		if ( ! array_key_exists( $code, $current['taxonomies'] ) ) {
+			return true;
+		}
+		unset( $current['taxonomies'][ $code ] );
+		$this->store( $this->normalise( $current, false ) );
+		return $this->last_update_ok;
+	}
+
+	/**
 	 * Did the last update() or patch() store its values? True before any write.
+	 *
+	 * @api
+	 * @since 1.0.0
 	 */
 	public function last_update_succeeded(): bool {
 		return $this->last_update_ok;

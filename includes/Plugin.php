@@ -20,6 +20,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Order matters: `bfrc_loaded` fires BEFORE any subsystem binds so the add-on
  * can attach its filters first — a filter taxonomy added after the content
  * model has already read the definitions is a taxonomy added too late.
+ *
+ * @api
+ * @since 1.0.0
  */
 final class Plugin {
 
@@ -157,6 +160,9 @@ final class Plugin {
 	 * A shared instance by id, or null.
 	 *
 	 * @param string $id Service id, e.g. 'settings'.
+	 *
+	 * @api
+	 * @since 1.0.0
 	 */
 	public static function service( string $id ): ?object {
 		return self::$services[ $id ] ?? null;

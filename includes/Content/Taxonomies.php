@@ -28,6 +28,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  * terms are data) but is not public, so it has no archive and no filter. The
  * plugin's master `enabled` switch does the same to every taxonomy and, at
  * dispatch time, closes the core REST routes to anyone who cannot edit recipes.
+ *
+ * @api
+ * @since 1.0.0
  */
 final class Taxonomies {
 
@@ -38,6 +41,9 @@ final class Taxonomies {
 	 * strings; translated through system() at registration time).
 	 *
 	 * @var array<string, array{label: string, singular: string, sort_order: int, terms: list<string>}>
+	 *
+	 * @api
+	 * @since 1.0.0
 	 */
 	public const SYSTEM = [
 		'meal_type' => [
@@ -114,6 +120,9 @@ final class Taxonomies {
 	 * English source is used before that (the pre-init provisioning path).
 	 *
 	 * @return array<string, array{label: string, singular: string, sort_order: int, terms: list<string>}>
+	 *
+	 * @api
+	 * @since 1.0.0
 	 */
 	public static function system(): array {
 		if ( 0 === did_action( 'init' ) ) {
@@ -153,6 +162,9 @@ final class Taxonomies {
 	 * the feed names, the site routes the archive slug refuses).
 	 *
 	 * @return list<string>
+	 *
+	 * @api
+	 * @since 1.0.0
 	 */
 	public static function reserved_codes(): array {
 		$out   = array_keys( self::SYSTEM );
@@ -259,6 +271,9 @@ final class Taxonomies {
 	 * The taxonomy name of a code.
 	 *
 	 * @param string $code A filter-type code.
+	 *
+	 * @api
+	 * @since 1.0.0
 	 */
 	public static function taxonomy_name( string $code ): string {
 		return self::PREFIX . $code;

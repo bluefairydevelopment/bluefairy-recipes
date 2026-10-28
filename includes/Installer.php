@@ -24,6 +24,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  * add its own, so `/recipes/…` stops resolving. The roles stay, because
  * removing them would strip every writer of their role, and that is data,
  * not configuration. uninstall.php removes the roles.
+ *
+ * @api
+ * @since 1.0.0
  */
 final class Installer {
 
@@ -110,6 +113,9 @@ final class Installer {
 
 	/**
 	 * Ask for a rewrite flush on the next `init` (see maybe_flush_rewrite()).
+	 *
+	 * @api
+	 * @since 1.0.0
 	 */
 	public static function request_rewrite_flush(): void {
 		update_option( Settings::FLUSH_OPTION, 1, true );

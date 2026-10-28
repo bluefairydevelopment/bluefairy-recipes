@@ -32,6 +32,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  * `bfrc_ingredient_row_fields`, each with its own sanitiser. When the add-on
  * is absent its types read as `plain` and their fields are dropped on the
  * next save.
+ *
+ * @api
+ * @since 1.0.0
  */
 final class Meta {
 
@@ -53,20 +56,64 @@ final class Meta {
 	 */
 	public const PREFIX = '_bfrc_';
 
-	public const MEDIA_TYPE   = '_bfrc_media_type';
-	public const VIDEO_URL    = '_bfrc_video_url';
+	public const MEDIA_TYPE = '_bfrc_media_type';
+	public const VIDEO_URL  = '_bfrc_video_url';
+
+	/**
+	 * Post meta key: preparation time in minutes.
+	 *
+	 * @api
+	 * @since 1.0.0
+	 */
 	public const PREP_MINUTES = '_bfrc_prep_minutes';
+
+	/**
+	 * Post meta key: cooking time in minutes.
+	 *
+	 * @api
+	 * @since 1.0.0
+	 */
 	public const COOK_MINUTES = '_bfrc_cook_minutes';
+
+	/**
+	 * Post meta key: the fewest servings.
+	 *
+	 * @api
+	 * @since 1.0.0
+	 */
 	public const SERVINGS_MIN = '_bfrc_servings_min';
+
+	/**
+	 * Post meta key: the most servings.
+	 *
+	 * @api
+	 * @since 1.0.0
+	 */
 	public const SERVINGS_MAX = '_bfrc_servings_max';
-	public const FEATURED     = '_bfrc_featured';
+
+	public const FEATURED = '_bfrc_featured';
 	/** The capability that may set Featured. */
 	public const CURATE_CAP = 'edit_others_bfrc_recipes';
 	/** Object-cache key of the featured id set. */
 	public const FEATURED_IDS_CACHE = 'featured_ids';
-	public const INGREDIENTS        = '_bfrc_ingredients';
-	public const STEPS              = '_bfrc_steps';
-	public const NUTRITION          = '_bfrc_nutrition';
+
+	/**
+	 * Post meta key: the ingredient rows (a list of arrays).
+	 *
+	 * @api
+	 * @since 1.0.0
+	 */
+	public const INGREDIENTS = '_bfrc_ingredients';
+
+	/**
+	 * Post meta key: the method's steps (a list of strings).
+	 *
+	 * @api
+	 * @since 1.0.0
+	 */
+	public const STEPS = '_bfrc_steps';
+
+	public const NUTRITION = '_bfrc_nutrition';
 
 	public const MAX_MINUTES   = 6000;
 	public const MAX_SERVINGS  = 999;
@@ -649,6 +696,9 @@ final class Meta {
 	 *
 	 * @param mixed $value Raw.
 	 * @return list<array<string, mixed>>
+	 *
+	 * @api
+	 * @since 1.0.0
 	 */
 	public static function sanitize_ingredients( mixed $value ): array {
 		if ( ! is_array( $value ) ) {

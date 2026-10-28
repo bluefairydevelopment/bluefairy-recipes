@@ -29,9 +29,18 @@ if ( ! defined( 'ABSPATH' ) ) {
  * and application-password clients are treated alike; the block editor keeps
  * working). Every recipe URL is then a 404 for everyone, administrators'
  * previews included; flipping the switch flags a rewrite flush.
+ *
+ * @api
+ * @since 1.0.0
  */
 final class PostType {
 
+	/**
+	 * The recipe post type's name.
+	 *
+	 * @api
+	 * @since 1.0.0
+	 */
 	public const NAME = 'bfrc_recipe';
 
 	/**

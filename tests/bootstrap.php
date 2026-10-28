@@ -67,6 +67,12 @@ if ( ! defined( 'BFRC_DB_VERSION' ) ) {
 	}
 	define( 'BFRC_DB_VERSION', $bfrc_db_version_match[1] );
 }
+if ( ! defined( 'BFRC_API_VERSION' ) ) {
+	if ( 1 !== preg_match( "/define\\( 'BFRC_API_VERSION', (\\d+) \\);/", $bfrc_plugin_source, $bfrc_api_match ) ) {
+		throw new RuntimeException( 'tests/bootstrap.php: BFRC_API_VERSION not found in bluefairy-recipes.php' );
+	}
+	define( 'BFRC_API_VERSION', (int) $bfrc_api_match[1] );
+}
 if ( ! defined( 'BFRC_FILE' ) ) {
 	define( 'BFRC_FILE', dirname( __DIR__ ) . '/bluefairy-recipes.php' );
 }
@@ -126,6 +132,7 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_next_term_id']     = 100;
 	$GLOBALS['bfrc_test_post_meta']        = []; // post id => key => value.
 	$GLOBALS['bfrc_test_meta_fails']       = []; // meta key => true: update_post_meta refuses it.
+	$GLOBALS['bfrc_test_environment_type'] = 'production';
 	$GLOBALS['bfrc_test_autosaves']        = []; // post ids wp_is_post_autosave() reports.
 	$GLOBALS['bfrc_test_revisions']        = []; // post ids wp_is_post_revision() reports.
 	$GLOBALS['bfrc_test_meta_boxes']       = []; // add_meta_box() calls.
@@ -420,11 +427,11 @@ function wp_using_ext_object_cache( ?bool $using = null ): ?bool {
 // Hooks — a real, minimal dispatcher so EventBus and the purger can be tested
 // by firing the hooks they subscribe to.
 // ------------------------------------------------------------------
-function add_filter( string $hook_name, callable $callback, int $priority = 10, int $accepted_args = 1 ): true {
+function add_filter( string $hook_name, callable $callback, int $priority = 10, int $accepted_args = 1 ): bool {
 	$GLOBALS['bfrc_test_hooks'][ $hook_name ][ $priority ][] = [ $callback, $accepted_args ];
 	return true;
 }
-function add_action( string $hook_name, callable $callback, int $priority = 10, int $accepted_args = 1 ): true {
+function add_action( string $hook_name, callable $callback, int $priority = 10, int $accepted_args = 1 ): bool {
 	return add_filter( $hook_name, $callback, $priority, $accepted_args );
 }
 function remove_filter( string $hook_name, callable $callback, int $priority = 10 ): bool {
@@ -1198,7 +1205,7 @@ function get_locale(): string {
 	return 'en_US';
 }
 function wp_get_environment_type(): string {
-	return 'production';
+	return (string) ( $GLOBALS['bfrc_test_environment_type'] ?? 'production' ); // As core: production unless the site says otherwise.
 }
 
 // ------------------------------------------------------------------

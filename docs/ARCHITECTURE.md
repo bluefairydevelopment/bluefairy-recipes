@@ -224,8 +224,60 @@ builds it; `.distignore` is checked by `DistignoreTest`). `node_modules/` never 
 | `bfrc_settings_saved` | action ($clean, $raw) | 1.0.0 | a settings tab was saved through `Settings::patch()` |
 | `bfrc_admin_menu_items` | filter ($items) | 1.0.0 | extra submenus under Recipes (page_title, menu_title, capability, slug, callback) |
 
-Seams a later milestone adds (`bfrc_rest_recipe_item` for the Pro add-on's REST fields)
-are appended to this table as they land.
+`bfrc_single_footer` is free for any add-on; Pro's reviews hang on
+`bfrc_single_after_nutrition`.
+
+## Static API an add-on may use
+
+Besides the hooks above, the Pro add-on calls these PHP symbols directly. They are
+the base's public PHP API: each carries `@api` in its docblock, keeps its signature
+and meaning for the whole of API version 1, and is deprecated for at least one major
+release before it is removed. A change that breaks one raises `BFRC_API_VERSION`;
+Pro refuses to boot against an API version it does not know and says so in a notice,
+instead of failing with a PHP error. Pro's `BaseApiTest` fails when Pro references a
+base symbol that is not in this table, and the base's `ApiTest` fails when a row here
+does not exist or lacks `@api`.
+
+| Symbol | Kind | Since |
+|---|---|---|
+| `BFRC_VERSION` | constant | 1.0.0 |
+| `BFRC_API_VERSION` | constant | 1.0.0 |
+| `bfrc_plugin()` | function | 1.0.0 |
+| `BlueFairy\Recipes\Plugin` | class | 1.0.0 |
+| `BlueFairy\Recipes\Plugin::service()` | static method | 1.0.0 |
+| `BlueFairy\Recipes\Settings` | class | 1.0.0 |
+| `BlueFairy\Recipes\Settings::TAXONOMY_CODE_PATTERN` | constant | 1.0.0 |
+| `BlueFairy\Recipes\Settings::MAX_CUSTOM_TAXONOMIES` | constant | 1.0.0 |
+| `BlueFairy\Recipes\Settings::SORT_ORDER_MAX` | constant | 1.0.0 |
+| `BlueFairy\Recipes\Settings->get()` | method | 1.0.0 |
+| `BlueFairy\Recipes\Settings->patch()` | method | 1.0.0 |
+| `BlueFairy\Recipes\Settings->remove_taxonomy_switch()` | method | 1.0.0 |
+| `BlueFairy\Recipes\Settings->last_update_succeeded()` | method | 1.0.0 |
+| `BlueFairy\Recipes\Installer` | class | 1.0.0 |
+| `BlueFairy\Recipes\Installer::request_rewrite_flush()` | static method | 1.0.0 |
+| `BlueFairy\Recipes\Capabilities` | class | 1.0.0 |
+| `BlueFairy\Recipes\Capabilities::MANAGE` | constant | 1.0.0 |
+| `BlueFairy\Recipes\Capabilities::current_user_can_manage()` | static method | 1.0.0 |
+| `BlueFairy\Recipes\Admin\SettingsPage` | class | 1.0.0 |
+| `BlueFairy\Recipes\Admin\SettingsPage::SLUG` | constant | 1.0.0 |
+| `BlueFairy\Recipes\Admin\SettingsPage::PARENT` | constant | 1.0.0 |
+| `BlueFairy\Recipes\Content\PostType` | class | 1.0.0 |
+| `BlueFairy\Recipes\Content\PostType::NAME` | constant | 1.0.0 |
+| `BlueFairy\Recipes\Content\Taxonomies` | class | 1.0.0 |
+| `BlueFairy\Recipes\Content\Taxonomies::SYSTEM` | constant | 1.0.0 |
+| `BlueFairy\Recipes\Content\Taxonomies::system()` | static method | 1.0.0 |
+| `BlueFairy\Recipes\Content\Taxonomies::reserved_codes()` | static method | 1.0.0 |
+| `BlueFairy\Recipes\Content\Taxonomies::taxonomy_name()` | static method | 1.0.0 |
+| `BlueFairy\Recipes\Content\Meta` | class | 1.0.0 |
+| `BlueFairy\Recipes\Content\Meta::INGREDIENTS` | constant | 1.0.0 |
+| `BlueFairy\Recipes\Content\Meta::STEPS` | constant | 1.0.0 |
+| `BlueFairy\Recipes\Content\Meta::PREP_MINUTES` | constant | 1.0.0 |
+| `BlueFairy\Recipes\Content\Meta::COOK_MINUTES` | constant | 1.0.0 |
+| `BlueFairy\Recipes\Content\Meta::SERVINGS_MIN` | constant | 1.0.0 |
+| `BlueFairy\Recipes\Content\Meta::SERVINGS_MAX` | constant | 1.0.0 |
+| `BlueFairy\Recipes\Content\Meta::sanitize_ingredients()` | static method | 1.0.0 |
+
+Everything else in `includes/` is internal and may change in any release.
 
 ## Tests
 

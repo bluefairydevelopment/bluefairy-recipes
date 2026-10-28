@@ -33,17 +33,35 @@ if ( ! defined( 'ABSPATH' ) ) {
  * so the other tabs' values stay as stored. Every handler ends in a redirect
  * back to the tab with `bfrc_notice=<code>`, so a refresh cannot replay the
  * POST.
+ *
+ * @api
+ * @since 1.0.0
  */
 final class SettingsPage {
 
-	public const SLUG        = 'bfrc-settings';
+	/**
+	 * The settings page's slug (`page=`).
+	 *
+	 * @api
+	 * @since 1.0.0
+	 */
+	public const SLUG = 'bfrc-settings';
+
 	public const ACTION_SAVE = 'bfrc_save_settings';
 	/** The nonce field names of the two sample forms (the settings form keeps core's `_wpnonce`, so the tab has one of each id). */
 	public const NONCE_INSTALL = 'bfrc_install_nonce';
 	public const NONCE_REMOVE  = 'bfrc_remove_nonce';
 	public const NOTICE_VAR    = 'bfrc_notice';
 	public const TAB_VAR       = 'tab';
-	public const PARENT        = 'edit.php?post_type=' . PostType::NAME;
+
+	/**
+	 * The admin menu the settings page sits under.
+	 *
+	 * @api
+	 * @since 1.0.0
+	 */
+	public const PARENT = 'edit.php?post_type=' . PostType::NAME;
+
 	public const SAMPLES_FORMS = [
 		'install' => Samples::ACTION_INSTALL,
 		'remove'  => Samples::ACTION_REMOVE,

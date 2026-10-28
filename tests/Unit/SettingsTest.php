@@ -71,6 +71,25 @@ final class SettingsTest extends TestCase {
 		$this->assertSame( 5, $settings->get( 'per_page' ) );
 	}
 
+	public function test_remove_taxonomy_switch_drops_one_code_and_keeps_everything_else(): void {
+		$settings = new Settings();
+		$settings->patch( [ 'archive_title' => 'Kept', 'taxonomies' => [ 'occasion' => [ 'enabled' => true, 'sort_order' => 7 ], 'course' => [ 'enabled' => false, 'sort_order' => 3 ] ] ] );
+		update_option( Settings::FLUSH_OPTION, 0 );
+		$this->assertTrue( $settings->remove_taxonomy_switch( 'occasion' ) );
+		$taxonomies = $settings->get( 'taxonomies' );
+		$this->assertArrayNotHasKey( 'occasion', $taxonomies );
+		$this->assertSame( [ 'enabled' => false, 'sort_order' => 3 ], $taxonomies['course'], 'another add-on code is kept' );
+		$this->assertSame( 'Kept', $settings->get( 'archive_title' ), 'every other setting is kept' );
+		$this->assertSame( '1', get_option( Settings::FLUSH_OPTION ), 'its archive rule goes: flush flagged' );
+		$this->assertTrue( $settings->remove_taxonomy_switch( 'occasion' ), 'already gone' );
+		$this->assertFalse( $settings->remove_taxonomy_switch( 'meal_type' ), 'a system code is never removed' );
+		$this->assertArrayHasKey( 'meal_type', $settings->get( 'taxonomies' ) );
+		$GLOBALS['bfrc_test_option_write_fails'][] = Settings::OPTION;
+		$this->assertFalse( $settings->remove_taxonomy_switch( 'course' ), 'a refused write says so' );
+		$GLOBALS['bfrc_test_option_write_fails'] = [];
+		$this->assertSame( 999, Settings::SORT_ORDER_MAX );
+	}
+
 	public function test_patch_merges_one_taxonomy_entry_without_touching_the_others(): void {
 		$settings = new Settings();
 		$settings->update( array_merge( Settings::DEFAULTS, [ 'taxonomies' => array_merge( Settings::DEFAULTS['taxonomies'], [ 'meal_type' => [ 'enabled' => false, 'sort_order' => 5 ], 'diet' => [ 'enabled' => true, 'sort_order' => 7 ], 'occasion' => [ 'enabled' => true, 'sort_order' => 50 ] ] ) ] ) );
