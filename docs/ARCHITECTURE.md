@@ -214,7 +214,7 @@ builds it; `.distignore` is checked by `DistignoreTest`). `node_modules/` never 
 | `bfrc_render_ingredient_actions` | action ($recipe_id) | 1.0.0 | after the ingredient list (the add-on's cart and affiliate buttons) |
 | `bfrc_single_after_steps` | action ($recipe_id) | 1.0.0 | after the method (fires even when the recipe has no steps) |
 | `bfrc_single_after_nutrition` | action ($recipe_id) | 1.0.0 | after the nutrition facts (fires even when there are none) |
-| `bfrc_single_footer` | action ($recipe_id) | 1.0.0 | end of the recipe (the add-on's reviews) |
+| `bfrc_single_footer` | action ($recipe_id) | 1.0.0 | end of the recipe, after the share and print buttons |
 | `bfrc_writer_canonical` | filter ($url, $query) | 1.0.0 | the canonical URL of a writer page or the writers listing: on the plugin's own `rel_canonical()` an empty string prints none; on the Yoast, Rank Math and AIOSEO paths an empty string hands the SEO plugin its own value back |
 | `bfrc_recipe_saved` | action ($post_id, $clean, $raw) | 1.0.0 | the recipe edit form was saved; `$clean` = meta key => value written, after capability and nonce |
 | `bfrc_list_query_args` | filter ($args, $normalised, $context) | 1.0.0 | the `WP_Query` arguments of a recipe list that is not the archive's main query: the REST endpoint (`rest`), the Recipe List block (`block`), `[bfrc_recipes]` (`shortcode`) |
