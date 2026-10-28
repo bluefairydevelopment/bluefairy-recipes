@@ -186,6 +186,15 @@ final class SettingsTest extends TestCase {
 		$this->assertTrue( Settings::to_bool( 2 ), 'any non-zero int is true, as (bool) casts' );
 	}
 
+	public function test_slug_clash_names_a_top_level_page_at_the_address_and_nothing_else(): void {
+		$this->assertNull( Settings::slug_clash( '' ) );
+		$this->assertNull( Settings::slug_clash( 'recipes' ), 'no Page' );
+		bfrc_test_add_post( [ 'ID' => 80, 'post_type' => 'post', 'post_status' => 'publish', 'post_name' => 'recipes', 'post_parent' => 0 ] );
+		$this->assertNull( Settings::slug_clash( 'recipes' ), 'a blog post lives under its own permalink structure, not at /recipes/' );
+		bfrc_test_add_post( [ 'ID' => 81, 'post_type' => 'page', 'post_status' => 'private', 'post_name' => 'recipes', 'post_parent' => 0 ] );
+		$this->assertSame( 81, Settings::slug_clash( 'recipes' )?->ID, 'any status but trash holds the address' );
+	}
+
 	public function test_sanitize_slug_normalises_and_never_returns_empty(): void {
 		$this->assertSame( 'our-recipes', Settings::sanitize_slug( ' Our Recipes! ' ) );
 		$this->assertSame( 'my_recipes', Settings::sanitize_slug( 'my_recipes' ), 'core keeps underscores; so do we' );

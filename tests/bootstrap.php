@@ -1457,6 +1457,7 @@ class WP_Post {
 	public string $post_content = '';
 	public string $post_excerpt = '';
 	public string $post_password = '';
+	public int $post_parent = 0; // As core: 0 for a top-level post.
 	public function __construct( array $data = [] ) {
 		foreach ( $data as $key => $value ) {
 			$this->$key = $value;

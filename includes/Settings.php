@@ -435,6 +435,31 @@ final class Settings {
 	}
 
 	/**
+	 * The Page that already answers at the archive slug's address, or null.
+	 *
+	 * A top-level Page (published, draft, private or pending) at the same
+	 * path as the archive competes with it for one address, so one of the
+	 * two cannot be reached. A Page in the trash, or a child Page (its path
+	 * has a parent segment), does not count. Used by the settings form (a clashing slug is refused) and
+	 * the admin notice (activation on a site where the address is taken).
+	 *
+	 * @param string $slug A sanitised archive slug.
+	 *
+	 * @api
+	 * @since 1.0.0
+	 */
+	public static function slug_clash( string $slug ): ?\WP_Post {
+		if ( '' === $slug ) {
+			return null;
+		}
+		$page = get_page_by_path( $slug, OBJECT, 'page' );
+		if ( ! $page instanceof \WP_Post || 'trash' === $page->post_status || 0 !== (int) $page->post_parent ) {
+			return null;
+		}
+		return $page;
+	}
+
+	/**
 	 * The taxonomies map. The four system codes are always present (a
 	 * missing one takes its default); other keys are kept only when they are
 	 * valid codes, in input order, up to MAX_CUSTOM_TAXONOMIES. Each entry is
