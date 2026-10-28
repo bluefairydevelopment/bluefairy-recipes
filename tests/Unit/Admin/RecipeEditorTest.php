@@ -155,6 +155,19 @@ final class RecipeEditorTest extends TestCase {
 		$this->assertStringContainsString( 'data-bfrc-type="affiliate" data-bfrc-field="url" hidden disabled name="bfrc[ingredients][0][url]" value=""', $ing, 'another type: hidden AND disabled, so it is not posted' );
 	}
 
+	public function test_a_row_of_an_add_on_that_is_off_is_posted_back_unchanged(): void {
+		update_post_meta( 41, Meta::INGREDIENTS, [ [ 'measure' => '1', 'label' => 'butter', 'type' => 'internal', 'product_id' => 12 ], [ 'measure' => '', 'label' => 'oil', 'type' => 'affiliate', 'affiliate_url' => 'https://shop.example/?a=1&b="2"' ] ] );
+		$ing = bfrc_test_render( fn() => ( new RecipeEditor() )->render_ingredients( $this->recipe ) );
+		$this->assertStringContainsString( '<td class="bfrc-rows__actions"><input type="hidden" name="bfrc[ingredients][0][type]" value="internal"><input type="hidden" name="bfrc[ingredients][0][product_id]" value="12"><span class="description">Kept as it is: this row belongs to an add-on that is not active.</span>', $ing, 'Pro off: not turned into a plain row on save' );
+		$this->assertStringContainsString( '<input type="hidden" name="bfrc[ingredients][1][affiliate_url]" value="https://shop.example/?a=1&amp;b=&quot;2&quot;">', $ing, 'escaped' );
+		$this->assertStringNotContainsString( 'name="bfrc[ingredients][0][type]" value="plain"', $ing );
+		$this->assertStringContainsString( 'name="bfrc[ingredients][__INDEX__][type]" value="plain"', $ing, 'a new row is plain' );
+		add_filter( 'bfrc_ingredient_types', static fn( array $t ): array => array_merge( $t, [ 'internal' ] ) );
+		$ing = bfrc_test_render( fn() => ( new RecipeEditor() )->render_ingredients( $this->recipe ) );
+		$this->assertStringContainsString( 'value="internal" selected="selected"', $ing, 'an active type keeps its selector' );
+		$this->assertStringContainsString( '<td><input type="hidden" name="bfrc[ingredients][1][type]" value="affiliate"><input type="hidden" name="bfrc[ingredients][1][affiliate_url]"', $ing, 'with several types active, the kept row has no selector to reset it' );
+	}
+
 	public function test_type_and_field_label_helpers_fall_back_and_ignore_junk_from_the_filters(): void {
 		add_filter( 'bfrc_ingredient_type_labels', static fn(): string => 'junk' );
 		$this->assertSame( [ 'plain' => 'Plain', 'x_y' => 'X_y' ], RecipeEditor::ingredient_type_labels( [ 'plain', 'x_y' ] ) );

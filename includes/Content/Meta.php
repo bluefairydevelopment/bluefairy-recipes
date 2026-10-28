@@ -690,9 +690,12 @@ final class Meta {
 
 	/**
 	 * Ingredient rows: `{ measure, label, type, …extra }`, in order, at most
-	 * MAX_ROWS; a row without a label is dropped; an unknown type becomes
-	 * `plain`; extra fields come from the type's row-field sanitisers and
-	 * nothing else survives.
+	 * MAX_ROWS; a row without a label is dropped; extra fields come from the
+	 * type's row-field sanitisers and nothing else survives. A row whose type
+	 * no active plugin registers (an add-on's row, saved while the add-on is
+	 * off) keeps its type and its extra fields as plain text (foreign_row()),
+	 * so the add-on finds them again when it is back; a type that is not a
+	 * valid name becomes `plain`.
 	 *
 	 * @param mixed $value Raw.
 	 * @return list<array<string, mixed>>
@@ -715,12 +718,20 @@ final class Meta {
 			if ( '' === $label ) {
 				continue;
 			}
-			$type              = is_string( $row['type'] ?? null ) && in_array( $row['type'], $types, true ) ? $row['type'] : 'plain';
-			$clean             = [
+			$type    = is_string( $row['type'] ?? null ) && in_array( $row['type'], $types, true ) ? $row['type'] : 'plain';
+			$clean   = [
 				'measure' => mb_substr( sanitize_text_field( is_scalar( $row['measure'] ?? null ) ? (string) $row['measure'] : '' ), 0, self::MEASURE_MAX ),
 				'label'   => $label,
 				'type'    => $type,
 			];
+			$foreign = self::foreign_row( $row, $types );
+			if ( null !== $foreign ) {
+				$out[] = array_merge( $clean, $foreign );
+				if ( count( $out ) >= self::MAX_ROWS ) {
+					break;
+				}
+				continue;
+			}
 			$fields[ $type ] ??= self::ingredient_row_fields( $type );
 			foreach ( $fields[ $type ] as $field => $sanitiser ) {
 				$result = $sanitiser( $row[ $field ] ?? null );
@@ -732,6 +743,42 @@ final class Meta {
 			if ( count( $out ) >= self::MAX_ROWS ) {
 				break;
 			}
+		}
+		return $out;
+	}
+
+	/**
+	 * The most extra fields, and the most characters in each, a row of a
+	 * type no active plugin registers keeps.
+	 */
+	public const FOREIGN_FIELDS_MAX = 8;
+	public const FOREIGN_VALUE_MAX  = 2048;
+
+	/**
+	 * A row of a type no active plugin registers: its type and its extra
+	 * fields (names as the row-field names, scalar values as plain text, at
+	 * most FOREIGN_FIELDS_MAX of FOREIGN_VALUE_MAX characters), for the
+	 * add-on that owns them to sanitise again when it reads them; null when
+	 * the row's type is registered, or is not a valid type name.
+	 *
+	 * @param array<mixed>       $row   The posted row.
+	 * @param array<int, string> $types The registered types.
+	 * @return array<string, int|string>|null
+	 */
+	private static function foreign_row( array $row, array $types ): ?array {
+		$type = $row['type'] ?? null;
+		if ( ! is_string( $type ) || in_array( $type, $types, true ) || 1 !== preg_match( '/^[a-z][a-z0-9_]{0,31}\z/', $type ) ) {
+			return null;
+		}
+		$out = [ 'type' => $type ];
+		foreach ( $row as $name => $value ) {
+			if ( count( $out ) > self::FOREIGN_FIELDS_MAX ) {
+				break;
+			}
+			if ( ! is_string( $name ) || in_array( $name, [ 'measure', 'label', 'type' ], true ) || 1 !== preg_match( '/^[a-z][a-z0-9_]{0,31}\z/', $name ) || ! is_scalar( $value ) || is_bool( $value ) ) {
+				continue;
+			}
+			$out[ $name ] = is_int( $value ) ? $value : mb_substr( sanitize_text_field( (string) $value ), 0, self::FOREIGN_VALUE_MAX );
 		}
 		return $out;
 	}
@@ -773,7 +820,7 @@ final class Meta {
 	 * `1,200.5` are twelve hundred (grouped thousands); where it is a comma,
 	 * `1.200` and `1.200,5` are, and `12,5` is twelve and a half. A lone comma
 	 * that cannot be a thousands group (`12,5`, `0,500`) is a decimal comma in
-	 * either language.
+	 * either language, and `0.500` is a half in both (a group never starts with 0).
 	 *
 	 * @param mixed $value Raw.
 	 * @return array<string, float|null>
@@ -809,7 +856,7 @@ final class Meta {
 		global $wp_locale;
 		$decimal_comma = is_object( $wp_locale ) && isset( $wp_locale->number_format['decimal_point'] ) && ',' === $wp_locale->number_format['decimal_point'];
 		if ( $decimal_comma ) {
-			if ( 1 === preg_match( '/^\d{1,3}(\.\d{3})+(,\d+)?$/', $v ) ) {
+			if ( 1 === preg_match( '/^\d{1,3}(\.\d{3})+(,\d+)?$/', $v ) && 1 !== preg_match( '/^0\./', $v ) ) {
 				return str_replace( [ '.', ',' ], [ '', '.' ], $v ); // 1.200,5
 			}
 			return 1 === substr_count( $v, ',' ) && ! str_contains( $v, '.' ) ? str_replace( ',', '.', $v ) : $v;
