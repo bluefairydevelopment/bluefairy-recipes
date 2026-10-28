@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-28T16:52:21+00:00\n"
+"POT-Creation-Date: 2026-10-28T18:27:49+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: bluefairy-recipes\n"
@@ -324,35 +324,35 @@ msgstr ""
 
 #. translators: %d: row number
 #: includes/Admin/RecipeEditor.php:337
-#: includes/Admin/RecipeEditor.php:565
+#: includes/Admin/RecipeEditor.php:577
 #, php-format
 msgid "Ingredient %d measure"
 msgstr ""
 
 #. translators: %d: row number
 #: includes/Admin/RecipeEditor.php:339
-#: includes/Admin/RecipeEditor.php:567
+#: includes/Admin/RecipeEditor.php:579
 #, php-format
 msgid "Ingredient %d name"
 msgstr ""
 
 #. translators: %d: row number
 #: includes/Admin/RecipeEditor.php:341
-#: includes/Admin/RecipeEditor.php:570
+#: includes/Admin/RecipeEditor.php:584
 #, php-format
 msgid "Ingredient %d type"
 msgstr ""
 
 #. translators: 1: row number, 2: field label
 #: includes/Admin/RecipeEditor.php:343
-#: includes/Admin/RecipeEditor.php:579
+#: includes/Admin/RecipeEditor.php:593
 #, php-format
 msgid "Ingredient %1$d %2$s"
 msgstr ""
 
 #. translators: %d: step number
 #: includes/Admin/RecipeEditor.php:347
-#: includes/Admin/RecipeEditor.php:600
+#: includes/Admin/RecipeEditor.php:614
 #, php-format
 msgid "Step %d"
 msgstr ""
@@ -363,31 +363,35 @@ msgstr ""
 msgid "The video URL \"%s\" is not a YouTube or Vimeo video, so it was not saved. Paste the video’s own page URL."
 msgstr ""
 
-#: includes/Admin/RecipeEditor.php:563
-#: includes/Admin/RecipeEditor.php:598
+#: includes/Admin/RecipeEditor.php:572
+msgid "Kept as it is: this row belongs to an add-on that is not active."
+msgstr ""
+
+#: includes/Admin/RecipeEditor.php:575
+#: includes/Admin/RecipeEditor.php:612
 msgid "Drag to reorder"
 msgstr ""
 
 #. translators: %d: row number
-#: includes/Admin/RecipeEditor.php:565
+#: includes/Admin/RecipeEditor.php:577
 msgid "2 cups"
 msgstr ""
 
 #. translators: %d: row number
-#: includes/Admin/RecipeEditor.php:567
+#: includes/Admin/RecipeEditor.php:579
 msgid "flour"
 msgstr ""
 
-#: includes/Admin/RecipeEditor.php:609
+#: includes/Admin/RecipeEditor.php:623
 msgid "Move up"
 msgstr ""
 
-#: includes/Admin/RecipeEditor.php:609
+#: includes/Admin/RecipeEditor.php:623
 msgid "Move down"
 msgstr ""
 
 #. translators: %s: the image's purpose, e.g. "Profile photo"
-#: includes/Admin/RecipeEditor.php:609
+#: includes/Admin/RecipeEditor.php:623
 #: includes/Admin/WriterProfile.php:279
 msgid "Remove"
 msgstr ""

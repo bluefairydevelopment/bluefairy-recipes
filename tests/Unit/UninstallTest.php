@@ -173,7 +173,11 @@ final class UninstallTest extends TestCase {
 		$first = range( 1001, 1100 );
 		$this->wpdb->queue( 'get_col', array_map( 'strval', $first ) ); // a full page
 		$this->wpdb->queue( 'get_col', [ '1250', '1251' ] );            // a short page ends the loop
+		$this->wpdb->queue( 'get_col', [ 'bfrc_meal_type_children' ] );  // the options under our prefix
 		$this->wpdb->queue( 'get_results', [ [ 'term_taxonomy_id' => '7', 'term_id' => '70' ], [ 'term_taxonomy_id' => '8', 'term_id' => '70' ], [ 'term_taxonomy_id' => '9', 'term_id' => '91' ] ] );
+		foreach ( [ [ 1001, 'posts' ], [ 1251, 'post_meta' ], [ 70, 'terms' ], [ 70, 'term_meta' ], [ 91, 'terms' ], [ 55, 'terms' ], [ 999, 'posts' ], [ 'bfrc_meal_type_children', 'options' ], [ 'alloptions', 'options' ], [ 'notoptions', 'options' ], [ 'other_plugin_option', 'options' ], [ 1, 'other_plugin_group' ] ] as [ $key, $group ] ) {
+			wp_cache_set( $key, 'cached', $group );
+		}
 		$this->run_uninstall();
 
 		$deleted = array_map( static fn( array $d ): int => $d[0], $GLOBALS['bfrc_test_deleted_posts'] );
@@ -199,8 +203,18 @@ final class UninstallTest extends TestCase {
 			$this->assertSame( '', get_user_meta( 5, $key, true ), "{$key} removed from every user" );
 		}
 		$this->assertSame( 'keep', get_user_meta( 5, 'other_plugin_meta', true ), 'only our keys' );
-		$this->assertSame( 1, $GLOBALS['bfrc_test_cache_flushes'], 'one full flush at the end, not one per post' );
+		$this->assertSame( 0, $GLOBALS['bfrc_test_cache_flushes'] ?? 0, 'the object cache is shared with every plugin: never flushed whole' );
 		$this->assertSame( [ 'bfrc' ], $GLOBALS['bfrc_test_group_flushes'], 'the plugin\'s cache group is flushed' );
+		foreach ( [ [ 1001, 'posts' ], [ 1251, 'post_meta' ], [ 70, 'terms' ], [ 70, 'term_meta' ], [ 91, 'terms' ], [ 'bfrc_meal_type_children', 'options' ], [ 'alloptions', 'options' ], [ 'notoptions', 'options' ] ] as [ $key, $group ] ) {
+			$this->assertFalse( wp_cache_get( $key, $group ), "{$group}/{$key}: what the direct deletes made stale leaves the cache" );
+		}
+		foreach ( [ [ 55, 'terms' ], [ 999, 'posts' ], [ 'other_plugin_option', 'options' ], [ 1, 'other_plugin_group' ] ] as [ $key, $group ] ) {
+			$this->assertSame( 'cached', wp_cache_get( $key, $group ), "{$group}/{$key}: another plugin's entry stays" );
+		}
+		foreach ( [ 'posts', 'comment', 'terms' ] as $group ) {
+			$this->assertNotFalse( wp_cache_get( 'last_changed', $group ), "{$group}: cached queries are stale by key" );
+		}
+		$this->assertCount( 1, $this->wpdb->queries_matching( "SELECT option_name FROM bfw_options WHERE option_name LIKE 'bfrc\\\\_%'" ), 'the names are read with the same condition the delete uses' );
 		$this->assertFalse( get_option( 'bfrc_settings' ) );
 	}
 
@@ -339,7 +353,8 @@ final class UninstallTest extends TestCase {
 		bfrc_test_add_user( 5, [ 'roles' => [ Capabilities::ROLE_WRITER ] ] );
 		update_user_meta( 5, 'bfrc_about', 'Cooks on sites 1 and 2.' );
 		$GLOBALS['bfrc_test_switched'] = [];
-		$this->wpdb->queue( 'get_col', [ '9' ] );
+		$this->wpdb->queue( 'get_col', [] );    // site 1: its option names (it keeps its content)
+		$this->wpdb->queue( 'get_col', [ '9' ] ); // site 2: its recipes
 		$this->wpdb->queue( 'get_results', [] );
 
 		$this->run_uninstall();

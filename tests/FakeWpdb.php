@@ -93,6 +93,14 @@ class FakeWpdb {
 	}
 
 	/**
+	 * Core's per-site table names this fake does not declare: `comments`
+	 * follows the prefix (the Pro harness overrides this with its own).
+	 */
+	public function __get( string $name ): mixed {
+		return 'comments' === $name ? $this->prefix . 'comments' : null;
+	}
+
+	/**
 	 * Queue the next return value for a method (get_results, get_row,
 	 * get_var, get_col, query, insert, update, delete, replace).
 	 */

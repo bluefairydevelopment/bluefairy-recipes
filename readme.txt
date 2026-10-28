@@ -122,7 +122,7 @@ The Facebook, X and Pinterest share buttons on a recipe page are plain links to 
 
 == Development ==
 
-The blocks' JavaScript is built with @wordpress/scripts from the `src/` directory shipped with the plugin (`npm install && npm run build`). Source and tests: https://github.com/bluefairydevelopment/bluefairy-recipes (public from the first release).
+The blocks' JavaScript is built with @wordpress/scripts from the `src/` directory shipped with the plugin (`npm install && npm run build`). The same source, with its build configuration and tests, is in the plugin's public repository: https://github.com/bluefairydevelopment/bluefairy-recipes
 
 == Screenshots ==
 

@@ -12,7 +12,9 @@
 /vendor export-ignore
 /tests export-ignore
 /bin export-ignore
-/docs export-ignore
+# docs/: everything but the features guide PDF (a later rule unsets the earlier one).
+/docs/** export-ignore
+/docs/*FeaturesGuide.pdf -export-ignore
 /FEATURES.md export-ignore
 /README.md export-ignore
 /coverage export-ignore

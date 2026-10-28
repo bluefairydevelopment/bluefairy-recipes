@@ -559,13 +559,27 @@ final class RecipeEditor {
 		$base     = self::FIELD . '[ingredients][' . $index . ']';
 		$n        = is_int( $index ) ? $index + 1 : 0;
 		$row_type = (string) ( $row['type'] ?? 'plain' );
+		// A row of an add-on that is not active (a shop-product row while Pro is off): its type and
+		// fields go back unchanged, hidden, so saving the recipe does not lose them (Meta::foreign_row()).
+		$kept = '';
+		if ( ! in_array( $row_type, $types, true ) ) {
+			$kept = '<input type="hidden" name="' . esc_attr( $base . '[type]' ) . '" value="' . esc_attr( $row_type ) . '">';
+			foreach ( $row as $field => $value ) {
+				if ( is_string( $field ) && ! in_array( $field, [ 'measure', 'label', 'type' ], true ) && is_scalar( $value ) && ! is_bool( $value ) ) {
+					$kept .= '<input type="hidden" name="' . esc_attr( $base . '[' . $field . ']' ) . '" value="' . esc_attr( (string) $value ) . '">';
+				}
+			}
+			$kept .= '<span class="description">' . esc_html__( 'Kept as it is: this row belongs to an add-on that is not active.', 'bluefairy-recipes' ) . '</span>';
+		}
 		echo '<tr class="bfrc-rows__row">';
 		echo '<td class="bfrc-rows__handle" draggable="true" title="' . esc_attr__( 'Drag to reorder', 'bluefairy-recipes' ) . '"><span aria-hidden="true">⋮⋮</span></td>';
 		/* translators: %d: row number */
 		echo '<td><input type="text" class="widefat" name="' . esc_attr( $base . '[measure]' ) . '" value="' . esc_attr( (string) ( $row['measure'] ?? '' ) ) . '" maxlength="' . esc_attr( (string) Meta::MEASURE_MAX ) . '" placeholder="' . esc_attr__( '2 cups', 'bluefairy-recipes' ) . '" aria-label="' . esc_attr( sprintf( __( 'Ingredient %d measure', 'bluefairy-recipes' ), $n ) ) . '"></td>';
 		/* translators: %d: row number */
 		echo '<td><input type="text" class="widefat" name="' . esc_attr( $base . '[label]' ) . '" value="' . esc_attr( (string) ( $row['label'] ?? '' ) ) . '" maxlength="' . esc_attr( (string) Meta::LABEL_MAX ) . '" placeholder="' . esc_attr__( 'flour', 'bluefairy-recipes' ) . '" aria-label="' . esc_attr( sprintf( __( 'Ingredient %d name', 'bluefairy-recipes' ), $n ) ) . '"></td>';
-		if ( count( $types ) > 1 ) {
+		if ( '' !== $kept && count( $types ) > 1 ) {
+			echo '<td>' . $kept . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- every part escaped above.
+		} elseif ( count( $types ) > 1 ) {
 			/* translators: %d: row number */
 			echo '<td><select name="' . esc_attr( $base . '[type]' ) . '" class="bfrc-rows__type" aria-label="' . esc_attr( sprintf( __( 'Ingredient %d type', 'bluefairy-recipes' ), $n ) ) . '">';
 			foreach ( $types as $type ) {
@@ -581,7 +595,7 @@ final class RecipeEditor {
 			}
 			echo '</td>';
 		}
-		echo '<td class="bfrc-rows__actions">' . ( count( $types ) > 1 ? '' : '<input type="hidden" name="' . esc_attr( $base . '[type]' ) . '" value="plain">' ) . $this->row_actions() . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built from escaped literals in row_actions().
+		echo '<td class="bfrc-rows__actions">' . ( count( $types ) > 1 ? '' : ( '' !== $kept ? $kept : '<input type="hidden" name="' . esc_attr( $base . '[type]' ) . '" value="plain">' ) ) . $this->row_actions() . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built from escaped literals in row_actions().
 		echo '</tr>';
 	}
 

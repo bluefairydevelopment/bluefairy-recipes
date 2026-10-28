@@ -63,7 +63,7 @@ final class PluginTest extends TestCase {
 		$this->assertSame( 10, has_filter( 'woocommerce_disable_admin_bar', [ Capabilities::class, 'allow_writer_admin_access' ] ) );
 		$this->assertSame( 10, has_action( 'pre_user_query', [ Plugin::service( 'front.writers' ), 'exclude_opted_out' ] ), 'Writers registers its own hooks' );
 		$this->assertSame( 10, has_filter( 'wp_unique_post_slug', [ Plugin::service( 'content.slugs' ), 'filter_unique_slug' ] ) );
-		foreach ( [ 'content.cache' => \BlueFairy\Recipes\Content\Cache::class, 'front.query' => \BlueFairy\Recipes\Front\RecipeQuery::class, 'front.blocks' => \BlueFairy\Recipes\Front\Blocks::class, 'rest.recipes' => \BlueFairy\Recipes\Rest\Recipes::class ] as $id => $class ) {
+		foreach ( [ 'content.cache' => \BlueFairy\Recipes\Content\Cache::class, 'content.review_comments' => \BlueFairy\Recipes\Content\ReviewComments::class, 'front.query' => \BlueFairy\Recipes\Front\RecipeQuery::class, 'front.blocks' => \BlueFairy\Recipes\Front\Blocks::class, 'rest.recipes' => \BlueFairy\Recipes\Rest\Recipes::class ] as $id => $class ) {
 			$this->assertInstanceOf( $class, Plugin::service( $id ), $id );
 		}
 		$this->assertSame( 10, has_action( 'clean_post_cache', [ \BlueFairy\Recipes\Content\Cache::class, 'on_post_cache' ] ), 'the cache incrementor listens' );

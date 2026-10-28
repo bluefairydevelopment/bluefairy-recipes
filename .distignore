@@ -13,7 +13,9 @@
 /vendor
 /tests
 /bin
-/docs
+# docs/: everything but the features guide PDF, which ships in every zip.
+/docs/*
+!/docs/*FeaturesGuide.pdf
 /FEATURES.md
 /README.md
 /coverage

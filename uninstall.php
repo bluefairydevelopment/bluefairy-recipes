@@ -162,10 +162,13 @@ $bfrc_uninstall_site = static function ( bool $delete_data ) use ( $bfrc_option_
 				foreach ( $ids as $id ) {
 					$last = max( $last, (int) $id );
 					wp_delete_post( (int) $id, true );
+					// Invalidation is suspended, so core left this post in a persistent cache: only it goes.
+					wp_cache_delete( (int) $id, 'posts' );
+					wp_cache_delete( (int) $id, 'post_meta' );
 				}
 				// With invalidation suspended every deleted post stays in the in-memory
 				// cache; drop the runtime cache per batch so memory does not grow with
-				// the number of recipes (the persistent cache is flushed once, below).
+				// the number of recipes.
 				if ( function_exists( 'wp_cache_supports' ) && wp_cache_supports( 'flush_runtime' ) ) {
 					wp_cache_flush_runtime();
 				}
@@ -173,6 +176,9 @@ $bfrc_uninstall_site = static function ( bool $delete_data ) use ( $bfrc_option_
 		} finally {
 			wp_suspend_cache_invalidation( false );
 		}
+		// Every cached post and comment query is now stale by key (their reviews went with the recipes).
+		wp_cache_set_last_changed( 'posts' );
+		wp_cache_set_last_changed( 'comment' );
 
 		// Terms of every `bfrc_*` taxonomy (the four system ones and any
 		// custom filter type), in batches: relationships and term_taxonomy
@@ -185,6 +191,7 @@ $bfrc_uninstall_site = static function ( bool $delete_data ) use ( $bfrc_option_
 		// batch whose delete did not take (a lock, a refused statement) ends
 		// the loop instead of re-reading the same rows for ever.
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- the placeholder strings are built from %d only; every value is bound.
+		$deleted_terms = [];
 		do {
 			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT term_taxonomy_id, term_id FROM {$wpdb->term_taxonomy} WHERE taxonomy LIKE %s LIMIT %d", $wpdb->esc_like( 'bfrc_' ) . '%', $bfrc_batch ), ARRAY_A );
 			$rows = is_array( $rows ) ? $rows : [];
@@ -199,9 +206,19 @@ $bfrc_uninstall_site = static function ( bool $delete_data ) use ( $bfrc_option_
 			$removed = $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->term_taxonomy} WHERE term_taxonomy_id IN ({$tt_in})", ...$tt_ids ) );
 			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->termmeta} WHERE term_id IN ({$term_in}) AND NOT EXISTS (SELECT 1 FROM {$wpdb->term_taxonomy} tt WHERE tt.term_id = {$wpdb->termmeta}.term_id)", ...$term_ids ) );
 			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->terms} WHERE term_id IN ({$term_in}) AND NOT EXISTS (SELECT 1 FROM {$wpdb->term_taxonomy} tt WHERE tt.term_id = {$wpdb->terms}.term_id)", ...$term_ids ) );
-			$got = count( $rows );
+			$got           = count( $rows );
+			$deleted_terms = array_merge( $deleted_terms, $term_ids );
 		} while ( $got === $bfrc_batch && is_int( $removed ) && $removed > 0 );
 		// phpcs:enable
+		// Only these terms leave the object cache (core's term API would have done this). The
+		// cache is shared with every other plugin: it is never flushed whole.
+		foreach ( array_unique( $deleted_terms ) as $term_id ) {
+			wp_cache_delete( $term_id, 'terms' );
+			wp_cache_delete( $term_id, 'term_meta' );
+		}
+		if ( [] !== $deleted_terms ) {
+			wp_cache_set_last_changed( 'terms' );
+		}
 	}
 
 	// Roles: move each user off the role (fallback `subscriber` when it was
@@ -266,17 +283,24 @@ $bfrc_uninstall_site = static function ( bool $delete_data ) use ( $bfrc_option_
 	// Anything else under our prefix: core's `bfrc_<taxonomy>_children`
 	// caches, and dynamically named transients. `bfrc\_` never matches the
 	// Pro add-on's `bfrcp_`.
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-	$wpdb->query(
-		$wpdb->prepare(
-			"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
-			$wpdb->esc_like( 'bfrc_' ) . '%',
-			$wpdb->esc_like( '_transient_bfrc_' ) . '%',
-			$wpdb->esc_like( '_transient_timeout_bfrc_' ) . '%',
-			$wpdb->esc_like( '_site_transient_bfrc_' ) . '%',
-			$wpdb->esc_like( '_site_transient_timeout_bfrc_' ) . '%'
-		)
+	$where = $wpdb->prepare(
+		'option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s',
+		$wpdb->esc_like( 'bfrc_' ) . '%',
+		$wpdb->esc_like( '_transient_bfrc_' ) . '%',
+		$wpdb->esc_like( '_transient_timeout_bfrc_' ) . '%',
+		$wpdb->esc_like( '_site_transient_bfrc_' ) . '%',
+		$wpdb->esc_like( '_site_transient_timeout_bfrc_' ) . '%'
 	);
+	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $where is prepared above.
+	$names = $wpdb->get_col( "SELECT option_name FROM {$wpdb->options} WHERE {$where}" );
+	$wpdb->query( "DELETE FROM {$wpdb->options} WHERE {$where}" );
+	// phpcs:enable
+	// Those options leave the object cache by name, with the two lists core keeps of them.
+	foreach ( is_array( $names ) ? $names : [] as $name ) {
+		wp_cache_delete( (string) $name, 'options' );
+	}
+	wp_cache_delete( 'alloptions', 'options' );
+	wp_cache_delete( 'notoptions', 'options' );
 	// The stored rewrite rules include this plugin's; core rebuilds them on
 	// the next request, when the plugin is no longer there to add any.
 	delete_option( 'rewrite_rules' );
@@ -319,10 +343,8 @@ foreach ( $bfrc_site_ids as $bfrc_site ) {
 	}
 }
 $bfrc_every_site_deletes_data = [] !== $bfrc_decisions; // Never vacuously true on an empty site list.
-$bfrc_any_site_deletes_data   = false;
 foreach ( $bfrc_decisions as [ , $bfrc_yes ] ) {
 	$bfrc_every_site_deletes_data = $bfrc_every_site_deletes_data && $bfrc_yes;
-	$bfrc_any_site_deletes_data   = $bfrc_any_site_deletes_data || $bfrc_yes;
 }
 
 // Writer profiles live in user meta, which a network shares: removed only
@@ -347,9 +369,4 @@ foreach ( $bfrc_decisions as [ $bfrc_site, $bfrc_delete_here ] ) {
 			restore_current_blog();
 		}
 	}
-}
-
-// One flush of the (possibly persistent) object cache for the whole run, not one per site.
-if ( $bfrc_any_site_deletes_data ) {
-	wp_cache_flush();
 }

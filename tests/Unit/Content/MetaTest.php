@@ -293,13 +293,27 @@ final class MetaTest extends TestCase {
 		$this->assertSame(
 			[
 				[ 'measure' => '2 cups', 'label' => 'flour', 'type' => 'plain' ],
-				[ 'measure' => '', 'label' => 'salt', 'type' => 'plain' ],
+				[ 'measure' => '', 'label' => 'salt', 'type' => 'internal', 'product_id' => 7 ],
 				[ 'measure' => str_repeat( 'm', 64 ), 'label' => str_repeat( 'x', 255 ), 'type' => 'plain' ],
 			],
 			$rows,
-			'unlabelled, non-array and array-labelled rows dropped; an unknown type (no add-on) becomes plain and its extra field is not kept'
+			'unlabelled, non-array and array-labelled rows dropped; a row of an add-on that is off keeps its type and its field'
 		);
 		$this->assertSame( [], Meta::sanitize_ingredients( 'nope' ) );
+	}
+
+	public function test_a_row_whose_add_on_is_off_keeps_its_fields_as_plain_text_until_the_add_on_is_back(): void {
+		$rows = Meta::sanitize_ingredients(
+			[
+				[ 'measure' => '1', 'label' => 'olive oil', 'type' => 'affiliate', 'affiliate_url' => 'https://shop.example/oil?a=1&b=2', 'note' => ' <b>ok</b> ', 'flag' => true, 'list' => [ 1 ], 'Bad Key' => 'x', 'label2' => str_repeat( 'y', 3000 ) ],
+				[ 'label' => 'flour', 'type' => 'Bad Type', 'product_id' => 9 ],
+				[ 'label' => 'many', 'type' => 'other' ] + array_combine( array_map( static fn( int $i ): string => 'f' . $i, range( 1, 12 ) ), range( 1, 12 ) ),
+			]
+		);
+		$this->assertSame( [ 'measure' => '1', 'label' => 'olive oil', 'type' => 'affiliate', 'affiliate_url' => 'https://shop.example/oil?a=1&b=2', 'note' => 'ok', 'label2' => str_repeat( 'y', Meta::FOREIGN_VALUE_MAX ) ], $rows[0], 'saving with the add-on off loses nothing the add-on stored' );
+		$this->assertSame( [ 'measure' => '', 'label' => 'flour', 'type' => 'plain' ], $rows[1], 'not a type name: plain, nothing kept' );
+		$this->assertCount( 3 + Meta::FOREIGN_FIELDS_MAX, $rows[2], 'a bounded number of fields' );
+		$this->assertCount( 200, Meta::sanitize_ingredients( array_fill( 0, 250, [ 'label' => 'x', 'type' => 'internal', 'product_id' => 1 ] ) ), 'and a bounded number of rows' );
 	}
 
 	public function test_ingredients_are_capped_at_200_rows(): void {
@@ -356,6 +370,8 @@ final class MetaTest extends TestCase {
 		$GLOBALS['wp_locale'] = (object) [ 'number_format' => [ 'decimal_point' => ',', 'thousands_sep' => '.' ] ];
 		try {
 			$this->assertSame( [ 1.2, 1200.0, 1200.5, 12.5 ], array_values( array_slice( Meta::sanitize_nutrition( [ 'calories' => '1,200', 'fat' => '1.200', 'saturated_fat' => '1.200,5', 'carbohydrates' => '12.5' ] ), 0, 4 ) ), 'where the decimal point is a comma, 1,200 is one point two and 1.200 twelve hundred' );
+			$this->assertSame( 0.5, Meta::sanitize_nutrition( [ 'sodium' => '0.500' ] )['sodium'], 'a leading zero before the dot can only be a decimal: never five hundred' );
+			$this->assertSame( 0.5, Meta::sanitize_nutrition( [ 'sodium' => '0,5' ] )['sodium'] );
 		} finally {
 			unset( $GLOBALS['wp_locale'] );
 		}

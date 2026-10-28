@@ -244,6 +244,7 @@ final class DocsTest extends TestCase {
 			$this->assertStringContainsString( "\n$section\n", $txt, $section );
 		}
 		$this->assertStringContainsString( 'https://github.com/bluefairydevelopment/bluefairy-recipes', $txt, 'the Development section links the source' );
+		$this->assertStringNotContainsString( 'public from the first release', $txt, 'no promise about the repository: it is public when the plugin is' );
 		$this->assertStringContainsString( '- WordPress ' . $this->header['Requires at least'] . ' or newer', $this->readme );
 		$this->assertStringContainsString( '- PHP ' . $this->header['Requires PHP'] . ' or newer', $this->readme );
 		$this->assertStringContainsString( 'WordPress ' . $this->header['Requires at least'] . ' or newer (pretty permalinks recommended: with plain permalinks everything works, but the writer pages live at query-string addresses), PHP ' . $this->header['Requires PHP'] . ' or newer', $txt, 'one story with README.md\'s Plain permalinks note' );
