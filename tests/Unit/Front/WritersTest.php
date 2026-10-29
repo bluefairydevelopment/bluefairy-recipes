@@ -136,8 +136,7 @@ final class WritersTest extends TestCase {
 		$this->assertStringContainsString( "c.meta_key = 'bfw_capabilities'", $sql[1], 'the Writer role of THIS site' );
 		$this->assertStringContainsString( "lm.meta_key = 'bfrc_listed' ORDER BY lm.umeta_id LIMIT 1 ), '' ) <> '0'", $sql[1], 'a writer who switched the listing off is left out, by the first row as is_listed() reads it' );
 		$this->assertStringContainsString( "c.meta_value LIKE '%\\\"bfrc\\\\_writer\\\"%'", $sql[1], 'the role matched as core\'s role__in does, so the listing agrees with WP_User::$roles' );
-		[ $from, $args ] = Writers::listing_from();
-		$this->assertSame( substr_count( $from, '%s' ), count( $args ), 'one value per placeholder' );
+		$this->assertSame( $sql[0], 'SELECT COUNT(*) ' . substr( $sql[1], strpos( $sql[1], 'FROM ( SELECT post_author' ), strpos( $sql[1], ' ORDER BY u.display_name' ) - strpos( $sql[1], 'FROM ( SELECT post_author' ) ), 'the count and the page select the same set' );
 		$this->assertSame( 5, $page['writers'][0]['user']->ID, 'the string ID core returns for an array fields query is cast' );
 		$this->assertSame( 'ann@example.test', $page['writers'][0]['user']->user_email, 'the page\'s writers are full user objects from the cache, not the id-only rows' );
 		$this->assertSame( [], $GLOBALS['bfrc_test_count_calls'], 'the counts come with the page: no count_many_users_posts' );

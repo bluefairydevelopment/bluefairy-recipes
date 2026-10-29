@@ -161,7 +161,7 @@ class FakeWpdb {
 	}
 
 	/**
-	 * Writers::listing_from()'s two statements, answered from the stubs'
+	 * Writers::query_page()'s two statements, answered from the stubs'
 	 * stores as MySQL would: published recipes grouped by author, joined to
 	 * the users, listed by the switch or by the Writer role (the user's
 	 * roles stand for the capabilities row), display name then id.

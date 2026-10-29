@@ -328,10 +328,36 @@ final class Writers {
 	 */
 	private function query_page( int $page ): array {
 		global $wpdb;
-		[ $from, $args ] = self::listing_from();
-		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $from (listing_from()) holds the placeholders its $args fill; cached by listed().
-		$total = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) {$from}", ...$args ) );
-		$found = $total > ( $page - 1 ) * self::PER_PAGE ? $wpdb->get_results( $wpdb->prepare( "SELECT u.ID, u.display_name, u.user_nicename, r.n {$from} ORDER BY u.display_name ASC, u.ID ASC LIMIT %d OFFSET %d", ...array_merge( $args, [ self::PER_PAGE, ( $page - 1 ) * self::PER_PAGE ] ) ) ) : [];
+		$role = '%' . $wpdb->esc_like( '"' . Capabilities::ROLE_WRITER . '"' ) . '%'; // As core's role__in matches it (WP_User::$roles keeps a role whatever its stored value).
+		$caps = $wpdb->get_blog_prefix() . 'capabilities';
+		$key  = WriterProfile::LISTED;
+		$type = PostType::NAME;
+		// The same FROM/WHERE twice, written out so every value is a placeholder: published recipes by
+		// author, joined to the users; listed when the FIRST bfrc_listed row (as get_user_meta( …, true )
+		// reads it) is '1', or is not '0' and the user holds the Writer role on this site.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- one page and one count, cached by listed().
+		$total = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM ( SELECT post_author AS id, COUNT(*) AS n FROM {$wpdb->posts} WHERE post_type = %s AND post_status = 'publish' GROUP BY post_author ) r INNER JOIN {$wpdb->users} u ON u.ID = r.id WHERE ( COALESCE( ( SELECT lm.meta_value FROM {$wpdb->usermeta} lm WHERE lm.user_id = u.ID AND lm.meta_key = %s ORDER BY lm.umeta_id LIMIT 1 ), '' ) = '1' OR ( COALESCE( ( SELECT lm.meta_value FROM {$wpdb->usermeta} lm WHERE lm.user_id = u.ID AND lm.meta_key = %s ORDER BY lm.umeta_id LIMIT 1 ), '' ) <> '0' AND EXISTS ( SELECT 1 FROM {$wpdb->usermeta} c WHERE c.user_id = u.ID AND c.meta_key = %s AND c.meta_value LIKE %s ) ) )",
+				$type,
+				$key,
+				$key,
+				$caps,
+				$role
+			)
+		);
+		$found = $total > ( $page - 1 ) * self::PER_PAGE ? $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT u.ID, u.display_name, u.user_nicename, r.n FROM ( SELECT post_author AS id, COUNT(*) AS n FROM {$wpdb->posts} WHERE post_type = %s AND post_status = 'publish' GROUP BY post_author ) r INNER JOIN {$wpdb->users} u ON u.ID = r.id WHERE ( COALESCE( ( SELECT lm.meta_value FROM {$wpdb->usermeta} lm WHERE lm.user_id = u.ID AND lm.meta_key = %s ORDER BY lm.umeta_id LIMIT 1 ), '' ) = '1' OR ( COALESCE( ( SELECT lm.meta_value FROM {$wpdb->usermeta} lm WHERE lm.user_id = u.ID AND lm.meta_key = %s ORDER BY lm.umeta_id LIMIT 1 ), '' ) <> '0' AND EXISTS ( SELECT 1 FROM {$wpdb->usermeta} c WHERE c.user_id = u.ID AND c.meta_key = %s AND c.meta_value LIKE %s ) ) ) ORDER BY u.display_name ASC, u.ID ASC LIMIT %d OFFSET %d",
+				$type,
+				$key,
+				$key,
+				$caps,
+				$role,
+				self::PER_PAGE,
+				( $page - 1 ) * self::PER_PAGE
+			)
+		) : [];
 		// phpcs:enable
 		$rows = [];
 		foreach ( is_array( $found ) ? $found : [] as $row ) {
@@ -345,27 +371,6 @@ final class Writers {
 		];
 	}
 
-	/**
-	 * The listing's FROM and WHERE, and their placeholder values: authors of
-	 * published recipes (grouped, with their count), who are listed as
-	 * WriterProfile::is_listed() decides: their first `bfrc_listed` row is
-	 * '1', or it is not '0' and they hold the Writer role on this site (its
-	 * capabilities key, matched as core's role__in does).
-	 *
-	 * @return array{0: string, 1: list<string>}
-	 */
-	public static function listing_from(): array {
-		global $wpdb;
-		// The switch as is_listed() reads it: the user's FIRST bfrc_listed row (get_user_meta( …, true )).
-		$first = "COALESCE( ( SELECT lm.meta_value FROM {$wpdb->usermeta} lm WHERE lm.user_id = u.ID AND lm.meta_key = %s ORDER BY lm.umeta_id LIMIT 1 ), '' )";
-		$from  = "FROM ( SELECT post_author AS id, COUNT(*) AS n FROM {$wpdb->posts} WHERE post_type = %s AND post_status = 'publish' GROUP BY post_author ) r"
-			. " INNER JOIN {$wpdb->users} u ON u.ID = r.id"
-			. " WHERE ( {$first} = '1'"
-			. " OR ( {$first} <> '0'"
-			. " AND EXISTS ( SELECT 1 FROM {$wpdb->usermeta} c WHERE c.user_id = u.ID AND c.meta_key = %s AND c.meta_value LIKE %s ) ) )";
-		// The role as core's role__in matches it, and as WP_User::$roles lists it (core keeps a role whatever its stored value).
-		return [ $from, [ PostType::NAME, WriterProfile::LISTED, WriterProfile::LISTED, $wpdb->get_blog_prefix() . 'capabilities', '%' . $wpdb->esc_like( '"' . Capabilities::ROLE_WRITER . '"' ) . '%' ] ];
-	}
 
 	/**
 	 * The writer for a nicename, when they have a public page (memoised).
