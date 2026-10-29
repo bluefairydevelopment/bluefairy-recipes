@@ -98,8 +98,23 @@ final class RecipeQueryTest extends TestCase {
 		$this->query->featured( 'featured', 4 );
 		$sql = $this->wpdb->queries_matching( Meta::FEATURED );
 		$this->assertCount( 1, $sql );
-		$this->assertMatchesRegularExpression( "/p\\.post_status = 'publish' ORDER BY p\\.post_date DESC, p\\.ID DESC LIMIT 4$/", $sql[0], 'the newest four published featured ids, not every featured id into post__in (WPMAP-227 L7)' );
+		$this->assertMatchesRegularExpression( "/p\\.post_status = 'publish' ORDER BY p\\.post_date DESC, p\\.ID DESC LIMIT 12$/", $sql[0], 'the newest 4 × FEATURED_OVERFETCH published featured ids, not every featured id into post__in (WPMAP-227 L7)' );
 		$this->assertSame( [ 43, 41 ], $GLOBALS['bfrc_test_queries'][0]['post__in'] );
+	}
+
+	public function test_featured_falls_back_to_the_whole_set_when_the_query_drops_some_of_the_newest(): void {
+		foreach ( [ 41, 42, 43, 44, 45 ] as $id ) {
+			bfrc_test_add_post( [ 'ID' => $id, 'post_type' => 'bfrc_recipe', 'post_status' => 'publish' ] );
+		}
+		$this->wpdb->queue( 'get_col', [ 45, 44, 43 ] );      // newest_featured_ids( 1 * FEATURED_OVERFETCH ): the newest three.
+		$this->wpdb->always( 'get_col', [ 45, 44, 43, 42, 41 ] ); // featured_ids(): the whole set, for the fallback.
+		bfrc_test_query_resolver( static function ( array $vars ): array {
+			$in = array_values( array_diff( (array) ( $vars['post__in'] ?? [] ), [ 45, 44, 43 ] ) ); // A language filter (WPML, Polylang) or posts_where hides the newest three.
+			return [ array_slice( $in, 0, (int) $vars['posts_per_page'] ), 0, 0 ];
+		} );
+		$posts = $this->query->featured( 'featured', 1 );
+		$this->assertSame( [ 42 ], array_map( static fn( \WP_Post $p ): int => $p->ID, $posts ), 'an older featured recipe the query keeps fills the block (review R-F-2)' );
+		$this->assertSame( 1 * RecipeQuery::FEATURED_OVERFETCH, (int) substr( (string) $this->wpdb->queries_matching( 'ORDER BY p.post_date DESC' )[0], -1 ) );
 	}
 
 	public function test_featured_reads_the_cached_id_set_and_starts_a_new_key_when_a_recipe_changes(): void {

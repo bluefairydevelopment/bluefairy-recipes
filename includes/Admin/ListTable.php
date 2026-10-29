@@ -326,8 +326,8 @@ final class ListTable {
 		global $wpdb;
 		if ( count( $ids ) > self::IN_MAX ) {
 			// Thousands featured: rank by the meta key's index instead of an id list.
-			$clauses['join']    = ( $clauses['join'] ?? '' ) . $wpdb->prepare( " LEFT JOIN {$wpdb->postmeta} bfrc_f ON bfrc_f.post_id = {$wpdb->posts}.ID AND bfrc_f.meta_key = %s", Meta::FEATURED );
-			$clauses['orderby'] = "(bfrc_f.meta_value = '1') {$dir}, {$wpdb->posts}.post_date DESC";
+			// A correlated EXISTS, not a join: a recipe with two featured meta rows must not be listed twice.
+			$clauses['orderby'] = $wpdb->prepare( "(EXISTS ( SELECT 1 FROM {$wpdb->postmeta} bfrc_f WHERE bfrc_f.post_id = {$wpdb->posts}.ID AND bfrc_f.meta_key = %s AND bfrc_f.meta_value = '1' )) ", Meta::FEATURED ) . "{$dir}, {$wpdb->posts}.post_date DESC";
 			return $clauses;
 		}
 		$in                 = implode( ',', array_map( 'intval', $ids ) );

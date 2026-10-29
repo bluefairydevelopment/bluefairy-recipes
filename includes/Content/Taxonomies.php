@@ -34,6 +34,13 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class Taxonomies {
 
+	/**
+	 * True while ensure_default_terms() inserts the starter terms.
+	 *
+	 * @var bool
+	 */
+	private static bool $seeding = false;
+
 	public const PREFIX = 'bfrc_';
 
 	/**
@@ -119,7 +126,7 @@ final class Taxonomies {
 	 * @return string|\WP_Error
 	 */
 	public function guard_new_term( $term, $taxonomy ) {
-		if ( ! is_string( $taxonomy ) || 0 !== strpos( $taxonomy, self::PREFIX ) || $term instanceof \WP_Error || 0 === get_current_user_id() ) {
+		if ( self::$seeding || ! is_string( $taxonomy ) || 0 !== strpos( $taxonomy, self::PREFIX ) || $term instanceof \WP_Error || 0 === get_current_user_id() ) {
 			return $term;
 		}
 		if ( current_user_can( self::CAPABILITIES['edit_terms'] ) ) {
@@ -367,6 +374,20 @@ final class Taxonomies {
 	 * @return array<string, int> Terms inserted per code (for the caller's log or test).
 	 */
 	public function ensure_default_terms(): array {
+		self::$seeding = true; // The plugin's own starter terms: guard_new_term() is for users typing names, and an activating admin's caps are not loaded yet.
+		try {
+			return $this->seed_default_terms();
+		} finally {
+			self::$seeding = false;
+		}
+	}
+
+	/**
+	 * The seeding itself (see ensure_default_terms()).
+	 *
+	 * @return array<string, int> Code => terms inserted.
+	 */
+	private function seed_default_terms(): array {
 		$inserted = [];
 		foreach ( $this->definitions() as $code => $def ) {
 			if ( ! $def['system'] || [] === $def['terms'] ) {

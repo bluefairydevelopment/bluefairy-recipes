@@ -179,8 +179,8 @@ final class ListTableTest extends TestCase {
 		$this->assertSame( [ 'relation' => 'OR', [ 'key' => Meta::FEATURED, 'compare' => 'NOT EXISTS' ], [ 'key' => Meta::FEATURED, 'value' => '1', 'compare' => '!=' ] ], $q->get( 'meta_query' ) );
 		$clauses = [ 'orderby' => 'bfw_posts.post_date DESC', 'where' => '', 'join' => '' ];
 		$out     = $t->order_clauses( $clauses, new \WP_Query( [ ListTable::SORT_FLAG => 'DESC' ] ) );
-		$this->assertStringContainsString( "LEFT JOIN bfw_postmeta bfrc_f ON bfrc_f.post_id = bfw_posts.ID AND bfrc_f.meta_key = '_bfrc_featured'", $out['join'] );
-		$this->assertSame( "(bfrc_f.meta_value = '1') DESC, bfw_posts.post_date DESC", $out['orderby'] );
+		$this->assertSame( '', $out['join'], 'no join: a recipe with two featured meta rows is listed once (review R-F-5)' );
+		$this->assertSame( "(EXISTS ( SELECT 1 FROM bfw_postmeta bfrc_f WHERE bfrc_f.post_id = bfw_posts.ID AND bfrc_f.meta_key = '_bfrc_featured' AND bfrc_f.meta_value = '1' )) DESC, bfw_posts.post_date DESC", $out['orderby'] );
 		$_GET = [];
 	}
 

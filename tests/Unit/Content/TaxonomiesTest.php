@@ -231,6 +231,19 @@ final class TaxonomiesTest extends TestCase {
 		$this->assertSame( 'Vegan', $t->guard_new_term( 'Vegan', 'bfrc_diet' ), 'no user (activation from WP-CLI seeding the defaults): allowed' );
 	}
 
+	public function test_the_starter_terms_are_seeded_even_for_a_user_whose_new_caps_are_not_loaded_yet(): void {
+		$t = $this->taxonomies();
+		$t->register_hooks();
+		do_action( 'init' );
+		bfrc_test_add_user( 71, [ 'roles' => [ 'subscriber' ] ] ); // The activating admin's allcaps predate add_roles() in the same request: core sees no edit_bfrc_terms yet.
+		wp_set_current_user( 71 );
+		$this->assertFalse( current_user_can( Taxonomies::CAPABILITIES['edit_terms'] ), 'precondition: the guard would refuse this user' );
+		$inserted = $t->ensure_default_terms();
+		$this->assertGreaterThan( 0, array_sum( $inserted ), 'the plugin\'s own seeding is not a user creating terms (review R-F-1)' );
+		$this->assertInstanceOf( \WP_Error::class, $t->guard_new_term( 'Spam', 'bfrc_diet' ), 'outside the seeding the guard still refuses' );
+		wp_set_current_user( 0 );
+	}
+
 	public function test_ensure_default_terms_seeds_only_empty_system_taxonomies_once(): void {
 		$t = $this->taxonomies();
 		$t->register();

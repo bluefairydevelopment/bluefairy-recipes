@@ -358,9 +358,10 @@ final class Samples {
 		$found = $wpdb->get_var(
 			$wpdb->prepare(
 				"SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_thumbnail_id' AND meta_value = %s AND post_id NOT IN ({$exclude})
-				UNION SELECT p.ID FROM {$wpdb->posts} p WHERE p.post_type <> 'revision' AND p.ID NOT IN ({$exclude}) AND p.post_content LIKE %s LIMIT 1",
+				UNION SELECT p.ID FROM {$wpdb->posts} p WHERE p.post_type <> 'revision' AND p.ID NOT IN ({$exclude}) AND ( p.post_content LIKE %s OR p.post_content LIKE %s ) LIMIT 1",
 				(string) $attachment_id,
-				'%' . $wpdb->esc_like( 'wp-image-' . $attachment_id ) . '%'
+				'%' . $wpdb->esc_like( 'wp-image-' . $attachment_id . '"' ) . '%',
+				'%' . $wpdb->esc_like( 'wp-image-' . $attachment_id . ' ' ) . '%' // The class ends there: wp-image-12 is not wp-image-123.
 			)
 		);
 		// phpcs:enable

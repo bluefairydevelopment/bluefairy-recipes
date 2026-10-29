@@ -77,7 +77,7 @@ plugin installs.
 | Enabled | On | Off: recipes, the archive and the filter archives return 404 (previews too; with pretty permalinks), recipes leave search, the sitemap and the public REST API; the admin and the editor keep working |
 | Rich snippets | On | |
 | Archive slug | `recipes` | Changing it flushes rewrite rules on the next page load. Routes WordPress owns (`feed`, `page`, `wp-json`, a year, …) are refused, and so is the address of an existing Page (or of a post, with the `/%postname%/` or `/%postname%` structure): the old slug is kept and the screen says why. If the current slug clashes (say a Page called Recipes existed before the plugin), a notice on the Plugins screen and on this page says so |
-| Archive title | Recipes | |
+| Archive title | Recipes | Left at the default, it is shown in the site's language. |
 | Recipes per page | 12 | 1–100 |
 | Social share | On | Facebook, X and Pinterest each have their own switch |
 | Writer listing | On | |

@@ -134,7 +134,8 @@ final class WritersTest extends TestCase {
 		$this->assertStringStartsWith( 'SELECT COUNT(*) FROM', $sql[0] );
 		$this->assertStringEndsWith( 'ORDER BY u.display_name ASC, u.ID ASC LIMIT 24 OFFSET 0', $sql[1], 'the page is cut in SQL, whatever the number of writers' );
 		$this->assertStringContainsString( "c.meta_key = 'bfw_capabilities'", $sql[1], 'the Writer role of THIS site' );
-		$this->assertStringContainsString( "lo.meta_key = 'bfrc_listed' AND lo.meta_value = '0'", $sql[1], 'a writer who switched the listing off is left out' );
+		$this->assertStringContainsString( "lm.meta_key = 'bfrc_listed' ORDER BY lm.umeta_id LIMIT 1 ), '' ) <> '0'", $sql[1], 'a writer who switched the listing off is left out, by the first row as is_listed() reads it' );
+		$this->assertStringContainsString( '";b:1;%', $sql[1], 'the Writer role held, not a role stored as false' );
 		[ $from, $args ] = Writers::listing_from();
 		$this->assertSame( substr_count( $from, '%s' ), count( $args ), 'one value per placeholder' );
 		$this->assertSame( 5, $page['writers'][0]['user']->ID, 'the string ID core returns for an array fields query is cast' );
@@ -199,6 +200,12 @@ final class WritersTest extends TestCase {
 		$this->assertCount( 10, $two['writers'], '34 public writers in all' );
 		$this->assertSame( 2, $two['pages'] );
 		$this->assertSame( [ 3, 5, 299 ], array_map( static fn( array $w ): int => $w['user']->ID, array_slice( $one['writers'], 0, 3 ) ), 'ann (3), Ann (5), ann (299): same name case-insensitively, lower id first, whichever query found them' );
+	}
+
+	public function test_a_page_past_the_last_writer_is_not_cached(): void {
+		$this->assertSame( [], $this->writers->listed( 999999 )['writers'] );
+		$keys = array_keys( $GLOBALS['bfrc_test_cache'][ \BlueFairy\Recipes\Content\Cache::GROUP ] ?? [] );
+		$this->assertSame( [], array_values( array_filter( $keys, static fn( string $k ): bool => str_starts_with( $k, 'writers:999999:' ) ) ), 'any page number a visitor types would otherwise leave a cache entry (review R-F-9)' );
 	}
 
 	public function test_a_site_with_more_than_five_hundred_writers_lists_every_one(): void {

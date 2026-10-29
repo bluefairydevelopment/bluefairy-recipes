@@ -228,7 +228,12 @@ final class SamplesTest extends TestCase {
 		$this->assertContains( $other, $GLOBALS['bfrc_test_deleted_attachments'], 'an unused one still goes' );
 		$sql = implode( "\n", array_column( $GLOBALS['wpdb']->calls, 'sql' ) );
 		$this->assertStringContainsString( "_thumbnail_id", $sql );
-		$this->assertStringContainsString( 'wp-image-' . $reused, $sql, 'the content check looks for the image\'s block class' );
+		$this->assertStringContainsString( "LIKE '%wp-image-" . $reused . "\\\"%'", $sql, 'the content check looks for the whole class name: wp-image-12 is not wp-image-123 (review R-F-6)' );
+		$sam = (string) file_get_contents( BFRC_DIR . 'includes/Admin/Samples.php' );
+		$uni = (string) file_get_contents( BFRC_DIR . 'uninstall.php' );
+		$pick = static fn( string $src ): string => (string) preg_replace( '/\\{\\$[a-z_]+\\}|\\s+/', '', (string) ( preg_match( '/"SELECT post_id FROM .*?LIMIT 1"/s', $src, $m ) ? $m[0] : '' ) );
+		$this->assertNotSame( '', $pick( $sam ) );
+		$this->assertSame( $pick( $sam ), $pick( $uni ), 'uninstall.php runs the same query as attachment_in_use_elsewhere() (it cannot load the class)' );
 		$GLOBALS['wpdb']->queue( 'get_var', '1' );
 		$this->assertTrue( Samples::attachment_in_use_elsewhere( 5, [ 1, 2 ] ) );
 		$this->assertFalse( Samples::attachment_in_use_elsewhere( 5, [ 1, 2 ] ), 'nothing found: only the samples use it' );

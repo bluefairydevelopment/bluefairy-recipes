@@ -36,6 +36,12 @@ final class RecipeQuery {
 	 * canonical redirect strips, and must not use `page`, which core reads
 	 * as a `<!--nextpage-->` page of the post.
 	 */
+	/**
+	 * How many times the shown count of newest featured ids a featured list
+	 * asks for first (see featured()).
+	 */
+	public const FEATURED_OVERFETCH = 3;
+
 	public const PAGE_VAR = 'bfrc_page';
 
 	/**
@@ -210,15 +216,24 @@ final class RecipeQuery {
 				'fields'              => 'ids',
 			];
 			if ( 'featured' === $mode ) {
-				$featured = Meta::newest_featured_ids( $count ); // At most $count ids: a site may feature thousands.
+				// The newest few featured ids (a site may feature thousands): FEATURED_OVERFETCH × $count, so a
+				// query filter (a language plugin, posts_where) that drops some still leaves enough.
+				$limit    = $count * self::FEATURED_OVERFETCH;
+				$featured = Meta::newest_featured_ids( $limit );
 				if ( [] === $featured ) {
 					wp_cache_set( $key, [], Cache::GROUP, self::FEATURED_TTL );
 					return [];
 				}
-				$args['post__in'] = $featured; // Already the newest $count; the query re-checks status and password.
+				$args['post__in'] = $featured;
 			}
 			$query = new \WP_Query( $args );
 			$ids   = array_values( array_map( 'intval', is_array( $query->posts ) ? $query->posts : [] ) );
+			if ( 'featured' === $mode && count( $ids ) < $count && count( $args['post__in'] ) >= $count * self::FEATURED_OVERFETCH ) {
+				// The query kept fewer than asked although more featured recipes exist: the whole set, as before.
+				$args['post__in'] = Meta::featured_ids();
+				$query            = new \WP_Query( $args );
+				$ids              = array_values( array_map( 'intval', is_array( $query->posts ) ? $query->posts : [] ) );
+			}
 			wp_cache_set( $key, $ids, Cache::GROUP, self::FEATURED_TTL );
 		}
 		if ( [] === $ids ) {

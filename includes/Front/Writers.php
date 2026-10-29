@@ -289,7 +289,9 @@ final class Writers {
 		$rows = wp_cache_get( $key, Cache::GROUP );
 		if ( ! is_array( $rows ) || ! isset( $rows['total'], $rows['rows'] ) ) {
 			$rows = $this->query_page( $page );
-			wp_cache_set( $key, $rows, Cache::GROUP, self::CACHE_TTL );
+			if ( 1 === $page || [] !== $rows['rows'] ) { // A page past the last writer is not kept: any number a visitor types would be.
+				wp_cache_set( $key, $rows, Cache::GROUP, self::CACHE_TTL );
+			}
 		}
 		$total   = (int) $rows['total'];
 		$writers = [];
@@ -346,19 +348,23 @@ final class Writers {
 	/**
 	 * The listing's FROM and WHERE, and their placeholder values: authors of
 	 * published recipes (grouped, with their count), who are listed as
-	 * WriterProfile::is_listed() decides: the switch on, or the Writer role on
-	 * this site (its capabilities key) without the switch off.
+	 * WriterProfile::is_listed() decides: their first `bfrc_listed` row is
+	 * '1', or it is not '0' and they hold the Writer role on this site (its
+	 * capabilities key, the role set true).
 	 *
 	 * @return array{0: string, 1: list<string>}
 	 */
 	public static function listing_from(): array {
 		global $wpdb;
-		$from = "FROM ( SELECT post_author AS id, COUNT(*) AS n FROM {$wpdb->posts} WHERE post_type = %s AND post_status = 'publish' GROUP BY post_author ) r"
+		// The switch as is_listed() reads it: the user's FIRST bfrc_listed row (get_user_meta( …, true )).
+		$first = "COALESCE( ( SELECT lm.meta_value FROM {$wpdb->usermeta} lm WHERE lm.user_id = u.ID AND lm.meta_key = %s ORDER BY lm.umeta_id LIMIT 1 ), '' )";
+		$from  = "FROM ( SELECT post_author AS id, COUNT(*) AS n FROM {$wpdb->posts} WHERE post_type = %s AND post_status = 'publish' GROUP BY post_author ) r"
 			. " INNER JOIN {$wpdb->users} u ON u.ID = r.id"
-			. " WHERE ( EXISTS ( SELECT 1 FROM {$wpdb->usermeta} lm WHERE lm.user_id = u.ID AND lm.meta_key = %s AND lm.meta_value = '1' )"
-			. " OR ( NOT EXISTS ( SELECT 1 FROM {$wpdb->usermeta} lo WHERE lo.user_id = u.ID AND lo.meta_key = %s AND lo.meta_value = '0' )"
+			. " WHERE ( {$first} = '1'"
+			. " OR ( {$first} <> '0'"
 			. " AND EXISTS ( SELECT 1 FROM {$wpdb->usermeta} c WHERE c.user_id = u.ID AND c.meta_key = %s AND c.meta_value LIKE %s ) ) )";
-		return [ $from, [ PostType::NAME, WriterProfile::LISTED, WriterProfile::LISTED, $wpdb->get_blog_prefix() . 'capabilities', '%' . $wpdb->esc_like( '"' . Capabilities::ROLE_WRITER . '"' ) . '%' ] ];
+		// `"bfrc_writer";b:1;`: the role held (WP_User::$roles keeps only true entries), as core serialises it.
+		return [ $from, [ PostType::NAME, WriterProfile::LISTED, WriterProfile::LISTED, $wpdb->get_blog_prefix() . 'capabilities', '%' . $wpdb->esc_like( '"' . Capabilities::ROLE_WRITER . '";b:1;' ) . '%' ] ];
 	}
 
 	/**
