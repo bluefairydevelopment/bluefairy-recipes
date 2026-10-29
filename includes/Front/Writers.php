@@ -76,7 +76,8 @@ final class Writers {
 	public function register_hooks(): void {
 		add_filter( 'wp_sitemaps_users_query_args', [ $this, 'sitemap_users_query' ] );
 		add_action( 'pre_user_query', [ $this, 'exclude_opted_out' ] );
-		foreach ( [ 'set_user_role', 'add_user_role', 'remove_user_role', 'profile_update', 'user_register', 'deleted_user' ] as $hook ) {
+		// remove_user_from_blog: multisite Users > Remove deletes the capabilities meta directly, so no role hook fires.
+		foreach ( [ 'set_user_role', 'add_user_role', 'remove_user_role', 'profile_update', 'user_register', 'deleted_user', 'remove_user_from_blog' ] as $hook ) {
 			add_action( $hook, [ self::class, 'bump' ] );
 		}
 		foreach ( [ 'added_user_meta', 'updated_user_meta', 'deleted_user_meta' ] as $hook ) {

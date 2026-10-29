@@ -224,10 +224,11 @@ final class Installer {
 		do {
 			$page = get_sites(
 				[
-					'fields'  => 'ids',
-					'number'  => self::SITES_PER_PAGE,
-					'offset'  => $offset,
-					'orderby' => 'id',
+					'fields'     => 'ids',
+					'network_id' => get_current_network_id(), // Network activation is per network; get_sites() alone spans them all.
+					'number'     => self::SITES_PER_PAGE,
+					'offset'     => $offset,
+					'orderby'    => 'id',
 				]
 			);
 			foreach ( $page as $site_id ) {

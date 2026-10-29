@@ -378,6 +378,10 @@ final class RecipeEditor {
 		if ( ! isset( $_POST[ self::NONCE_FIELD ] ) ) {
 			return; // Not our form.
 		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- an integer compared, not used; the nonce is verified below.
+		if ( ! isset( $_POST['post_ID'] ) || ! is_scalar( $_POST['post_ID'] ) || (int) $_POST['post_ID'] !== $post_id ) {
+			return; // The form is another recipe's: a sync or translation plugin saving a second recipe in this request.
+		}
 		if ( ! current_user_can( 'edit_post', $post_id ) ) {
 			return;
 		}

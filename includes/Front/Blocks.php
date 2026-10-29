@@ -108,6 +108,7 @@ final class Blocks {
 	public function register_hooks(): void {
 		add_action( 'init', [ $this, 'register' ], 20 );
 		add_action( 'init', [ $this, 'register_shortcodes' ] );
+		add_action( 'enqueue_block_editor_assets', [ $this, 'editor_data' ] );
 		add_action( 'wp_head', [ self::class, 'reset_before_body' ], PHP_INT_MAX );
 	}
 
@@ -131,6 +132,16 @@ final class Blocks {
 		foreach ( self::BLOCKS as $dir => $method ) {
 			register_block_type( BFRC_DIR . 'build/blocks/' . $dir, [ 'render_callback' => [ $this, $method ] ] );
 		}
+	}
+
+	/**
+	 * `enqueue_block_editor_assets`: the enabled filter-type codes, for the
+	 * Recipe List inspector. Every filter taxonomy is in REST (a disabled one
+	 * too, so its terms stay editable), but a fixed filter on a disabled type
+	 * is ignored on render, so the inspector offers only the enabled ones.
+	 */
+	public function editor_data(): void {
+		wp_add_inline_script( 'wp-blocks', 'window.bfrcEnabledFilters = ' . wp_json_encode( array_keys( $this->taxonomies->enabled() ) ) . ';', 'before' );
 	}
 
 	/**

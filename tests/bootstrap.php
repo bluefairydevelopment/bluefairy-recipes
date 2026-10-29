@@ -225,6 +225,8 @@ function bfrc_test_reset(): void {
 	$GLOBALS['bfrc_test_user_meta']     = [];
 	$GLOBALS['bfrc_test_multisite']     = false;
 	$GLOBALS['bfrc_test_sites']         = [];
+	$GLOBALS['bfrc_test_site_network']  = [];
+	$GLOBALS['bfrc_test_current_network'] = 1;
 	$GLOBALS['bfrc_test_blog_id']       = 1;
 	$GLOBALS['bfrc_test_blog_stack']    = [];
 	$GLOBALS['bfrc_test_site_state']    = [];
@@ -1089,8 +1091,14 @@ function restore_current_blog(): bool {
  * The scripted site ids, honouring `number` and `offset` (so a paging loop
  * terminates as it would against core) and `fields => ids`.
  */
+function get_current_network_id(): int {
+	return (int) ( $GLOBALS['bfrc_test_current_network'] ?? 1 );
+}
 function get_sites( array $args = [] ): array {
-	$ids    = array_values( array_map( 'intval', (array) $GLOBALS['bfrc_test_sites'] ) );
+	$ids = array_values( array_map( 'intval', (array) $GLOBALS['bfrc_test_sites'] ) );
+	if ( isset( $args['network_id'] ) ) { // Core: without network_id every network's sites come back.
+		$ids = array_values( array_filter( $ids, static fn( int $id ): bool => (int) ( $GLOBALS['bfrc_test_site_network'][ $id ] ?? 1 ) === (int) $args['network_id'] ) );
+	}
 	$offset = (int) ( $args['offset'] ?? 0 );
 	$number = (int) ( $args['number'] ?? 100 );
 	$page   = array_slice( $ids, $offset, $number > 0 ? $number : null );
@@ -1598,6 +1606,7 @@ function wp_localize_script( string $handle, string $object_name, array $l10n ):
 	return true;
 }
 function wp_add_inline_script( string $handle, string $data, string $position = 'after' ): bool {
+	$GLOBALS['bfrc_test_inline_scripts'][] = [ $handle, $data, $position ];
 	return true;
 }
 function wp_script_is( string $handle, string $status = 'enqueued' ): bool {

@@ -180,3 +180,15 @@ test( 'the print button prints', () => {
 	p.doc.querySelector( '[data-bfrc-print]' ).click();
 	assert.equal( p.win.printed, 1 );
 } );
+
+test( 'plain permalinks: with every field empty the form still submits its hidden archive arguments instead of going to the bare home URL', () => {
+	const plain = '<form class="bfrc-filters" method="get" action="https://example.com/" data-bfrc-filters>' +
+		'<input type="hidden" name="post_type" value="bfrc_recipe">' +
+		'<select name="bfrc_filter[diet]"><option value="">All</option><option value="vegan">Vegan</option></select>' +
+		'<input type="search" name="bfrc_s" value=""><button type="submit">Filter</button></form>';
+	const p = page( plain, { navigate: true } );
+	p.form.requestSubmit();
+	assert.equal( p.submits.length, 1, 'the submit event ran' );
+	assert.deepEqual( Array.from( p.form.elements ).filter( ( el ) => el.name ).map( ( el ) => el.name + ( el.disabled ? ':off' : ':on' ) ), [ 'post_type:on', 'bfrc_filter[diet]:off', 'bfrc_s:off' ], 'only the hidden archive argument travels' );
+	assert.ok( ! p.jsdomErrors.some( ( m ) => /navigation/i.test( m ) ), 'the script did not jump to the bare home URL; the form submits ?post_type=bfrc_recipe itself: ' + p.jsdomErrors.join( ' | ' ) );
+} );

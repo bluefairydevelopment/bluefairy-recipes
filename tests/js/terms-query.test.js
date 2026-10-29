@@ -12,3 +12,13 @@ test( 'taxonomies.js loads its terms with TERMS_QUERY', () => {
 	assert.match( source, /getEntityRecords\( 'taxonomy', taxonomy\.slug, TERMS_QUERY \)/ );
 	assert.doesNotMatch( source, /per_page: 100/ );
 } );
+
+test( 'the inspector offers only the enabled filter types as fixed filters', async () => {
+	const { isOfferedFilter } = await import( '../../src/blocks/terms-query.js' );
+	assert.equal( isOfferedFilter( 'bfrc_diet', [ 'diet', 'cuisine' ] ), true );
+	assert.equal( isOfferedFilter( 'bfrc_season', [ 'diet', 'cuisine' ] ), false, 'a disabled type is ignored on render, so it is not offered' );
+	assert.equal( isOfferedFilter( 'category', [ 'diet' ] ), false, 'not the plugin\'s' );
+	assert.equal( isOfferedFilter( 'bfrc_season', undefined ), true, 'no list printed (an old cached page): every plugin type, as before' );
+	const source = require( 'node:fs' ).readFileSync( require( 'node:path' ).join( __dirname, '../../src/blocks/taxonomies.js' ), 'utf8' );
+	assert.match( source, /isOfferedFilter\( taxonomy\.slug, window\.bfrcEnabledFilters \)/ );
+} );

@@ -180,6 +180,7 @@ final class Samples {
 			'installed_at' => (string) current_time( 'mysql', true ),
 		];
 		$adopted  = false;
+		$shared   = false;
 		$existing = username_exists( self::WRITER_LOGIN );
 		if ( false !== $existing ) {
 			// An uninstall that kept content removed the record and the role but not the account: adopt it,
@@ -190,6 +191,16 @@ final class Samples {
 				/* translators: %s: the sample writer's login */
 				return new \WP_Error( 'writer_taken', sprintf( __( 'An account named %s exists and is not the sample writer the plugin created. Rename or delete it, then install the samples.', 'bluefairy-recipes' ), self::WRITER_LOGIN ) );
 			}
+			if ( self::in_use_elsewhere( (int) $existing ) ) {
+				// Multisite: another site's samples still use this network account. Resetting it would
+				// silently change that site's writer: it serves this site too, as it is.
+				$user->add_role( Capabilities::ROLE_WRITER );
+				$writer  = (int) $existing;
+				$adopted = true;
+				$shared  = true;
+			}
+		}
+		if ( false !== $existing && ! $adopted && $user instanceof \WP_User ) {
 			// Every way into the account is closed and its profile is ours again: whoever held it before
 			// (an uninstall's leftover, or someone who registered the login and set our address) keeps nothing.
 			wp_set_password( wp_generate_password( 32, true, true ), (int) $existing );
@@ -217,7 +228,7 @@ final class Samples {
 			$user->add_role( Capabilities::ROLE_WRITER );
 			$writer  = (int) $existing;
 			$adopted = true;
-		} else {
+		} elseif ( false === $existing ) {
 			$writer = wp_insert_user(
 				[
 					'user_login'   => self::WRITER_LOGIN,
@@ -232,7 +243,9 @@ final class Samples {
 			}
 		}
 		$record['writer'] = (int) $writer;
-		update_user_meta( (int) $writer, 'bfrc_about', __( 'Sam is the sample writer who comes with BlueFairy Recipes: three recipes that show what a recipe page, the archive and a writer page look like.', 'bluefairy-recipes' ) );
+		if ( ! $shared ) { // A shared account keeps the profile the other site gave it.
+			update_user_meta( (int) $writer, 'bfrc_about', __( 'Sam is the sample writer who comes with BlueFairy Recipes: three recipes that show what a recipe page, the archive and a writer page look like.', 'bluefairy-recipes' ) );
+		}
 		foreach ( self::recipes() as $recipe ) {
 			$post_id = wp_insert_post(
 				[
@@ -330,6 +343,57 @@ final class Samples {
 	}
 
 	/**
+	 * Is a sample image used outside the sample recipes: another post's
+	 * featured image, or placed in another post's content (core's image
+	 * block class `wp-image-<id>`)? Then the site has made it its own.
+	 * uninstall.php runs the same query (it cannot load this class).
+	 *
+	 * @param int   $attachment_id The sample image.
+	 * @param int[] $own_posts     The sample recipes (their use does not count).
+	 */
+	public static function attachment_in_use_elsewhere( int $attachment_id, array $own_posts ): bool {
+		global $wpdb;
+		$exclude = implode( ',', array_map( 'intval', array_merge( [ 0 ], $own_posts ) ) );
+		// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery -- $exclude is intval'd ids; a one-off check at removal.
+		$found = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_thumbnail_id' AND meta_value = %s AND post_id NOT IN ({$exclude})
+				UNION SELECT p.ID FROM {$wpdb->posts} p WHERE p.post_type <> 'revision' AND p.ID NOT IN ({$exclude}) AND p.post_content LIKE %s LIMIT 1",
+				(string) $attachment_id,
+				'%' . $wpdb->esc_like( 'wp-image-' . $attachment_id ) . '%'
+			)
+		);
+		// phpcs:enable
+		return null !== $found && '' !== (string) $found;
+	}
+
+	/**
+	 * Multisite: does another site's sample set still name this account as
+	 * its writer? The account is one network row; installing here must not
+	 * reset what another site shows.
+	 *
+	 * @param int $user_id The sample writer account.
+	 */
+	public static function in_use_elsewhere( int $user_id ): bool {
+		if ( ! is_multisite() ) {
+			return false;
+		}
+		$here = get_current_blog_id();
+		foreach ( array_keys( get_blogs_of_user( $user_id ) ) as $blog_id ) {
+			if ( (int) $blog_id === $here ) {
+				continue;
+			}
+			switch_to_blog( (int) $blog_id );
+			$record = get_option( self::OPTION, [] );
+			restore_current_blog();
+			if ( is_array( $record ) && (int) ( $record['writer'] ?? 0 ) === $user_id ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * May install() adopt this leftover `bfrc_sample_writer` account? Only
 	 * the plugin's own: the `@example.invalid` address it created it with,
 	 * and no role beyond Writer (uninstall.php leaves a user whose only role
@@ -373,8 +437,11 @@ final class Samples {
 		foreach ( (array) ( $record['recipes'] ?? [] ) as $id ) {
 			wp_delete_post( (int) $id, true );
 		}
+		$own = array_map( 'intval', (array) ( $record['recipes'] ?? [] ) );
 		foreach ( (array) ( $record['attachments'] ?? [] ) as $id ) {
-			wp_delete_attachment( (int) $id, true );
+			if ( ! self::attachment_in_use_elsewhere( (int) $id, $own ) ) { // Reused on a page since: the site's now, it stays.
+				wp_delete_attachment( (int) $id, true );
+			}
 		}
 		$writer   = (int) ( $record['writer'] ?? 0 );
 		$reassign = $reassign_to > 0 ? $reassign_to : (int) get_current_user_id();

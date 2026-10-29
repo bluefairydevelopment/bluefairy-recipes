@@ -52,6 +52,18 @@ final class Renderer {
 	public function __construct( private Settings $settings, private Writers $writers, private Taxonomies $taxonomies ) {}
 
 	/**
+	 * The archive heading: the stored title, or the default in the site's
+	 * language while the admin has not changed it (the option holds the English
+	 * default, written at activation).
+	 *
+	 * @return string
+	 */
+	private function archive_title(): string {
+		$stored = (string) $this->settings->get( 'archive_title' );
+		return Settings::DEFAULTS['archive_title'] === $stored ? __( 'Recipes', 'bluefairy-recipes' ) : $stored;
+	}
+
+	/**
 	 * The archive view for the main query: writers listing, a writer's page,
 	 * a filter type's recipes, or the recipe archive with filters.
 	 *
@@ -66,7 +78,7 @@ final class Renderer {
 			return $writer instanceof \WP_User ? $this->writer_page( $writer, $query ) : '';
 		}
 		$term  = $query->is_tax() ? $query->get_queried_object() : null;
-		$title = $term instanceof \WP_Term ? $term->name : (string) $this->settings->get( 'archive_title' );
+		$title = $term instanceof \WP_Term ? $term->name : $this->archive_title();
 		$html  = '<div class="bfrc-archive">';
 		$html .= '<header class="bfrc-archive__header"><h1 class="bfrc-archive__title">' . esc_html( $title ) . '</h1>';
 		if ( $term instanceof \WP_Term && '' !== $term->description ) {

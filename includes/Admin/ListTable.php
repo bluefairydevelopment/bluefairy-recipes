@@ -107,7 +107,7 @@ final class ListTable {
 				$max = Meta::sanitize_servings( get_post_meta( $post_id, Meta::SERVINGS_MAX, true ) );
 				if ( 0 === $min && 0 === $max ) {
 					echo '<span aria-hidden="true">&mdash;</span>';
-				} elseif ( $max > $min ) {
+				} elseif ( $min > 0 && $max > $min ) { // A blank minimum is unset, not zero: the front end shows one number then.
 					echo esc_html( $min . '–' . $max );
 				} else {
 					echo esc_html( (string) max( $min, $max ) );

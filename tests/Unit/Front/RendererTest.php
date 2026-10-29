@@ -223,6 +223,22 @@ final class RendererTest extends TestCase {
 		$this->assertSame( '', $this->renderer->pagination( bfrc_test_front_query( [] ) ), 'one page: no pagination' );
 	}
 
+	public function test_archive_translates_the_untouched_default_title_and_keeps_a_custom_one_as_typed(): void {
+		add_filter(
+			'gettext',
+			static function ( string $translation, string $text, string $domain ): string {
+				return 'bluefairy-recipes' === $domain && 'Recipes' === $text ? 'Rezepte' : $translation;
+			},
+			10,
+			3
+		);
+		$q        = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
+		$q->posts = [];
+		$this->assertStringContainsString( '<h1 class="bfrc-archive__title">Rezepte</h1>', $this->renderer->archive( $q ), 'the stored default is shown in the site language' );
+		$this->settings->update( [ 'archive_title' => 'Our Kitchen' ] + $this->settings->all() );
+		$this->assertStringContainsString( '<h1 class="bfrc-archive__title">Our Kitchen</h1>', $this->renderer->archive( $q ), 'a title the admin typed is shown as typed' );
+	}
+
 	public function test_archive_renders_the_writers_listing_and_a_writer_page_from_the_query_vars(): void {
 		update_user_meta( 5, 'bfrc_about', 'I bake <b>bread</b> every single day of the week and more words than thirty to trim here for sure yes indeed one two three four five six seven eight nine ten eleven.' );
 		update_user_meta( 5, 'bfrc_avatar_id', 77 );

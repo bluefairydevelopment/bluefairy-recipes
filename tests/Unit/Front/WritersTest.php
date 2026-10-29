@@ -172,6 +172,10 @@ final class WritersTest extends TestCase {
 		foreach ( [ 'set_user_role', 'add_user_role', 'remove_user_role', 'profile_update', 'user_register', 'deleted_user' ] as $hook ) {
 			$this->assertNotFalse( has_action( $hook, [ Writers::class, 'bump' ] ), $hook );
 		}
+		$before = wp_cache_get_last_changed( Writers::LAST_CHANGED_GROUP );
+		
+		do_action( 'remove_user_from_blog', 5, 1, 0 ); // Multisite Users > Remove: core deletes the capabilities meta directly, no role hook fires.
+		$this->assertNotSame( $before, wp_cache_get_last_changed( Writers::LAST_CHANGED_GROUP ), 'a writer removed from the site leaves the cached listing at once' );
 		foreach ( [ 'added_user_meta', 'updated_user_meta', 'deleted_user_meta' ] as $hook ) {
 			$this->assertNotFalse( has_action( $hook, [ Writers::class, 'on_user_meta' ] ), $hook );
 		}

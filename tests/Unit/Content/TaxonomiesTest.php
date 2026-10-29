@@ -205,6 +205,24 @@ final class TaxonomiesTest extends TestCase {
 		$this->assertSame( 5, has_action( 'init', [ $t, 'register' ] ) );
 	}
 
+	public function test_a_user_who_may_only_assign_terms_cannot_create_one_by_typing_its_name(): void {
+		$t = $this->taxonomies();
+		$t->register_hooks();
+		$this->assertSame( 10, has_filter( 'pre_insert_term', [ $t, 'guard_new_term' ] ) );
+		\BlueFairy\Recipes\Capabilities::add_roles();
+		bfrc_test_add_user( 71, [ 'roles' => [ \BlueFairy\Recipes\Capabilities::ROLE_WRITER ] ] );
+		wp_set_current_user( 71 ); // The classic tag box or Quick Edit passes an unknown name on to wp_insert_term().
+		$refused = $t->guard_new_term( 'Buy cheap pills', 'bfrc_diet' );
+		$this->assertInstanceOf( \WP_Error::class, $refused, 'a Writer holds assign_bfrc_terms only' );
+		$this->assertSame( 'bfrc_term_not_allowed', $refused->get_error_code() );
+		$this->assertSame( 'Anything', $t->guard_new_term( 'Anything', 'category' ), 'not a recipe taxonomy: untouched' );
+		bfrc_test_add_user( 72, [ 'roles' => [ \BlueFairy\Recipes\Capabilities::ROLE_MANAGER ] ] );
+		wp_set_current_user( 72 );
+		$this->assertSame( 'Vegan', $t->guard_new_term( 'Vegan', 'bfrc_diet' ), 'a Recipe Manager may' );
+		wp_set_current_user( 0 );
+		$this->assertSame( 'Vegan', $t->guard_new_term( 'Vegan', 'bfrc_diet' ), 'no user (activation from WP-CLI seeding the defaults): allowed' );
+	}
+
 	public function test_ensure_default_terms_seeds_only_empty_system_taxonomies_once(): void {
 		$t = $this->taxonomies();
 		$t->register();

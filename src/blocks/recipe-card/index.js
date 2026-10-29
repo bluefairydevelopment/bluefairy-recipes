@@ -9,6 +9,8 @@ import { store as coreStore } from '@wordpress/core-data';
 import { useBlockProps, InspectorControls } from '@wordpress/block-editor';
 import { PanelBody, ComboboxControl } from '@wordpress/components';
 import ServerSideRender from '@wordpress/server-side-render';
+import { decodeEntities } from '@wordpress/html-entities';
+import { recipeLabel } from '../recipe-label';
 import metadata from './block.json';
 import '../editor.css';
 
@@ -18,11 +20,11 @@ function Edit( { attributes, setAttributes } ) {
 	const options = useSelect( ( select ) => {
 		const { getEntityRecords, getEntityRecord } = select( coreStore );
 		const found = getEntityRecords( 'postType', 'bfrc_recipe', { search, per_page: 20, status: 'publish', orderby: 'title', order: 'asc' } ) || [];
-		const list = found.map( ( recipe ) => ( { value: recipe.id, label: recipe.title.rendered || String( recipe.id ) } ) );
+		const list = found.map( ( recipe ) => ( { value: recipe.id, label: recipeLabel( recipe, decodeEntities ) } ) );
 		if ( recipeId && ! list.some( ( option ) => option.value === recipeId ) ) {
 			const current = getEntityRecord( 'postType', 'bfrc_recipe', recipeId );
 			if ( current ) {
-				list.unshift( { value: current.id, label: current.title.rendered || String( current.id ) } );
+				list.unshift( { value: current.id, label: recipeLabel( current, decodeEntities ) } );
 			}
 		}
 		return list;

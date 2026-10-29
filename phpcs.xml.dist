@@ -5,6 +5,7 @@
 	<file>bluefairy-recipes.php</file>
 	<file>uninstall.php</file>
 	<file>includes/</file>
+	<file>templates/</file>
 
 	<exclude-pattern>*/vendor/*</exclude-pattern>
 	<exclude-pattern>*/tests/*</exclude-pattern>

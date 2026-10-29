@@ -104,6 +104,28 @@ final class Taxonomies {
 	 */
 	public function register_hooks(): void {
 		add_action( 'init', [ $this, 'register' ], 5 );
+		add_filter( 'pre_insert_term', [ $this, 'guard_new_term' ], 10, 2 );
+	}
+
+	/**
+	 * `pre_insert_term`: only a user who may edit recipe terms creates one.
+	 * Core lets anyone who may assign terms create a new one by name in a
+	 * non-hierarchical taxonomy (the classic tag box, Quick Edit): a Writer
+	 * would add public filter values. No current user (activation or seeding
+	 * from WP-CLI) is the site's own code and passes.
+	 *
+	 * @param string|\WP_Error $term     The term name (or an earlier refusal).
+	 * @param string           $taxonomy The taxonomy.
+	 * @return string|\WP_Error
+	 */
+	public function guard_new_term( $term, $taxonomy ) {
+		if ( ! is_string( $taxonomy ) || 0 !== strpos( $taxonomy, self::PREFIX ) || $term instanceof \WP_Error || 0 === get_current_user_id() ) {
+			return $term;
+		}
+		if ( current_user_can( self::CAPABILITIES['edit_terms'] ) ) {
+			return $term;
+		}
+		return new \WP_Error( 'bfrc_term_not_allowed', __( 'You can choose an existing filter value, but only someone who manages recipe filters can add a new one.', 'bluefairy-recipes' ) );
 	}
 
 	/**

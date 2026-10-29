@@ -72,6 +72,9 @@ final class ListTableTest extends TestCase {
 		$this->assertStringContainsString( 'Not featured', bfrc_test_render( fn() => $t->column( 'bfrc_featured', 42 ) ), 'screen readers hear the state too' );
 		update_post_meta( 42, Meta::SERVINGS_MIN, 6 );
 		$this->assertSame( '6', bfrc_test_render( fn() => $t->column( 'bfrc_servings', 42 ) ), 'min only: one number' );
+		update_post_meta( 42, Meta::SERVINGS_MIN, 0 );
+		update_post_meta( 42, Meta::SERVINGS_MAX, 4 );
+		$this->assertSame( '4', bfrc_test_render( fn() => $t->column( 'bfrc_servings', 42 ) ), 'max only (min blank): one number, as the front end shows "4 servings", never "0–4"' );
 		$this->assertSame( '', bfrc_test_render( fn() => $t->column( 'title', 41 ) ), 'not ours: silent' );
 	}
 

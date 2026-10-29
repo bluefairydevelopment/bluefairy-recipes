@@ -73,6 +73,19 @@ final class BlocksTest extends TestCase {
 		$GLOBALS['bfrc_test_unique_id'] = 0;
 	}
 
+	public function test_editor_data_tells_the_inspector_which_filter_types_are_enabled(): void {
+		$this->blocks->register_hooks();
+		$this->assertSame( 10, has_action( 'enqueue_block_editor_assets', [ $this->blocks, 'editor_data' ] ) );
+		$GLOBALS['bfrc_test_inline_scripts'] = [];
+		$this->blocks->editor_data();
+		$this->assertCount( 1, $GLOBALS['bfrc_test_inline_scripts'] );
+		[ $handle, $data, $position ] = $GLOBALS['bfrc_test_inline_scripts'][0];
+		$this->assertSame( [ 'wp-blocks', 'before' ], [ $handle, $position ], 'printed before any block script reads it' );
+		$this->assertMatchesRegularExpression( '/^window\.bfrcEnabledFilters = (\[.*\]);$/', $data );
+		preg_match( '/= (\[.*\]);$/', $data, $m );
+		$this->assertSame( array_keys( ( new \BlueFairy\Recipes\Content\Taxonomies( $this->settings ) )->enabled() ), json_decode( $m[1], true ), 'exactly the enabled codes, in order: a disabled type is not offered as a fixed filter' );
+	}
+
 	public function test_register_hooks_registers_four_blocks_from_build_and_three_shortcodes(): void {
 		$b = $this->blocks;
 		$b->register_hooks();
