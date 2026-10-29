@@ -350,7 +350,7 @@ final class Writers {
 	 * published recipes (grouped, with their count), who are listed as
 	 * WriterProfile::is_listed() decides: their first `bfrc_listed` row is
 	 * '1', or it is not '0' and they hold the Writer role on this site (its
-	 * capabilities key, the role set true).
+	 * capabilities key, matched as core's role__in does).
 	 *
 	 * @return array{0: string, 1: list<string>}
 	 */
@@ -363,8 +363,8 @@ final class Writers {
 			. " WHERE ( {$first} = '1'"
 			. " OR ( {$first} <> '0'"
 			. " AND EXISTS ( SELECT 1 FROM {$wpdb->usermeta} c WHERE c.user_id = u.ID AND c.meta_key = %s AND c.meta_value LIKE %s ) ) )";
-		// `"bfrc_writer";b:1;`: the role held (WP_User::$roles keeps only true entries), as core serialises it.
-		return [ $from, [ PostType::NAME, WriterProfile::LISTED, WriterProfile::LISTED, $wpdb->get_blog_prefix() . 'capabilities', '%' . $wpdb->esc_like( '"' . Capabilities::ROLE_WRITER . '";b:1;' ) . '%' ] ];
+		// The role as core's role__in matches it, and as WP_User::$roles lists it (core keeps a role whatever its stored value).
+		return [ $from, [ PostType::NAME, WriterProfile::LISTED, WriterProfile::LISTED, $wpdb->get_blog_prefix() . 'capabilities', '%' . $wpdb->esc_like( '"' . Capabilities::ROLE_WRITER . '"' ) . '%' ] ];
 	}
 
 	/**

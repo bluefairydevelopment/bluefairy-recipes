@@ -169,7 +169,7 @@ class FakeWpdb {
 	 * @return list<object>|null Null when the statement is not the listing.
 	 */
 	private function writers_listing( string $query ): ?array {
-		if ( 1 !== preg_match( "/FROM \\( SELECT post_author AS id, COUNT\\(\\*\\) AS n FROM \\S+posts WHERE post_type = '([^']+)' AND post_status = 'publish' GROUP BY post_author \\) r INNER JOIN \\S+users u ON u\\.ID = r\\.id WHERE .*lm\\.meta_key = '([^']+)' ORDER BY lm\\.umeta_id LIMIT 1.* c\\.meta_value LIKE '%\\\\?\"([a-z\\\\_]+)\\\\?\";b:1;%'/s", $query, $m ) ) {
+		if ( 1 !== preg_match( "/FROM \\( SELECT post_author AS id, COUNT\\(\\*\\) AS n FROM \\S+posts WHERE post_type = '([^']+)' AND post_status = 'publish' GROUP BY post_author \\) r INNER JOIN \\S+users u ON u\\.ID = r\\.id WHERE .*lm\\.meta_key = '([^']+)' ORDER BY lm\\.umeta_id LIMIT 1.* c\\.meta_value LIKE '%\\\\?\"([a-z\\\\_]+)\\\\?\"%'/s", $query, $m ) ) {
 			return null;
 		}
 		$role   = stripslashes( str_replace( '\\_', '_', $m[3] ) );

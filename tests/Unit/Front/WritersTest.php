@@ -135,7 +135,7 @@ final class WritersTest extends TestCase {
 		$this->assertStringEndsWith( 'ORDER BY u.display_name ASC, u.ID ASC LIMIT 24 OFFSET 0', $sql[1], 'the page is cut in SQL, whatever the number of writers' );
 		$this->assertStringContainsString( "c.meta_key = 'bfw_capabilities'", $sql[1], 'the Writer role of THIS site' );
 		$this->assertStringContainsString( "lm.meta_key = 'bfrc_listed' ORDER BY lm.umeta_id LIMIT 1 ), '' ) <> '0'", $sql[1], 'a writer who switched the listing off is left out, by the first row as is_listed() reads it' );
-		$this->assertStringContainsString( '";b:1;%', $sql[1], 'the Writer role held, not a role stored as false' );
+		$this->assertStringContainsString( "c.meta_value LIKE '%\\\"bfrc\\\\_writer\\\"%'", $sql[1], 'the role matched as core\'s role__in does, so the listing agrees with WP_User::$roles' );
 		[ $from, $args ] = Writers::listing_from();
 		$this->assertSame( substr_count( $from, '%s' ), count( $args ), 'one value per placeholder' );
 		$this->assertSame( 5, $page['writers'][0]['user']->ID, 'the string ID core returns for an array fields query is cast' );
