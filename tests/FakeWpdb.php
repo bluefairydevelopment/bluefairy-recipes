@@ -154,6 +154,47 @@ class FakeWpdb {
 		return str_replace( '%%', '%', vsprintf( $query, $escaped ) );
 	}
 
+	/** As core: the prefix of the current site's tables (`{prefix}{id}_` on a sub-site). */
+	public function get_blog_prefix( ?int $blog_id = null ): string {
+		$id = $blog_id ?? get_current_blog_id();
+		return $id > 1 ? $this->prefix . $id . '_' : $this->prefix;
+	}
+
+	/**
+	 * Writers::listing_from()'s two statements, answered from the stubs'
+	 * stores as MySQL would: published recipes grouped by author, joined to
+	 * the users, listed by the switch or by the Writer role (the user's
+	 * roles stand for the capabilities row), display name then id.
+	 *
+	 * @return list<object>|null Null when the statement is not the listing.
+	 */
+	private function writers_listing( string $query ): ?array {
+		if ( 1 !== preg_match( "/FROM \\( SELECT post_author AS id, COUNT\\(\\*\\) AS n FROM \\S+posts WHERE post_type = '([^']+)' AND post_status = 'publish' GROUP BY post_author \\) r INNER JOIN \\S+users u ON u\\.ID = r\\.id WHERE .*meta_key = '([^']+)' AND lm\\.meta_value = '1'.* c\\.meta_value LIKE '%\\\\?\"([a-z\\\\_]+)\\\\?\"%'/s", $query, $m ) ) {
+			return null;
+		}
+		$role   = stripslashes( str_replace( '\\_', '_', $m[3] ) );
+		$counts = [];
+		foreach ( $GLOBALS['bfrc_test_posts'] ?? [] as $post ) {
+			if ( $post->post_type === $m[1] && 'publish' === $post->post_status ) {
+				$counts[ (int) $post->post_author ] = ( $counts[ (int) $post->post_author ] ?? 0 ) + 1;
+			}
+		}
+		$rows = [];
+		foreach ( $counts as $id => $n ) {
+			$user = $GLOBALS['bfrc_test_users'][ $id ] ?? null;
+			if ( ! $user instanceof \WP_User ) {
+				continue;
+			}
+			$switch = (string) ( $GLOBALS['bfrc_test_user_meta'][ $id ][ $m[2] ] ?? '' );
+			if ( '1' !== $switch && ( '0' === $switch || ! in_array( $role, (array) $user->roles, true ) ) ) {
+				continue;
+			}
+			$rows[] = (object) [ 'ID' => (string) $id, 'display_name' => (string) $user->display_name, 'user_nicename' => (string) $user->user_nicename, 'n' => (string) $n ];
+		}
+		usort( $rows, static fn( object $a, object $b ): int => ( strcasecmp( $a->display_name, $b->display_name ) ?: ( (int) $a->ID <=> (int) $b->ID ) ) );
+		return $rows;
+	}
+
 	public function esc_like( string $text ): string {
 		return addcslashes( $text, '_%\\' );
 	}
@@ -167,6 +208,11 @@ class FakeWpdb {
 	}
 
 	public function get_results( string $query, string $output = 'OBJECT' ): mixed {
+		$listing = $this->writers_listing( $query );
+		if ( null !== $listing && 1 === preg_match( '/LIMIT (\\d+) OFFSET (\\d+)$/', $query, $m ) ) {
+			$this->calls[] = [ 'method' => 'get_results', 'sql' => $query ];
+			return array_slice( $listing, (int) $m[2], (int) $m[1] );
+		}
 		return $this->record( 'get_results', $query, [] );
 	}
 
@@ -180,6 +226,13 @@ class FakeWpdb {
 	}
 
 	public function get_var( string $query, int $x = 0, int $y = 0 ): mixed {
+		if ( str_starts_with( $query, 'SELECT COUNT(*) FROM ( SELECT post_author' ) ) {
+			$listing = $this->writers_listing( $query );
+			if ( null !== $listing ) {
+				$this->calls[] = [ 'method' => 'get_var', 'sql' => $query ];
+				return (string) count( $listing );
+			}
+		}
 		if ( 1 === preg_match( "/^SHOW TABLES LIKE '([^']+)'$/", $query, $m ) ) {
 			$this->last_query = $query;
 			$this->calls[]    = [ 'method' => 'get_var', 'sql' => $query ];
