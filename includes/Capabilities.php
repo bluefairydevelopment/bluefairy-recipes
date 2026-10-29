@@ -124,7 +124,7 @@ final class Capabilities {
 	/**
 	 * Create the two roles (or, when they already exist, make sure they hold
 	 * every capability — a role saved by an older version keeps its row) and
-	 * give administrators MANAGE. Removing the roles is uninstall.php's job:
+	 * give administrators every recipe capability. Removing the roles is uninstall.php's job:
 	 * it runs without this class, so the removal lives there and only there.
 	 */
 	public static function add_roles(): void {
@@ -149,9 +149,15 @@ final class Capabilities {
 				}
 			}
 		}
+		// Administrators hold every recipe capability whatever `grant_core_roles` says
+		// (a site provisioned with it off would otherwise leave them only MANAGE).
 		$admin = get_role( 'administrator' );
-		if ( $admin instanceof \WP_Role && ! $admin->has_cap( self::MANAGE ) ) {
-			$admin->add_cap( self::MANAGE );
+		if ( $admin instanceof \WP_Role ) {
+			foreach ( self::core_grants()['administrator'] as $cap ) {
+				if ( ! $admin->has_cap( $cap ) ) {
+					$admin->add_cap( $cap );
+				}
+			}
 		}
 	}
 

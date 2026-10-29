@@ -318,7 +318,7 @@ final class Blocks {
 			[
 				's'        => $this->templates->requested_search(),
 				'filters'  => $fixed + $requested,
-				'page'     => RecipeQuery::requested_page(),
+				'page'     => $args['show_pagination'] ? RecipeQuery::requested_page() : 1, // A list without pagination is always its first page.
 				'per_page' => $args['per_page'],
 			]
 		);

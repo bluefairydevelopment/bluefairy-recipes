@@ -40,6 +40,7 @@ test( 'rowLabel and format substitute literally, including $& in the value', () 
 	assert.equal( rows.rowLabel( undefined, 0 ), '' );
 	assert.equal( rows.format( 'URL "%s" refused', 'x$&y$1' ), 'URL "x$&y$1" refused', 'no replacement-pattern surprises' );
 	assert.equal( rows.format( 'Moved to %d.', 4 ), 'Moved to 4.' );
+	assert.equal( rows.format( 'URL "%1$s" refused', 'x' ), 'URL "x" refused', 'a translator\'s numbered placeholder is filled in too' );
 } );
 
 test( 'tooManyFields warns before PHP would truncate, and never when the ceiling is unknown', () => {

@@ -76,13 +76,13 @@ plugin installs.
 |---|---|---|
 | Enabled | On | Off: recipes, the archive and the filter archives return 404 (previews too; with pretty permalinks), recipes leave search, the sitemap and the public REST API; the admin and the editor keep working |
 | Rich snippets | On | |
-| Archive slug | `recipes` | Changing it flushes rewrite rules on the next page load. Routes WordPress owns (`feed`, `page`, `wp-json`, a year, …) are refused, and so is the address of an existing Page (or of a post, with the `/%postname%/` structure): the old slug is kept and the screen says why. If the current slug clashes (say a Page called Recipes existed before the plugin), a notice on the Plugins screen and on this page says so |
+| Archive slug | `recipes` | Changing it flushes rewrite rules on the next page load. Routes WordPress owns (`feed`, `page`, `wp-json`, a year, …) are refused, and so is the address of an existing Page (or of a post, with the `/%postname%/` or `/%postname%` structure): the old slug is kept and the screen says why. If the current slug clashes (say a Page called Recipes existed before the plugin), a notice on the Plugins screen and on this page says so |
 | Archive title | Recipes | |
 | Recipes per page | 12 | 1–100 |
 | Social share | On | Facebook, X and Pinterest each have their own switch |
 | Writer listing | On | |
-| Grant core roles | On | Authors can write recipes and Editors can manage them; turning it off takes those capabilities back. Administrators can always do everything |
-| Delete all data on uninstall | Off | |
+| Grant core roles | On | Authors can write recipes and Editors can manage them; turning it off takes those capabilities back. Administrators can always do everything. Only an Administrator can change it |
+| Delete all data on uninstall | Off | Only an Administrator can change it |
 | Sample recipes | not installed | The Data tab installs three sample recipes (drafts, with illustrative placeholder images) by a sample writer, and removes them again. Installing creates the writer account, so it needs the right to create users (a leftover sample writer account from an earlier install is reused; an account with that name that is not the plugin's own is refused); removing deletes it (unless you renamed or promoted it), so it needs the right to delete users (on a network, to remove users), and it deletes the sample recipes permanently even if you edited or published them. Deleting all data on uninstall removes the sample images and the account too (unless you renamed or promoted it) |
 
 The settings live at Recipes → Settings in four tabs (General, Listing, Writers, Data). Each
@@ -96,7 +96,7 @@ disappear when the add-on is active.
 | Role | Can |
 |---|---|
 | Recipe Writer (`bfrc_writer`) | create, edit, publish and delete their own recipes; assign terms; upload files |
-| Recipe Manager (`bfrc_recipe_manager`) | everything a writer can, for every recipe; manage the recipe taxonomies; change settings |
+| Recipe Manager (`bfrc_recipe_manager`) | everything a writer can, for every recipe; manage the recipe taxonomies; change settings, except Grant core roles and Delete all data on uninstall, which are an Administrator's |
 
 Administrators can always change settings.
 

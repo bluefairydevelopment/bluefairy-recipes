@@ -30,14 +30,17 @@ if ( ! function_exists( 'remove_role' ) ) {
 
 if ( ! function_exists( 'get_users' ) ) {
 	/**
-	 * Supports the arguments the plugin uses: `role`, `fields => 'ID'`,
-	 * `number`, `paged`, and `search` with `search_columns` as core runs a
+	 * Supports the arguments the plugins use: `role`, `fields => 'ID'`,
+	 * `number`, `paged`, `exclude`, and `search` with `search_columns` as core runs a
 	 * search without a leading or trailing `*`: an exact match on any of
 	 * the columns, case-insensitive as MySQL's default collation compares.
 	 * Reads the user registry.
 	 */
 	function get_users( array $args = [] ): array {
 		$users = array_values( array_filter( $GLOBALS['bfrc_test_users'] ?? [], static fn( WP_User $u ): bool => ! isset( $args['role'] ) || in_array( $args['role'], $u->roles, true ) ) );
+		if ( ! empty( $args['exclude'] ) ) {
+			$users = array_values( array_filter( $users, static fn( WP_User $u ): bool => ! in_array( (int) $u->ID, array_map( 'intval', (array) $args['exclude'] ), true ) ) );
+		}
 		if ( isset( $args['search'] ) ) {
 			$needle = mb_strtolower( (string) $args['search'] );
 			$users  = array_values( array_filter( $users, static fn( WP_User $u ): bool => [] !== array_filter( (array) ( $args['search_columns'] ?? [] ), static fn( string $col ): bool => isset( $u->$col ) && mb_strtolower( (string) $u->$col ) === $needle ) ) );

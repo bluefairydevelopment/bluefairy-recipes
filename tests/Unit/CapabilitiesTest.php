@@ -55,7 +55,9 @@ final class CapabilitiesTest extends TestCase {
 		foreach ( Capabilities::all_caps() as $cap ) {
 			$this->assertTrue( $manager->has_cap( $cap ), "manager: {$cap}" );
 		}
-		$this->assertTrue( get_role( 'administrator' )->has_cap( Capabilities::MANAGE ) );
+		foreach ( Capabilities::core_grants()['administrator'] as $cap ) {
+			$this->assertTrue( get_role( 'administrator' )->has_cap( $cap ), "administrator: {$cap}, even with grant_core_roles off at provisioning" );
+		}
 		$this->assertFalse( get_role( 'editor' )->has_cap( 'edit_bfrc_recipes' ), 'add_roles() alone grants nothing to core roles' );
 	}
 

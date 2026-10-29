@@ -450,7 +450,7 @@ final class Settings {
 		if ( '' === $slug ) {
 			return null;
 		}
-		$types = '/%postname%/' === (string) get_option( 'permalink_structure' ) ? [ 'page', 'post' ] : [ 'page' ];
+		$types = '/%postname%' === rtrim( (string) get_option( 'permalink_structure' ), '/' ) ? [ 'page', 'post' ] : [ 'page' ]; // With or without the trailing slash, a post sits at /{slug}.
 		foreach ( $types as $type ) {
 			$found = get_page_by_path( $slug, OBJECT, $type );
 			if ( $found instanceof \WP_Post && 'trash' !== $found->post_status && 0 === (int) $found->post_parent ) {
