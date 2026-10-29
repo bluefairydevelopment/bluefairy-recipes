@@ -38,6 +38,12 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class Recipes {
 
+	/**
+	 * Most recipes the list pages past: page × per_page past it would make
+	 * MySQL walk every row before the OFFSET (page 1000 of 100 is 99,900).
+	 */
+	public const MAX_OFFSET = 10000;
+
 	public const REST_NAMESPACE = 'bfrc/v1';
 	public const ROUTE          = '/recipes';
 	public const MAX_AGE        = 60;
@@ -198,7 +204,7 @@ final class Recipes {
 	 *
 	 * @param \WP_REST_Request $request The request.
 	 */
-	public function get_items( \WP_REST_Request $request ): \WP_REST_Response {
+	public function get_items( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
 		if ( ! (bool) $this->settings->get( 'enabled' ) ) {
 			return $this->respond( [], 0, 0 );
 		}
@@ -211,6 +217,10 @@ final class Recipes {
 				'per_page' => $request->get_param( 'per_page' ),
 			]
 		);
+		if ( ( $args['page'] - 1 ) * $args['per_page'] >= self::MAX_OFFSET ) {
+			/* translators: %d: the most recipes the list pages through */
+			return self::invalid( 'page', sprintf( __( 'The list pages through the first %d recipes only: ask for a smaller page or fewer per page, or narrow the list with a search or a filter.', 'bluefairy-recipes' ), self::MAX_OFFSET ) );
+		}
 		$query  = $this->query->run( $args, 'rest' );
 		$posts  = array_values( array_filter( is_array( $query->posts ) ? $query->posts : [], static fn( mixed $p ): bool => $p instanceof \WP_Post ) );
 		$this->renderer->prime_thumbnails( $posts ); // As the grid does: one query for every card's photo, not two per card.

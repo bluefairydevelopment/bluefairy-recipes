@@ -193,6 +193,16 @@ final class RendererTest extends TestCase {
 		$this->assertSame( [], $this->renderer->terms_by_taxonomy(), 'an unregistered taxonomy makes get_terms() return WP_Error: no filters, no fatal' );
 	}
 
+	public function test_the_filter_form_reads_at_most_terms_total_limit_terms_however_many_types_are_enabled(): void {
+		$this->assertSame( 1000, Renderer::TERMS_TOTAL_LIMIT );
+		$this->assertLessThanOrEqual( Renderer::TERMS_TOTAL_LIMIT, Renderer::terms_budget( 54 ), 'fifty-four types × 200 would read 10,800 terms for one form (WPMAP-227 L2)' );
+		$this->assertSame( 2 * Renderer::TERMS_LIMIT, Renderer::terms_budget( 2 ), 'a few types: each still up to TERMS_LIMIT' );
+		$GLOBALS['bfrc_test_get_terms_calls'] = [];
+		$this->renderer->terms_by_taxonomy();
+		$this->assertNotSame( [], $GLOBALS['bfrc_test_get_terms_calls'], 'the form read its terms' );
+		$this->assertSame( Renderer::terms_budget( count( $GLOBALS['bfrc_test_get_terms_calls'][0]['taxonomy'] ) ), $GLOBALS['bfrc_test_get_terms_calls'][0]['number'], 'the query is bounded by the budget' );
+	}
+
 	public function test_archive_puts_header_filters_grid_and_pagination_together(): void {
 		$q                = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'paged' => 2 ] );
 		$q->posts         = [ get_post( 41 ) ];

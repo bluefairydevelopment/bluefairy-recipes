@@ -586,6 +586,7 @@ final class TemplatesTest extends TestCase {
 		$this->assertSame( [ 'post_title' ], $q->get( 'search_columns' ), 'title only, like Magento' );
 		$this->assertSame( [ [ 'taxonomy' => 'bfrc_diet', 'field' => 'slug', 'terms' => [ 'vegan-food' ] ] ], $q->get( 'tax_query' ), '0, arrays and unknown codes are no filter; a taxonomy query var outside bfrc_filter[] is core\'s business' );
 		$this->assertSame( 9, $seen, 'the seam fires after shaping' );
+		$this->assertFalse( $q->get( 'update_post_term_cache' ), 'the cards show no terms: no term cache priming for the page (WPMAP-227 L1)' );
 		$_GET = [ 'bfrc_s' => str_repeat( 'a', 150 ) ];
 		$q    = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
 		$this->templates->shape_query( $q );

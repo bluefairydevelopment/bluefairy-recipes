@@ -54,7 +54,8 @@ export function createStore( api ) {
 		state.status = config.loadingText;
 		state.filtered = isFiltered( state.query );
 		try {
-			const url = state.restUrl + ( state.restUrl.indexOf( '?' ) === -1 ? '?' : '&' ) + buildParams( state.query, state.fixed, state.perPage, config.searchMax );
+			// `_fields=html`: the cards are all the store shows, so the structured fields are not sent too.
+			const url = state.restUrl + ( state.restUrl.indexOf( '?' ) === -1 ? '?' : '&' ) + buildParams( state.query, state.fixed, state.perPage, config.searchMax ) + '&_fields=html';
 			const response = await api.fetch( url, { headers: { Accept: 'application/json' }, credentials: 'same-origin', signal: inflight ? inflight.signal : undefined } );
 			if ( ! response.ok ) {
 				throw new Error( 'HTTP ' + response.status );

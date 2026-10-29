@@ -362,6 +362,7 @@ final class Templates {
 			return;
 		}
 		$query->set( 'posts_per_page', $this->per_page() );
+		$query->set( 'update_post_term_cache', false ); // The cards show no terms: no priming query for the page's terms.
 		if ( (bool) $query->get( Writers::QUERY_VAR ) ) {
 			// A writer's page is that writer's recipes, filtered by `author_name`, but it is our
 			// view, not the theme's author archive: with `is_author` set, an SEO plugin's "author

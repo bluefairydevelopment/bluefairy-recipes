@@ -43,6 +43,14 @@ final class Renderer {
 	public const TERMS_LIMIT = 200;
 
 	/**
+	 * Most terms the filter form reads in all, however many filter types are
+	 * enabled (up to four built-in and fifty custom): TERMS_LIMIT each would
+	 * be 10,800 rows for one form. Past it, the form lists the first terms by
+	 * name across the types.
+	 */
+	public const TERMS_TOTAL_LIMIT = 1000;
+
+	/**
 	 * Wire the dependencies.
 	 *
 	 * @param Settings   $settings   The settings service.
@@ -144,6 +152,15 @@ final class Renderer {
 	}
 
 	/**
+	 * How many terms the filter form reads for this many filter types.
+	 *
+	 * @param int $types Enabled filter types.
+	 */
+	public static function terms_budget( int $types ): int {
+		return min( self::TERMS_TOTAL_LIMIT, self::TERMS_LIMIT * max( 0, $types ) );
+	}
+
+	/**
 	 * The terms of every enabled taxonomy, one query, keyed by taxonomy
 	 * name, ≤ TERMS_LIMIT per taxonomy, name order. The query's budget is
 	 * TERMS_LIMIT × taxonomies, ordered by name across all of them, so on a
@@ -164,7 +181,7 @@ final class Renderer {
 				'hide_empty' => true,
 				'orderby'    => 'name',
 				'order'      => 'ASC',
-				'number'     => self::TERMS_LIMIT * count( $names ),
+				'number'     => self::terms_budget( count( $names ) ),
 			]
 		);
 		$out   = [];
