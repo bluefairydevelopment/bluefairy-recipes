@@ -202,6 +202,27 @@ final class Meta {
 	}
 
 	/**
+	 * The newest published featured recipes' ids, at most $limit: what a
+	 * featured list shows, without handing every featured id to post__in.
+	 *
+	 * @param int $limit How many (the list's count).
+	 * @return list<int>
+	 */
+	public static function newest_featured_ids( int $limit ): array {
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- the caller caches the result under the recipe incrementor (RecipeQuery::featured()).
+		$ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT p.ID FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE pm.meta_key = %s AND pm.meta_value = '1' AND p.post_type = %s AND p.post_status = 'publish' ORDER BY p.post_date DESC, p.ID DESC LIMIT %d",
+				self::FEATURED,
+				PostType::NAME,
+				max( 1, $limit )
+			)
+		);
+		return array_values( array_map( 'intval', is_array( $ids ) ? $ids : [] ) );
+	}
+
+	/**
 	 * Ids of every recipe marked featured, any status: one indexed postmeta
 	 * lookup, cached for the request (and in a persistent object cache until
 	 * a featured value changes). The list's featured filter and sort, and the

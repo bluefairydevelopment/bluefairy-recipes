@@ -134,6 +134,14 @@ final class TaxonomiesTest extends TestCase {
 		$this->assertContains( 'wp-admin', Taxonomies::reserved_codes() );
 	}
 
+	public function test_reserved_codes_include_the_archives_own_arguments_and_wordpress_public_query_vars(): void {
+		$reserved = Taxonomies::reserved_codes();
+		foreach ( [ 'per_page', 'paged', 'post_type', 'author_name', 'orderby', 'order', 'search', 'name', 'taxonomy', 'term', 'cpage', 'preview', 'attachment', 'page_id', 'category_name' ] as $code ) {
+			$this->assertContains( $code, $reserved, "{$code}: a WordPress public query var or the list's own argument (plan 4.2)" );
+		}
+		$this->assertSame( Taxonomies::PUBLIC_QUERY_VARS, array_values( array_unique( Taxonomies::PUBLIC_QUERY_VARS ) ), 'no duplicates' );
+	}
+
 	public function test_flush_drops_the_cached_definitions_so_a_later_filter_or_setting_counts(): void {
 		$t = $this->taxonomies();
 		$this->assertCount( 4, $t->definitions() );
@@ -203,6 +211,37 @@ final class TaxonomiesTest extends TestCase {
 		$t = $this->taxonomies();
 		$t->register_hooks();
 		$this->assertSame( 5, has_action( 'init', [ $t, 'register' ] ) );
+	}
+
+	public function test_a_user_who_may_only_assign_terms_cannot_create_one_by_typing_its_name(): void {
+		$t = $this->taxonomies();
+		$t->register_hooks();
+		$this->assertSame( 10, has_filter( 'pre_insert_term', [ $t, 'guard_new_term' ] ) );
+		\BlueFairy\Recipes\Capabilities::add_roles();
+		bfrc_test_add_user( 71, [ 'roles' => [ \BlueFairy\Recipes\Capabilities::ROLE_WRITER ] ] );
+		wp_set_current_user( 71 ); // The classic tag box or Quick Edit passes an unknown name on to wp_insert_term().
+		$refused = $t->guard_new_term( 'Buy cheap pills', 'bfrc_diet' );
+		$this->assertInstanceOf( \WP_Error::class, $refused, 'a Writer holds assign_bfrc_terms only' );
+		$this->assertSame( 'bfrc_term_not_allowed', $refused->get_error_code() );
+		$this->assertSame( 'Anything', $t->guard_new_term( 'Anything', 'category' ), 'not a recipe taxonomy: untouched' );
+		bfrc_test_add_user( 72, [ 'roles' => [ \BlueFairy\Recipes\Capabilities::ROLE_MANAGER ] ] );
+		wp_set_current_user( 72 );
+		$this->assertSame( 'Vegan', $t->guard_new_term( 'Vegan', 'bfrc_diet' ), 'a Recipe Manager may' );
+		wp_set_current_user( 0 );
+		$this->assertSame( 'Vegan', $t->guard_new_term( 'Vegan', 'bfrc_diet' ), 'no user (activation from WP-CLI seeding the defaults): allowed' );
+	}
+
+	public function test_the_starter_terms_are_seeded_even_for_a_user_whose_new_caps_are_not_loaded_yet(): void {
+		$t = $this->taxonomies();
+		$t->register_hooks();
+		do_action( 'init' );
+		bfrc_test_add_user( 71, [ 'roles' => [ 'subscriber' ] ] ); // The activating admin's allcaps predate add_roles() in the same request: core sees no edit_bfrc_terms yet.
+		wp_set_current_user( 71 );
+		$this->assertFalse( current_user_can( Taxonomies::CAPABILITIES['edit_terms'] ), 'precondition: the guard would refuse this user' );
+		$inserted = $t->ensure_default_terms();
+		$this->assertGreaterThan( 0, array_sum( $inserted ), 'the plugin\'s own seeding is not a user creating terms (review R-F-1)' );
+		$this->assertInstanceOf( \WP_Error::class, $t->guard_new_term( 'Spam', 'bfrc_diet' ), 'outside the seeding the guard still refuses' );
+		wp_set_current_user( 0 );
 	}
 
 	public function test_ensure_default_terms_seeds_only_empty_system_taxonomies_once(): void {

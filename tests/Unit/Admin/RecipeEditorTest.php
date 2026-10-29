@@ -33,6 +33,7 @@ final class RecipeEditorTest extends TestCase {
 		$_POST          = [
 			RecipeEditor::NONCE_FIELD => $nonce ? wp_create_nonce( RecipeEditor::NONCE_ACTION ) : 'wrong',
 			RecipeEditor::FIELD       => wp_slash( $fields ), // As core: request data arrives slashed.
+			'post_ID'                 => '41', // The edit form (classic, and the block editor's meta-box form) posts the post being edited.
 		];
 		$GLOBALS['bfrc_test_nonce_valid'] = $nonce;
 	}
@@ -367,6 +368,21 @@ final class RecipeEditorTest extends TestCase {
 		$other = bfrc_test_add_post( [ 'ID' => 42, 'post_type' => 'post' ] );
 		$e->save( 42, $other );
 		$this->assertSame( '', get_post_meta( 42, Meta::PREP_MINUTES, true ), 'another post type: skipped' );
+	}
+
+	public function test_save_writes_the_form_only_to_the_recipe_the_form_is_for(): void {
+		$e = new RecipeEditor();
+		bfrc_test_grant( 'edit_post' );
+		$other = bfrc_test_add_post( [ 'ID' => 43, 'post_type' => 'bfrc_recipe' ] );
+		$this->post_form( [ 'prep_minutes' => '5' ] ); // Editing recipe 41.
+		$e->save( 43, $other ); // A translation or sync plugin saves another recipe in the same request.
+		$this->assertSame( '', get_post_meta( 43, Meta::PREP_MINUTES, true ), 'recipe 43 does not receive 41\'s form' );
+		unset( $_POST['post_ID'] );
+		$e->save( 41, $this->recipe );
+		$this->assertSame( '', get_post_meta( 41, Meta::PREP_MINUTES, true ), 'no post_ID: which recipe the form is for is unknown, nothing written' );
+		$this->post_form( [ 'prep_minutes' => '5' ] );
+		$e->save( 41, $this->recipe );
+		$this->assertSame( 5, (int) get_post_meta( 41, Meta::PREP_MINUTES, true ), 'control: its own recipe is written' );
 	}
 
 	public function test_a_rejected_video_url_is_not_stored_and_the_writer_is_told_once(): void {

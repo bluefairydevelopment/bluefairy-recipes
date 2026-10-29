@@ -72,6 +72,9 @@ final class ListTableTest extends TestCase {
 		$this->assertStringContainsString( 'Not featured', bfrc_test_render( fn() => $t->column( 'bfrc_featured', 42 ) ), 'screen readers hear the state too' );
 		update_post_meta( 42, Meta::SERVINGS_MIN, 6 );
 		$this->assertSame( '6', bfrc_test_render( fn() => $t->column( 'bfrc_servings', 42 ) ), 'min only: one number' );
+		update_post_meta( 42, Meta::SERVINGS_MIN, 0 );
+		update_post_meta( 42, Meta::SERVINGS_MAX, 4 );
+		$this->assertSame( '4', bfrc_test_render( fn() => $t->column( 'bfrc_servings', 42 ) ), 'max only (min blank): one number, as the front end shows "4 servings", never "0–4"' );
 		$this->assertSame( '', bfrc_test_render( fn() => $t->column( 'title', 41 ) ), 'not ours: silent' );
 	}
 
@@ -156,6 +159,29 @@ final class ListTableTest extends TestCase {
 		$q                             = new \WP_Query( [ 'post_type' => 'bfrc_recipe' ] );
 		$t->filter_query( $q );
 		$this->assertSame( '', $q->get( 'post__in' ), 'front end: untouched' );
+	}
+
+	public function test_past_in_max_featured_the_filter_and_sort_use_the_meta_index_not_a_huge_id_list(): void {
+		$t = new ListTable();
+		$GLOBALS['wpdb']->always( 'get_col', array_map( 'strval', range( 1, ListTable::IN_MAX + 1 ) ) );
+		$_GET = [ 'bfrc_featured' => '1' ];
+		$q    = new \WP_Query( [ 'post_type' => 'bfrc_recipe' ] );
+		$t->filter_query( $q );
+		$this->assertSame( '', $q->get( 'post__in' ), 'no IN list of thousands of ids (WPMAP-227 L7)' );
+		$this->assertSame( [ [ 'key' => Meta::FEATURED, 'value' => '1' ] ], $q->get( 'meta_query' ) );
+		$q = new \WP_Query( [ 'post_type' => 'bfrc_recipe', 'meta_query' => [ [ 'key' => 'other', 'value' => 'x' ] ] ] );
+		$t->filter_query( $q );
+		$this->assertSame( [ 'relation' => 'AND', [ [ 'key' => 'other', 'value' => 'x' ] ], [ 'key' => Meta::FEATURED, 'value' => '1' ] ], $q->get( 'meta_query' ), 'beside an existing meta query, not over it' );
+		$_GET = [ 'bfrc_featured' => '0' ];
+		$q    = new \WP_Query( [ 'post_type' => 'bfrc_recipe' ] );
+		$t->filter_query( $q );
+		$this->assertSame( '', $q->get( 'post__not_in' ) );
+		$this->assertSame( [ 'relation' => 'OR', [ 'key' => Meta::FEATURED, 'compare' => 'NOT EXISTS' ], [ 'key' => Meta::FEATURED, 'value' => '1', 'compare' => '!=' ] ], $q->get( 'meta_query' ) );
+		$clauses = [ 'orderby' => 'bfw_posts.post_date DESC', 'where' => '', 'join' => '' ];
+		$out     = $t->order_clauses( $clauses, new \WP_Query( [ ListTable::SORT_FLAG => 'DESC' ] ) );
+		$this->assertSame( '', $out['join'], 'no join: a recipe with two featured meta rows is listed once (review R-F-5)' );
+		$this->assertSame( "(EXISTS ( SELECT 1 FROM bfw_postmeta bfrc_f WHERE bfrc_f.post_id = bfw_posts.ID AND bfrc_f.meta_key = '_bfrc_featured' AND bfrc_f.meta_value = '1' )) DESC, bfw_posts.post_date DESC", $out['orderby'] );
+		$_GET = [];
 	}
 
 	public function test_order_clauses_ranks_by_membership_in_the_featured_set_on_flagged_queries_only(): void {

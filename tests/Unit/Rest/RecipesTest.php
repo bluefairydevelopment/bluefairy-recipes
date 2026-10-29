@@ -153,6 +153,21 @@ final class RecipesTest extends TestCase {
 		$this->assertArrayNotHasKey( 's', $vars );
 	}
 
+	public function test_get_items_refuses_a_page_that_reaches_past_max_offset(): void {
+		bfrc_test_query_resolver( static fn( array $vars ): array => [ [], 0, 0 ] );
+		$request = $this->request( 'GET', '/bfrc/v1/recipes' );
+		$request->set_param( 'page', 1000 );
+		$request->set_param( 'per_page', 100 ); // OFFSET 99,900: MySQL walks every row before it (WPMAP-227 L3).
+		$result = $this->rest->get_items( $request );
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'rest_invalid_param', $result->get_error_code() );
+		$this->assertSame( 400, $result->get_error_data()['status'] );
+		$this->assertSame( [], $GLOBALS['bfrc_test_queries'], 'refused before any query' );
+		$request->set_param( 'page', intdiv( Recipes::MAX_OFFSET, 100 ) ); // The last page whose offset is below the cap.
+		$this->assertInstanceOf( \WP_REST_Response::class, $this->rest->get_items( $request ) );
+		$this->assertSame( 10000, Recipes::MAX_OFFSET );
+	}
+
 	public function test_item_handles_a_deleted_author_and_no_writer_page(): void {
 		$GLOBALS['bfrc_test_posts'][41]->post_author = 999;
 		$item                                        = $this->rest->item( get_post( 41 ), null );

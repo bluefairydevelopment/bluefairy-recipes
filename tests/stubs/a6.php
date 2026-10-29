@@ -234,3 +234,11 @@ if ( ! function_exists( 'get_term_by' ) ) {
 		return false;
 	}
 }
+if ( ! function_exists( 'wp_delete_term' ) ) {
+	/** Records the deletion ($GLOBALS['bfrc_test_deleted_terms'][] = [ id, taxonomy ]) and drops the term. */
+	function wp_delete_term( int $term, string $taxonomy, array|string $args = [] ): bool {
+		$GLOBALS['bfrc_test_deleted_terms'][] = [ $term, $taxonomy ];
+		unset( $GLOBALS['bfrc_test_terms'][ $taxonomy ][ $term ] );
+		return true;
+	}
+}

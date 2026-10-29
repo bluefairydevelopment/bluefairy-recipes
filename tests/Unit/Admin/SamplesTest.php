@@ -92,6 +92,32 @@ final class SamplesTest extends TestCase {
 		$this->assertSame( 7, $GLOBALS['bfrc_test_inserted_posts'][ $record['recipes'][0] ]['post_author'] );
 	}
 
+	public function test_on_multisite_the_sample_writer_another_site_still_uses_is_shared_not_reset(): void {
+		$GLOBALS['bfrc_test_multisite'] = true;
+		$GLOBALS['bfrc_test_sites']     = [ 1, 2 ];
+		bfrc_test_add_user( 7, [ 'roles' => [], 'user_login' => 'bfrc_sample_writer', 'user_email' => 'bfrc_sample_writer@example.invalid' ] ); // Site 1's sample writer: no role on site 2.
+		update_user_meta( 7, 'bfrc_about', 'Site one profile' );
+		$GLOBALS['bfrc_test_user_blogs'][7] = [ 1 => 'site one' ];
+		switch_to_blog( 1 );
+		update_option( Samples::OPTION, [ 'writer' => 7, 'writer_login' => 'bfrc_sample_writer', 'recipes' => [ 41 ], 'attachments' => [] ] );
+		restore_current_blog();
+		switch_to_blog( 2 );
+		$this->assertTrue( Samples::in_use_elsewhere( 7 ) );
+		$record = $this->samples->install();
+		$this->assertIsArray( $record );
+		$this->assertSame( 7, $record['writer'], 'the one network account serves both sites' );
+		$this->assertSame( [], $GLOBALS['bfrc_test_passwords_set'], 'site 1 still uses it: no password reset' );
+		$this->assertSame( [], $GLOBALS['bfrc_test_sessions_destroyed'] );
+		$this->assertSame( [], $GLOBALS['bfrc_test_app_passwords_deleted'] );
+		$this->assertSame( [], $GLOBALS['bfrc_test_updated_users'], 'nor its profile rewritten' );
+		$this->assertSame( 'Site one profile', (string) get_user_meta( 7, 'bfrc_about', true ), 'its network-wide meta is kept' );
+		$this->assertContains( 'bfrc_writer', get_userdata( 7 )->roles, 'given the Writer role on this site' );
+		restore_current_blog();
+		$this->assertFalse( Samples::in_use_elsewhere( 7 ), 'from site 1 itself: no other site uses it' );
+		$GLOBALS['bfrc_test_multisite'] = false;
+		$this->assertFalse( Samples::in_use_elsewhere( 7 ), 'single site: never' );
+	}
+
 	public function test_install_never_adopts_an_account_that_is_not_the_plugins_own(): void {
 		foreach ( [
 			[ [ 'administrator', 'editor' ], 'bfrc_sample_writer@example.invalid', 'a promoted account would be demoted' ],
@@ -189,6 +215,28 @@ final class SamplesTest extends TestCase {
 		$this->assertNull( get_option( Samples::OPTION, null ) );
 		$this->samples->remove();
 		$this->assertSame( [ 900 ], $GLOBALS['bfrc_test_deleted_users'], 'a second remove is a no-op' );
+	}
+
+	public function test_remove_keeps_a_sample_image_the_site_reused_elsewhere(): void {
+		$record = $this->samples->install();
+		wp_set_current_user( 5 );
+		[ $reused, $other ] = [ $record['attachments'][0], $record['attachments'][1] ];
+		$GLOBALS['wpdb']->queue( 'get_var', '77' ); // The first image is a page's featured image (or in its content).
+		$GLOBALS['wpdb']->queue( 'get_var', null );
+		$this->samples->remove();
+		$this->assertNotContains( $reused, $GLOBALS['bfrc_test_deleted_attachments'], 'an image the site now uses is no longer only the samples\' own' );
+		$this->assertContains( $other, $GLOBALS['bfrc_test_deleted_attachments'], 'an unused one still goes' );
+		$sql = implode( "\n", array_column( $GLOBALS['wpdb']->calls, 'sql' ) );
+		$this->assertStringContainsString( "_thumbnail_id", $sql );
+		$this->assertStringContainsString( "LIKE '%wp-image-" . $reused . "\\\"%'", $sql, 'the content check looks for the whole class name: wp-image-12 is not wp-image-123 (review R-F-6)' );
+		$sam = (string) file_get_contents( BFRC_DIR . 'includes/Admin/Samples.php' );
+		$uni = (string) file_get_contents( BFRC_DIR . 'uninstall.php' );
+		$pick = static fn( string $src ): string => (string) preg_replace( '/\\{\\$[a-z_]+\\}|\\s+/', '', (string) ( preg_match( '/"SELECT post_id FROM .*?LIMIT 1"/s', $src, $m ) ? $m[0] : '' ) );
+		$this->assertNotSame( '', $pick( $sam ) );
+		$this->assertSame( $pick( $sam ), $pick( $uni ), 'uninstall.php runs the same query as attachment_in_use_elsewhere() (it cannot load the class)' );
+		$GLOBALS['wpdb']->queue( 'get_var', '1' );
+		$this->assertTrue( Samples::attachment_in_use_elsewhere( 5, [ 1, 2 ] ) );
+		$this->assertFalse( Samples::attachment_in_use_elsewhere( 5, [ 1, 2 ] ), 'nothing found: only the samples use it' );
 	}
 
 	public function test_a_failure_part_way_removes_what_was_created_and_reports_it(): void {

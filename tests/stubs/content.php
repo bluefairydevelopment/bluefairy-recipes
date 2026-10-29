@@ -96,7 +96,11 @@ if ( ! function_exists( 'wp_insert_term' ) ) {
 		if ( ! taxonomy_exists( $taxonomy ) ) {
 			return new WP_Error( 'invalid_taxonomy', 'Invalid taxonomy.' );
 		}
-		$name = trim( $term );
+		$term = apply_filters( 'pre_insert_term', $term, $taxonomy, $args ); // As core: a WP_Error here refuses the term.
+		if ( $term instanceof WP_Error ) {
+			return $term;
+		}
+		$name = trim( (string) $term );
 		if ( '' === $name ) {
 			return new WP_Error( 'empty_term_name', 'A name is required for this term.' );
 		}

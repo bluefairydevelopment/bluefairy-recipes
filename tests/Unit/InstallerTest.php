@@ -184,6 +184,17 @@ final class InstallerTest extends TestCase {
 		}
 	}
 
+	public function test_network_activation_on_a_multi_network_install_provisions_only_this_networks_sites(): void {
+		$GLOBALS['bfrc_test_multisite']     = true;
+		$GLOBALS['bfrc_test_sites']         = [ 1, 2, 3, 4 ];
+		$GLOBALS['bfrc_test_site_network']  = [ 3 => 2, 4 => 2 ]; // Sites 3 and 4 belong to a second network.
+		Installer::activate( true );
+		$this->assertSame( [ 1, 2 ], $GLOBALS['bfrc_test_switched'], 'network activation is per network: the other network decides for itself' );
+		$GLOBALS['bfrc_test_switched'] = [];
+		Installer::deactivate( true );
+		$this->assertSame( [ 1, 2 ], $GLOBALS['bfrc_test_switched'], 'and so is network deactivation' );
+	}
+
 	public function test_a_site_created_after_network_activation_is_provisioned_on_wp_initialize_site(): void {
 		$GLOBALS['bfrc_test_multisite']      = true;
 		$GLOBALS['bfrc_test_sites']          = [ 1, 3 ];

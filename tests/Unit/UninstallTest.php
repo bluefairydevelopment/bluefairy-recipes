@@ -64,10 +64,36 @@ final class UninstallTest extends TestCase {
 		$this->assertSame( [ 43, 44, 43, 44 ], $GLOBALS['bfrc_test_deleted_attachments'], 'its photos still go' );
 	}
 
+	public function test_opt_in_keeps_a_sample_image_the_site_reused_elsewhere(): void {
+		$this->seed( true );
+		wp_set_current_user( 1 );
+		$this->wpdb->queue( 'get_var', '77' ); // Attachment 43 is now another post's featured image.
+		$this->wpdb->queue( 'get_var', null );
+		$this->wpdb->queue( 'get_col', [ '41' ] );
+		$this->wpdb->queue( 'get_col', [] );
+		$this->run_uninstall();
+		$this->assertSame( [ 44 ], $GLOBALS['bfrc_test_deleted_attachments'], '43 is the site\'s now and stays; 44 goes' );
+		$sql = implode( "\n", array_column( $this->wpdb->calls, 'sql' ) );
+		$this->assertStringContainsString( 'wp-image-43', $sql );
+		$this->assertMatchesRegularExpression( '/NOT IN \(0,41\)/', $sql, 'the sample recipes\' own use does not count' );
+	}
+
+	public function test_opt_in_from_wp_cli_keeps_the_sample_writer_because_nobody_could_inherit_its_other_posts(): void {
+		$this->seed( true );
+		wp_set_current_user( 0 ); // `wp plugin uninstall`: no current user, so core would delete every other post of the account with it.
+		$this->wpdb->queue( 'get_col', [ '41' ] );
+		$this->wpdb->queue( 'get_col', [] );
+		$this->run_uninstall();
+		$this->assertSame( [], $GLOBALS['bfrc_test_deleted_users'], 'the account stays, as Samples::delete_record() keeps it without an inheritor' );
+		$this->assertSame( [ 43, 44 ], $GLOBALS['bfrc_test_deleted_attachments'], 'the sample photos still go' );
+		$this->assertFalse( get_option( 'bfrc_samples' ) );
+	}
+
 	public function test_opt_in_on_multisite_drops_the_sample_writers_network_row_only_when_no_other_site_has_it(): void {
 		$GLOBALS['bfrc_test_multisite'] = true;
 		$GLOBALS['bfrc_test_sites']     = [ 1 ];
 		$this->seed( true );
+		wp_set_current_user( 1 ); // A network admin uninstalling from the Plugins screen (from WP-CLI the account stays).
 		$GLOBALS['bfrc_test_user_blogs'][6] = [ 1 => 'this site', 2 => 'another site' ];
 		$this->wpdb->queue( 'get_col', [] );
 		$this->run_uninstall();
@@ -372,6 +398,21 @@ final class UninstallTest extends TestCase {
 			$this->assertFalse( get_role( 'editor' )->has_cap( 'edit_others_bfrc_recipes' ), "site {$id}: editor caps revoked" );
 			restore_current_blog();
 		}
+	}
+
+	public function test_on_multisite_the_prefix_sweep_skips_a_site_that_never_ran_the_plugin(): void {
+		$GLOBALS['bfrc_test_multisite'] = true;
+		$GLOBALS['bfrc_test_sites']     = [ 1, 2 ];
+		switch_to_blog( 1 );
+		Installer::activate();
+		restore_current_blog();
+		switch_to_blog( 2 );
+		update_option( 'bfrc_other_plugin_setting', 'not ours' ); // Site 2 never had the plugin; another plugin shares the prefix.
+		restore_current_blog();
+		$this->wpdb->queue( 'get_col', [] );
+		$this->run_uninstall();
+		$sweeps = array_filter( $this->wpdb->queries_matching( 'option_name LIKE' ), static fn( string $q ): bool => str_starts_with( $q, 'DELETE' ) );
+		$this->assertCount( 1, $sweeps, 'only site 1, which ran the plugin, is swept' );
 	}
 
 	public function test_on_multisite_profiles_go_when_every_site_opted_in(): void {

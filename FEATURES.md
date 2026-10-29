@@ -77,7 +77,7 @@ plugin installs.
 | Enabled | On | Off: recipes, the archive and the filter archives return 404 (previews too; with pretty permalinks), recipes leave search, the sitemap and the public REST API; the admin and the editor keep working |
 | Rich snippets | On | |
 | Archive slug | `recipes` | Changing it flushes rewrite rules on the next page load. Routes WordPress owns (`feed`, `page`, `wp-json`, a year, …) are refused, and so is the address of an existing Page (or of a post, with the `/%postname%/` or `/%postname%` structure): the old slug is kept and the screen says why. If the current slug clashes (say a Page called Recipes existed before the plugin), a notice on the Plugins screen and on this page says so |
-| Archive title | Recipes | |
+| Archive title | Recipes | Left at the default, it is shown in the site's language. |
 | Recipes per page | 12 | 1–100 |
 | Social share | On | Facebook, X and Pinterest each have their own switch |
 | Writer listing | On | |
@@ -126,8 +126,10 @@ list.
 `GET /wp-json/bfrc/v1/recipes` is public and read-only. Arguments: `s` (title keyword, up to
 100 characters), `page` (1–1000), `per_page` (1–100; 101 is refused), `filter[diet]=vegan`
 (one term slug per filter type; any other key under `filter`, such as `filter[page]`, is
-refused). Each item carries `id`, `title`, `url`, `thumb`, `writer`, `times`, `excerpt` and
-`html` (the card). Totals are in the `X-WP-Total` and `X-WP-TotalPages` headers. Anonymous
+refused). A page that starts past the first 10,000 recipes (`page` × `per_page`) is refused
+with a 400: narrow the list with a search or a filter instead. Each item carries `id`, `title`,
+`url`, `thumb`, `writer`, `times`, `excerpt` and `html` (the card); WordPress's `_fields`
+argument returns only the fields named (the archive's own script asks for `_fields=html`). Totals are in the `X-WP-Total` and `X-WP-TotalPages` headers. Anonymous
 responses may be cached for 60 seconds. While the plugin is disabled the list is empty.
 
 ## Extending

@@ -27,6 +27,13 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class ListTable {
 
+	/**
+	 * Most featured ids handed to SQL as a list (`post__in`, `post__not_in`,
+	 * `ID IN (…)`); past it the filter and the sort use the featured meta
+	 * key's index instead, so a site featuring thousands sends no huge list.
+	 */
+	public const IN_MAX = 1000;
+
 	public const ACTION_FEATURE   = 'bfrc_feature';
 	public const ACTION_UNFEATURE = 'bfrc_unfeature';
 	public const FILTER_FEATURED  = 'bfrc_featured';
@@ -107,7 +114,7 @@ final class ListTable {
 				$max = Meta::sanitize_servings( get_post_meta( $post_id, Meta::SERVINGS_MAX, true ) );
 				if ( 0 === $min && 0 === $max ) {
 					echo '<span aria-hidden="true">&mdash;</span>';
-				} elseif ( $max > $min ) {
+				} elseif ( $min > 0 && $max > $min ) { // A blank minimum is unset, not zero: the front end shows one number then.
 					echo esc_html( $min . '–' . $max );
 				} else {
 					echo esc_html( (string) max( $min, $max ) );
@@ -204,6 +211,24 @@ final class ListTable {
 	}
 
 	/**
+	 * Add a featured clause to the list's meta query, beside any it has.
+	 *
+	 * @param \WP_Query                $query  The list query.
+	 * @param array<int|string, mixed> $clause The clause.
+	 */
+	private static function add_meta_clause( \WP_Query $query, array $clause ): void {
+		$current = $query->get( 'meta_query' );
+		$query->set(
+			'meta_query',
+			is_array( $current ) && [] !== $current ? [
+				'relation' => 'AND',
+				$current,
+				$clause,
+			] : ( isset( $clause['relation'] ) ? $clause : [ $clause ] )
+		);
+	}
+
+	/**
 	 * Apply the featured filter, the featured sort and (while the plugin is
 	 * disabled and the taxonomies have no query var) the taxonomy filters to
 	 * the list query only.
@@ -215,7 +240,32 @@ final class ListTable {
 			return;
 		}
 		$featured = $this->featured_filter_value();
-		if ( '1' === $featured ) {
+		$many     = count( Meta::featured_ids() ) > self::IN_MAX;
+		if ( $many && '1' === $featured ) {
+			self::add_meta_clause(
+				$query,
+				[
+					'key'   => Meta::FEATURED,
+					'value' => '1',
+				]
+			);
+		} elseif ( $many && '0' === $featured ) {
+			self::add_meta_clause(
+				$query,
+				[
+					'relation' => 'OR',
+					[
+						'key'     => Meta::FEATURED,
+						'compare' => 'NOT EXISTS',
+					],
+					[
+						'key'     => Meta::FEATURED,
+						'value'   => '1',
+						'compare' => '!=',
+					],
+				]
+			);
+		} elseif ( '1' === $featured ) {
 			// Featured only: the curated set, never a postmeta join. An empty set must match nothing.
 			$ids     = Meta::featured_ids();
 			$current = $query->get( 'post__in' );
@@ -274,6 +324,12 @@ final class ListTable {
 			return $clauses; // Nothing featured: every recipe ranks alike; the date order stands.
 		}
 		global $wpdb;
+		if ( count( $ids ) > self::IN_MAX ) {
+			// Thousands featured: rank by the meta key's index instead of an id list.
+			// A correlated EXISTS, not a join: a recipe with two featured meta rows must not be listed twice.
+			$clauses['orderby'] = $wpdb->prepare( "(EXISTS ( SELECT 1 FROM {$wpdb->postmeta} bfrc_f WHERE bfrc_f.post_id = {$wpdb->posts}.ID AND bfrc_f.meta_key = %s AND bfrc_f.meta_value = '1' )) ", Meta::FEATURED ) . "{$dir}, {$wpdb->posts}.post_date DESC";
+			return $clauses;
+		}
 		$in                 = implode( ',', array_map( 'intval', $ids ) );
 		$clauses['orderby'] = "({$wpdb->posts}.ID IN ({$in})) {$dir}, {$wpdb->posts}.post_date DESC";
 		return $clauses;

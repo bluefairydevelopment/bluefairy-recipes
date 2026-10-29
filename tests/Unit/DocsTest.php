@@ -224,6 +224,7 @@ final class DocsTest extends TestCase {
 		$this->assertStringContainsString( 'recipe of ' . Meta::MAX_ROWS . ' ingredients and ' . Meta::MAX_ROWS . ' steps', self::folded( $this->readme ) );
 		$this->assertStringContainsString( 'numbers up to ' . number_format( Meta::MAX_NUTRITION ) . ' with two decimals', $folded, 'the nutrition bound' );
 		$this->assertStringContainsString( 'may be cached for ' . \BlueFairy\Recipes\Rest\Recipes::MAX_AGE . ' seconds', $folded, 'the REST cache age' );
+		$this->assertStringContainsString( 'past the first ' . number_format( \BlueFairy\Recipes\Rest\Recipes::MAX_OFFSET ) . ' recipes (`page` × `per_page`) is refused', $folded, 'the REST offset cap' );
 		$this->assertStringContainsString( 'Stored in one option, `' . Settings::OPTION . '`', $folded, 'the option name' );
 		$featured = json_decode( (string) file_get_contents( BFRC_DIR . 'build/blocks/featured-recipes/block.json' ), true );
 		$this->assertStringContainsString( 'the newest ones, ' . $featured['attributes']['count']['minimum'] . ' to ' . $featured['attributes']['count']['maximum'] . ' cards', $folded, 'the Featured block\'s range' );

@@ -11,10 +11,11 @@
 # Exit status: 1 when any check fails, else 0.
 set -u
 SRC=${SRC:-~/g232/bluefairy-recipes}; ZIPS=${ZIPS:-~/g234/zips}
-W=~/g236wp; PORT=8099; U="http://127.0.0.1:$PORT"
+W=~/g236wp; PORT=${PORT:-8099}; U="http://127.0.0.1:$PORT"
 pw=$(grep DB_PASSWORD ~/Sites/wp-testing/wp-config.php | sed -E "s/.*'DB_PASSWORD', '([^']*)'.*/\1/")
 mysql -u wptest -p"$pw" -h 127.0.0.1 -e "DROP DATABASE IF EXISTS g236smoke; CREATE DATABASE g236smoke" </dev/null 2>/dev/null || { echo "DB CREATE FAILED"; exit 1; }
 pkill -f "php -S 127.0.0.1:$PORT" 2>/dev/null; rm -rf "$W"; mkdir -p "$W"; cd "$W" || exit 2
+sleep 1; if ss -ltn 2>/dev/null | grep -qE "127\.0\.0\.1:$PORT\b"; then echo "PORT $PORT IN USE by another process (another session's server?): set PORT=<free port>"; exit 2; fi # A request would reach that server, not ours.
 wp core download --version=7.1 --quiet </dev/null || exit 2
 printf "define( 'WP_DEBUG', true ); define( 'WP_DEBUG_LOG', true ); define( 'WP_DEBUG_DISPLAY', false );\n" > /tmp/g236-extra.php
 wp config create --dbname=g236smoke --dbuser=wptest --dbpass="$pw" --dbhost=127.0.0.1 --quiet --extra-php < /tmp/g236-extra.php

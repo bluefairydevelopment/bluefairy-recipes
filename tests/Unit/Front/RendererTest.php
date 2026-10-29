@@ -193,6 +193,16 @@ final class RendererTest extends TestCase {
 		$this->assertSame( [], $this->renderer->terms_by_taxonomy(), 'an unregistered taxonomy makes get_terms() return WP_Error: no filters, no fatal' );
 	}
 
+	public function test_the_filter_form_reads_at_most_terms_total_limit_terms_however_many_types_are_enabled(): void {
+		$this->assertSame( 1000, Renderer::TERMS_TOTAL_LIMIT );
+		$this->assertLessThanOrEqual( Renderer::TERMS_TOTAL_LIMIT, Renderer::terms_budget( 54 ), 'fifty-four types × 200 would read 10,800 terms for one form (WPMAP-227 L2)' );
+		$this->assertSame( 2 * Renderer::TERMS_LIMIT, Renderer::terms_budget( 2 ), 'a few types: each still up to TERMS_LIMIT' );
+		$GLOBALS['bfrc_test_get_terms_calls'] = [];
+		$this->renderer->terms_by_taxonomy();
+		$this->assertNotSame( [], $GLOBALS['bfrc_test_get_terms_calls'], 'the form read its terms' );
+		$this->assertSame( Renderer::terms_budget( count( $GLOBALS['bfrc_test_get_terms_calls'][0]['taxonomy'] ) ), $GLOBALS['bfrc_test_get_terms_calls'][0]['number'], 'the query is bounded by the budget' );
+	}
+
 	public function test_archive_puts_header_filters_grid_and_pagination_together(): void {
 		$q                = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'paged' => 2 ] );
 		$q->posts         = [ get_post( 41 ) ];
@@ -221,6 +231,22 @@ final class RendererTest extends TestCase {
 		$GLOBALS['bfrc_test_terms']['bfrc_diet'][4] = $bare->queried_object;
 		$this->assertStringNotContainsString( 'bfrc-archive__description', $this->renderer->archive( $bare ), 'no description, no empty box' );
 		$this->assertSame( '', $this->renderer->pagination( bfrc_test_front_query( [] ) ), 'one page: no pagination' );
+	}
+
+	public function test_archive_translates_the_untouched_default_title_and_keeps_a_custom_one_as_typed(): void {
+		add_filter(
+			'gettext',
+			static function ( string $translation, string $text, string $domain ): string {
+				return 'bluefairy-recipes' === $domain && 'Recipes' === $text ? 'Rezepte' : $translation;
+			},
+			10,
+			3
+		);
+		$q        = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
+		$q->posts = [];
+		$this->assertStringContainsString( '<h1 class="bfrc-archive__title">Rezepte</h1>', $this->renderer->archive( $q ), 'the stored default is shown in the site language' );
+		$this->settings->update( [ 'archive_title' => 'Our Kitchen' ] + $this->settings->all() );
+		$this->assertStringContainsString( '<h1 class="bfrc-archive__title">Our Kitchen</h1>', $this->renderer->archive( $q ), 'a title the admin typed is shown as typed' );
 	}
 
 	public function test_archive_renders_the_writers_listing_and_a_writer_page_from_the_query_vars(): void {

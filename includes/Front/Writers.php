@@ -25,9 +25,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  * (`WriterProfile::is_listed()`: the Writer role by default, anyone else by
  * their own switch) AND has at least one published recipe. Everyone else's
  * URL is a 404. The listing at `{archive}/chef/` is paginated at 24, name
- * order, and bounded: at most LIMIT writers are ever considered. Results
- * are memoised for the request, so the guard, the title and the view ask
- * once, and cached across requests (see all_listed()).
+ * order, one page per query (LIMIT/OFFSET in SQL, whatever the number of
+ * writers). Results are memoised for the request, so the guard, the title
+ * and the view ask once, and cached across requests (see listed()).
  *
  * The opt-out hides a writer from the plugin's own pages and from core's
  * users sitemap; core's author archive and REST users list are core's, and
@@ -36,7 +36,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Writers {
 
 	public const PER_PAGE  = 24;
-	public const LIMIT     = 500;
 	public const QUERY_VAR = 'bfrc_writer';
 	public const LIST_VAR  = 'bfrc_writers';
 	public const SEGMENT   = 'chef';
@@ -54,11 +53,11 @@ final class Writers {
 	 */
 	private array $by_nicename = [];
 	/**
-	 * Every public writer, name order, once per request.
+	 * Pages of listed() already built this request, by page.
 	 *
-	 * @var array<int, array{user: \WP_User, count: int}>|null
+	 * @var array<int, array{writers: array<int, array{user: \WP_User, count: int}>, total: int, pages: int}>
 	 */
-	private ?array $all_listed = null;
+	private array $pages = [];
 
 	/**
 	 * Wire the dependencies.
@@ -76,7 +75,8 @@ final class Writers {
 	public function register_hooks(): void {
 		add_filter( 'wp_sitemaps_users_query_args', [ $this, 'sitemap_users_query' ] );
 		add_action( 'pre_user_query', [ $this, 'exclude_opted_out' ] );
-		foreach ( [ 'set_user_role', 'add_user_role', 'remove_user_role', 'profile_update', 'user_register', 'deleted_user' ] as $hook ) {
+		// remove_user_from_blog: multisite Users > Remove deletes the capabilities meta directly, so no role hook fires.
+		foreach ( [ 'set_user_role', 'add_user_role', 'remove_user_role', 'profile_update', 'user_register', 'deleted_user', 'remove_user_from_blog' ] as $hook ) {
 			add_action( $hook, [ self::class, 'bump' ] );
 		}
 		foreach ( [ 'added_user_meta', 'updated_user_meta', 'deleted_user_meta' ] as $hook ) {
@@ -268,134 +268,109 @@ final class Writers {
 
 	/**
 	 * The public writers: listed, with at least one published recipe, in
-	 * display-name order, one page of PER_PAGE. Two bounded id-only user
-	 * queries (the Writer role, and anyone who switched the listing on),
-	 * one `count_many_users_posts()`, then only the page's writers are
-	 * loaded as full `WP_User` objects (one `cache_users()`, then
-	 * `get_userdata()` from the cache). Computed once per request.
+	 * display-name order (case-insensitive, then id), one page of PER_PAGE.
+	 * One query for the page (LIMIT/OFFSET in SQL, so a site with any number
+	 * of writers lists them all) and one COUNT, both starting from the
+	 * published recipes grouped by author; then only the page's writers are
+	 * loaded as full `WP_User` objects (one `cache_users()`). The page is
+	 * memoised for the request and cached across requests under both
+	 * incrementors: a recipe published or unpublished changes the counts, a
+	 * role or switch changes who is in.
 	 *
 	 * @param int $page 1-based page.
 	 * @return array{writers: array<int, array{user: \WP_User, count: int}>, total: int, pages: int}
 	 */
 	public function listed( int $page = 1 ): array {
-		$page  = max( 1, $page );
-		$all   = $this->all_listed();
-		$total = count( $all );
-		$pages = (int) ceil( $total / self::PER_PAGE );
-		$slice = array_slice( $all, ( $page - 1 ) * self::PER_PAGE, self::PER_PAGE );
-		if ( [] !== $slice ) {
-			cache_users( array_map( static fn( array $w ): int => $w['user']->ID, $slice ) );
-			foreach ( $slice as $i => $w ) {
-				$user = get_userdata( $w['user']->ID );
-				if ( $user instanceof \WP_User ) {
-					$slice[ $i ]['user'] = $user; // The id-only row becomes the real user: email, login, caps, every field a template may ask for.
-				}
+		$page = max( 1, $page );
+		if ( isset( $this->pages[ $page ] ) ) {
+			return $this->pages[ $page ];
+		}
+		$key  = 'writers:' . $page . ':' . wp_cache_get_last_changed( self::LAST_CHANGED_GROUP ) . ':' . Cache::last_changed();
+		$rows = wp_cache_get( $key, Cache::GROUP );
+		if ( ! is_array( $rows ) || ! isset( $rows['total'], $rows['rows'] ) ) {
+			$rows = $this->query_page( $page );
+			if ( 1 === $page || [] !== $rows['rows'] ) { // A page past the last writer is not kept: any number a visitor types would be.
+				wp_cache_set( $key, $rows, Cache::GROUP, self::CACHE_TTL );
+			}
+		}
+		$total   = (int) $rows['total'];
+		$writers = [];
+		$ids     = array_map( static fn( array $r ): int => (int) $r[0], (array) $rows['rows'] );
+		if ( [] !== $ids ) {
+			cache_users( $ids );
+		}
+		foreach ( (array) $rows['rows'] as $r ) {
+			$user = get_userdata( (int) $r[0] );
+			if ( ! $user instanceof \WP_User ) { // Deleted since the page was cached: an id-only row keeps the page's shape.
+				$user                = new \WP_User();
+				$user->ID            = (int) $r[0];
+				$user->display_name  = (string) $r[1];
+				$user->user_nicename = (string) $r[2];
+			}
+			$writers[] = [
+				'user'  => $user,
+				'count' => (int) $r[3],
+			];
+		}
+		$this->pages[ $page ] = [
+			'writers' => $writers,
+			'total'   => $total,
+			'pages'   => (int) ceil( $total / self::PER_PAGE ),
+		];
+		return $this->pages[ $page ];
+	}
+
+	/**
+	 * One page of public writers from the database, and how many there are.
+	 *
+	 * @param int $page 1-based page.
+	 * @return array{total: int, rows: list<array{0: int, 1: string, 2: string, 3: int}>}
+	 */
+	private function query_page( int $page ): array {
+		global $wpdb;
+		$role = '%' . $wpdb->esc_like( '"' . Capabilities::ROLE_WRITER . '"' ) . '%'; // As core's role__in matches it (WP_User::$roles keeps a role whatever its stored value).
+		$caps = $wpdb->get_blog_prefix() . 'capabilities';
+		$key  = WriterProfile::LISTED;
+		$type = PostType::NAME;
+		// The same FROM/WHERE twice, written out so every value is a placeholder: published recipes by
+		// author, joined to the users; listed when the FIRST bfrc_listed row (as get_user_meta( …, true )
+		// reads it) is '1', or is not '0' and the user holds the Writer role on this site.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- one page and one count, cached by listed().
+		$total = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM ( SELECT post_author AS id, COUNT(*) AS n FROM {$wpdb->posts} WHERE post_type = %s AND post_status = 'publish' GROUP BY post_author ) r INNER JOIN {$wpdb->users} u ON u.ID = r.id WHERE ( COALESCE( ( SELECT lm.meta_value FROM {$wpdb->usermeta} lm WHERE lm.user_id = u.ID AND lm.meta_key = %s ORDER BY lm.umeta_id LIMIT 1 ), '' ) = '1' OR ( COALESCE( ( SELECT lm.meta_value FROM {$wpdb->usermeta} lm WHERE lm.user_id = u.ID AND lm.meta_key = %s ORDER BY lm.umeta_id LIMIT 1 ), '' ) <> '0' AND EXISTS ( SELECT 1 FROM {$wpdb->usermeta} c WHERE c.user_id = u.ID AND c.meta_key = %s AND c.meta_value LIKE %s ) ) )",
+				$type,
+				$key,
+				$key,
+				$caps,
+				$role
+			)
+		);
+		$found = $total > ( $page - 1 ) * self::PER_PAGE ? $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT u.ID, u.display_name, u.user_nicename, r.n FROM ( SELECT post_author AS id, COUNT(*) AS n FROM {$wpdb->posts} WHERE post_type = %s AND post_status = 'publish' GROUP BY post_author ) r INNER JOIN {$wpdb->users} u ON u.ID = r.id WHERE ( COALESCE( ( SELECT lm.meta_value FROM {$wpdb->usermeta} lm WHERE lm.user_id = u.ID AND lm.meta_key = %s ORDER BY lm.umeta_id LIMIT 1 ), '' ) = '1' OR ( COALESCE( ( SELECT lm.meta_value FROM {$wpdb->usermeta} lm WHERE lm.user_id = u.ID AND lm.meta_key = %s ORDER BY lm.umeta_id LIMIT 1 ), '' ) <> '0' AND EXISTS ( SELECT 1 FROM {$wpdb->usermeta} c WHERE c.user_id = u.ID AND c.meta_key = %s AND c.meta_value LIKE %s ) ) ) ORDER BY u.display_name ASC, u.ID ASC LIMIT %d OFFSET %d",
+				$type,
+				$key,
+				$key,
+				$caps,
+				$role,
+				self::PER_PAGE,
+				( $page - 1 ) * self::PER_PAGE
+			)
+		) : [];
+		// phpcs:enable
+		$rows = [];
+		foreach ( is_array( $found ) ? $found : [] as $row ) {
+			if ( is_object( $row ) && isset( $row->ID ) ) {
+				$rows[] = [ (int) $row->ID, (string) ( $row->display_name ?? '' ), (string) ( $row->user_nicename ?? '' ), (int) ( $row->n ?? 0 ) ];
 			}
 		}
 		return [
-			'writers' => $slice,
-			'total'   => $total,
-			'pages'   => $pages,
+			'total' => $total,
+			'rows'  => $rows,
 		];
 	}
 
-	/**
-	 * Every public writer with their count, in display-name order (ids and
-	 * display names only until a page is sliced). Each query takes its first
-	 * LIMIT users by display name before the recipe counts are checked, so a
-	 * site with more than LIMIT Writer-role users (or opt-ins) can leave some
-	 * writers with recipes off the listing; their own pages still work.
-	 *
-	 * @return array<int, array{user: \WP_User, count: int}>
-	 */
-	private function all_listed(): array {
-		if ( null !== $this->all_listed ) {
-			return $this->all_listed;
-		}
-		// Cached across requests by both incrementors: a recipe published or
-		// unpublished changes the counts, a role or switch changes who is in.
-		$key    = 'writers:' . wp_cache_get_last_changed( self::LAST_CHANGED_GROUP ) . ':' . Cache::last_changed();
-		$cached = wp_cache_get( $key, Cache::GROUP );
-		if ( is_array( $cached ) ) {
-			$writers = [];
-			foreach ( $cached as $row ) {
-				$user                = new \WP_User();
-				$user->ID            = (int) $row[0];
-				$user->display_name  = (string) $row[1];
-				$user->user_nicename = (string) $row[2];
-				$writers[]           = [
-					'user'  => $user,
-					'count' => (int) $row[3],
-				];
-			}
-			$this->all_listed = $writers;
-			return $writers;
-		}
-		$this->all_listed = $this->compute_listed();
-		wp_cache_set( $key, array_map( static fn( array $w ): array => [ $w['user']->ID, $w['user']->display_name, $w['user']->user_nicename, $w['count'] ], $this->all_listed ), Cache::GROUP, self::CACHE_TTL );
-		return $this->all_listed;
-	}
-
-	/**
-	 * The uncached listing (see all_listed()).
-	 *
-	 * @return array<int, array{user: \WP_User, count: int}>
-	 */
-	private function compute_listed(): array {
-		$by_role  = new \WP_User_Query(
-			[
-				'role__in'          => [ Capabilities::ROLE_WRITER ],
-				'number'            => self::LIMIT,
-				'orderby'           => 'display_name',
-				'order'             => 'ASC',
-				'fields'            => [ 'ID', 'display_name', 'user_nicename' ],
-				'count_total'       => false,
-				self::NOT_OPTED_OUT => true, // exclude_opted_out(): never a meta_query here (see that method).
-			]
-		);
-		$opted_in = new \WP_User_Query(
-			[
-				'number'      => self::LIMIT,
-				'orderby'     => 'display_name',
-				'order'       => 'ASC',
-				'fields'      => [ 'ID', 'display_name', 'user_nicename' ],
-				'count_total' => false,
-				'meta_key'    => WriterProfile::LISTED, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- bounded by `number`.
-				'meta_value'  => '1', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- as above.
-			]
-		);
-		$users    = [];
-		$rows     = array_filter( array_merge( (array) $by_role->get_results(), (array) $opted_in->get_results() ), static fn( mixed $row ): bool => is_object( $row ) && isset( $row->ID ) );
-		foreach ( $rows as $row ) {
-			$user                = new \WP_User();
-			$user->ID            = (int) $row->ID;
-			$user->display_name  = (string) ( $row->display_name ?? '' );
-			$user->user_nicename = (string) ( $row->user_nicename ?? '' );
-			$users[ $user->ID ]  = $user;
-		}
-		if ( [] === $users ) {
-			return [];
-		}
-		$counts  = count_many_users_posts( array_keys( $users ), PostType::NAME, true );
-		$writers = [];
-		foreach ( $users as $id => $user ) {
-			$count = (int) ( $counts[ $id ] ?? 0 );
-			if ( $count > 0 ) {
-				$writers[] = [
-					'user'  => $user,
-					'count' => $count,
-				];
-			}
-		}
-		usort(
-			$writers,
-			static function ( array $a, array $b ): int {
-				$by_name = strcasecmp( $a['user']->display_name, $b['user']->display_name );
-				return 0 !== $by_name ? $by_name : $a['user']->ID <=> $b['user']->ID;
-			}
-		);
-		return $writers;
-	}
 
 	/**
 	 * The writer for a nicename, when they have a public page (memoised).
@@ -438,7 +413,7 @@ final class Writers {
 	 */
 	public function reset(): void {
 		$this->by_nicename = [];
-		$this->all_listed  = null;
+		$this->pages       = [];
 	}
 
 	/**

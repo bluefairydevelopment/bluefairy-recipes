@@ -43,6 +43,14 @@ final class Renderer {
 	public const TERMS_LIMIT = 200;
 
 	/**
+	 * Most terms the filter form reads in all, however many filter types are
+	 * enabled (up to four built-in and fifty custom): TERMS_LIMIT each would
+	 * be 10,800 rows for one form. Past it, the form lists the first terms by
+	 * name across the types.
+	 */
+	public const TERMS_TOTAL_LIMIT = 1000;
+
+	/**
 	 * Wire the dependencies.
 	 *
 	 * @param Settings   $settings   The settings service.
@@ -50,6 +58,18 @@ final class Renderer {
 	 * @param Taxonomies $taxonomies The filter types.
 	 */
 	public function __construct( private Settings $settings, private Writers $writers, private Taxonomies $taxonomies ) {}
+
+	/**
+	 * The archive heading: the stored title, or the default in the site's
+	 * language while the admin has not changed it (the option holds the English
+	 * default, written at activation).
+	 *
+	 * @return string
+	 */
+	private function archive_title(): string {
+		$stored = (string) $this->settings->get( 'archive_title' );
+		return Settings::DEFAULTS['archive_title'] === $stored ? __( 'Recipes', 'bluefairy-recipes' ) : $stored;
+	}
 
 	/**
 	 * The archive view for the main query: writers listing, a writer's page,
@@ -66,7 +86,7 @@ final class Renderer {
 			return $writer instanceof \WP_User ? $this->writer_page( $writer, $query ) : '';
 		}
 		$term  = $query->is_tax() ? $query->get_queried_object() : null;
-		$title = $term instanceof \WP_Term ? $term->name : (string) $this->settings->get( 'archive_title' );
+		$title = $term instanceof \WP_Term ? $term->name : $this->archive_title();
 		$html  = '<div class="bfrc-archive">';
 		$html .= '<header class="bfrc-archive__header"><h1 class="bfrc-archive__title">' . esc_html( $title ) . '</h1>';
 		if ( $term instanceof \WP_Term && '' !== $term->description ) {
@@ -132,6 +152,15 @@ final class Renderer {
 	}
 
 	/**
+	 * How many terms the filter form reads for this many filter types.
+	 *
+	 * @param int $types Enabled filter types.
+	 */
+	public static function terms_budget( int $types ): int {
+		return min( self::TERMS_TOTAL_LIMIT, self::TERMS_LIMIT * max( 0, $types ) );
+	}
+
+	/**
 	 * The terms of every enabled taxonomy, one query, keyed by taxonomy
 	 * name, ≤ TERMS_LIMIT per taxonomy, name order. The query's budget is
 	 * TERMS_LIMIT × taxonomies, ordered by name across all of them, so on a
@@ -152,7 +181,7 @@ final class Renderer {
 				'hide_empty' => true,
 				'orderby'    => 'name',
 				'order'      => 'ASC',
-				'number'     => self::TERMS_LIMIT * count( $names ),
+				'number'     => self::terms_budget( count( $names ) ),
 			]
 		);
 		$out   = [];

@@ -87,7 +87,8 @@
 		form.addEventListener( 'submit', function ( event ) {
 			window.clearTimeout( timer );
 			dropEmptyFields( form );
-			var remaining = Array.prototype.filter.call( form.querySelectorAll( 'select, input[type=search]' ), function ( field ) {
+			// Hidden fields carry a plain-permalink archive or term URL (?post_type=…): they must travel, so the form submits.
+			var remaining = Array.prototype.filter.call( form.querySelectorAll( 'select, input[type=search], input[type=hidden]' ), function ( field ) {
 				return ! field.disabled;
 			} );
 			var action = form.getAttribute( 'action' ); // Not form.action: a field named "action" would shadow it.

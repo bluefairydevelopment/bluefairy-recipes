@@ -123,16 +123,35 @@ $bfrc_uninstall_site = static function ( bool $delete_data ) use ( $bfrc_option_
 		// is the owner's). The sample recipes are recipes: the loop takes them.
 		$samples = get_option( 'bfrc_samples', [] );
 		if ( is_array( $samples ) ) {
+			// An image the site reused since (another post's featured image, or placed in its content) is
+			// the site's now and stays: the same check as Samples::attachment_in_use_elsewhere().
+			$sample_exclude = implode( ',', array_map( 'intval', array_merge( [ 0 ], (array) ( $samples['recipes'] ?? [] ) ) ) );
 			foreach ( (array) ( $samples['attachments'] ?? [] ) as $attachment_id ) {
-				wp_delete_attachment( (int) $attachment_id, true );
+				// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery -- $sample_exclude is intval'd ids; uninstall runs once.
+				$sample_used = $wpdb->get_var(
+					$wpdb->prepare(
+						"SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_thumbnail_id' AND meta_value = %s AND post_id NOT IN ({$sample_exclude})
+						UNION SELECT p.ID FROM {$wpdb->posts} p WHERE p.post_type <> 'revision' AND p.ID NOT IN ({$sample_exclude}) AND ( p.post_content LIKE %s OR p.post_content LIKE %s ) LIMIT 1",
+						(string) (int) $attachment_id,
+						'%' . $wpdb->esc_like( 'wp-image-' . (int) $attachment_id . '"' ) . '%',
+						'%' . $wpdb->esc_like( 'wp-image-' . (int) $attachment_id . ' ' ) . '%' // The class ends there: wp-image-12 is not wp-image-123.
+					)
+				);
+				// phpcs:enable
+				if ( null === $sample_used || '' === (string) $sample_used ) {
+					wp_delete_attachment( (int) $attachment_id, true );
+				}
 			}
 			$sample_writer = (int) ( $samples['writer'] ?? 0 );
 			$sample_user   = $sample_writer > 0 ? get_userdata( $sample_writer ) : false;
-			if ( $sample_user instanceof WP_User && 'bfrc_sample_writer' === (string) $sample_user->user_login && [ 'bfrc_writer' ] === array_values( (array) $sample_user->roles ) ) {
+			// Only with someone to inherit anything else of theirs (whoever uninstalls). From WP-CLI there
+			// is no current user and core would delete those posts with the account, so it stays, as
+			// Samples::delete_record() keeps it without an inheritor.
+			if ( get_current_user_id() > 0 && $sample_user instanceof WP_User && 'bfrc_sample_writer' === (string) $sample_user->user_login && [ 'bfrc_writer' ] === array_values( (array) $sample_user->roles ) ) {
 				if ( ! function_exists( 'wp_delete_user' ) ) {
 					require_once ABSPATH . 'wp-admin/includes/user.php';
 				}
-				wp_delete_user( $sample_writer, get_current_user_id() > 0 ? get_current_user_id() : null ); // Anything else of theirs (an upload) goes to whoever uninstalls; from WP-CLI there is no one, and core deletes it with the account.
+				wp_delete_user( $sample_writer, get_current_user_id() );
 				if ( is_multisite() && [] === get_blogs_of_user( $sample_writer ) ) {
 					if ( ! function_exists( 'wpmu_delete_user' ) ) {
 						require_once ABSPATH . 'wp-admin/includes/ms.php';
@@ -276,9 +295,15 @@ $bfrc_uninstall_site = static function ( bool $delete_data ) use ( $bfrc_option_
 		wp_cache_flush_group( 'bfrc' );
 	}
 
+	// Did this site ever run the plugin? On a network the uninstall visits every site, and the prefix
+	// sweep below must not take another plugin's `bfrc_` options from a site that never had this one.
+	$ran_here = false !== get_option( 'bfrc_settings', false ) || false !== get_option( 'bfrc_db_version', false );
 	// Options last: the settings option holds this site's choice until the site is done.
 	foreach ( $bfrc_option_keys as $key ) {
 		delete_option( $key );
+	}
+	if ( ! $ran_here ) {
+		return;
 	}
 	// Anything else under our prefix: core's `bfrc_<taxonomy>_children`
 	// caches, and dynamically named transients. `bfrc\_` never matches the

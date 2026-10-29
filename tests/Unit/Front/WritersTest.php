@@ -128,43 +128,43 @@ final class WritersTest extends TestCase {
 		$this->assertSame( [ 2, 1 ], array_column( $page['writers'], 'count' ) );
 		$this->assertSame( 2, $page['total'] );
 		$this->assertSame( 1, $page['pages'] );
-		$queries = $GLOBALS['bfrc_test_user_queries'];
-		$this->assertCount( 2, $queries, 'one query for the role, one for the opt-ins' );
-		foreach ( $queries as $q ) {
-			$this->assertSame( Writers::LIMIT, $q['number'], 'bounded' );
-			$this->assertSame( [ 'ID', 'display_name', 'user_nicename' ], $q['fields'], 'ids and names only: no 500 user objects' );
-			$this->assertFalse( $q['count_total'], 'no FOUND_ROWS query' );
-			$this->assertArrayNotHasKey( 'meta_query', $q, 'never an OR meta_query: core joins usermeta twice without the key, quadratic in meta rows' );
-		}
-		$this->assertTrue( $queries[0][ Writers::NOT_OPTED_OUT ], 'the role query carries the NOT EXISTS flag instead' );
-		$this->assertArrayNotHasKey( Writers::NOT_OPTED_OUT, $queries[1], 'the opt-in query needs no exclusion' );
+		$this->assertSame( [], $GLOBALS['bfrc_test_user_queries'], 'no WP_User_Query: one listing SQL pages in the database' );
+		$sql = $this->wpdb->queries_matching( 'SELECT post_author AS id, COUNT(*) AS n' );
+		$this->assertCount( 2, $sql, 'one COUNT and one page' );
+		$this->assertStringStartsWith( 'SELECT COUNT(*) FROM', $sql[0] );
+		$this->assertStringEndsWith( 'ORDER BY u.display_name ASC, u.ID ASC LIMIT 24 OFFSET 0', $sql[1], 'the page is cut in SQL, whatever the number of writers' );
+		$this->assertStringContainsString( "c.meta_key = 'bfw_capabilities'", $sql[1], 'the Writer role of THIS site' );
+		$this->assertStringContainsString( "lm.meta_key = 'bfrc_listed' ORDER BY lm.umeta_id LIMIT 1 ), '' ) <> '0'", $sql[1], 'a writer who switched the listing off is left out, by the first row as is_listed() reads it' );
+		$this->assertStringContainsString( "c.meta_value LIKE '%\\\"bfrc\\\\_writer\\\"%'", $sql[1], 'the role matched as core\'s role__in does, so the listing agrees with WP_User::$roles' );
+		$this->assertSame( $sql[0], 'SELECT COUNT(*) ' . substr( $sql[1], strpos( $sql[1], 'FROM ( SELECT post_author' ), strpos( $sql[1], ' ORDER BY u.display_name' ) - strpos( $sql[1], 'FROM ( SELECT post_author' ) ), 'the count and the page select the same set' );
 		$this->assertSame( 5, $page['writers'][0]['user']->ID, 'the string ID core returns for an array fields query is cast' );
 		$this->assertSame( 'ann@example.test', $page['writers'][0]['user']->user_email, 'the page\'s writers are full user objects from the cache, not the id-only rows' );
-		$this->assertCount( 1, $GLOBALS['bfrc_test_count_calls'], 'one count_many_users_posts for everyone' );
-		$this->assertTrue( $GLOBALS['bfrc_test_count_calls'][0][2], 'public (published) only: Bob\'s draft does not count' );
+		$this->assertSame( [], $GLOBALS['bfrc_test_count_calls'], 'the counts come with the page: no count_many_users_posts' );
+		$this->assertStringContainsString( "post_status = 'publish' GROUP BY post_author", $sql[1], 'public (published) only: Bob\'s draft does not count' );
 		$this->assertSame( [ [ 5, 8 ] ], $GLOBALS['bfrc_test_cached_users'], 'only the page\'s writers are loaded as objects' );
 		$this->assertSame( [], $this->writers->listed( 2 )['writers'], 'past the last page' );
-		$this->assertCount( 2, $GLOBALS['bfrc_test_user_queries'], 'computed once per request' );
+		$this->assertCount( 3, $this->wpdb->queries_matching( 'SELECT post_author AS id' ), 'page 1 computed once per request (page 2 is one COUNT, and no page query past the end)' );
 		$this->assertSame( $page, $this->writers->listed( 0 ), 'page 0 is page 1' );
 	}
 
 	public function test_the_listing_is_cached_across_requests_and_rebuilt_when_writers_or_recipes_change(): void {
+		$runs  = fn(): int => count( $this->wpdb->queries_matching( 'SELECT post_author AS id' ) );
 		$first = $this->writers->listed( 1 );
-		$this->assertCount( 2, $GLOBALS['bfrc_test_user_queries'] );
+		$this->assertSame( 2, $runs() );
 		$next = new Writers( $this->settings );
 		$this->assertSame( array_map( static fn( array $w ): int => $w['user']->ID, $first['writers'] ), array_map( static fn( array $w ): int => $w['user']->ID, $next->listed( 1 )['writers'] ) );
-		$this->assertCount( 2, $GLOBALS['bfrc_test_user_queries'], 'a later request reads the cache: no user query, no count query' );
+		$this->assertSame( 2, $runs(), 'a later request reads the cache: no listing query' );
 		$this->assertSame( [ 2, 1 ], array_column( $next->listed( 1 )['writers'], 'count' ) );
 		foreach ( [ static fn() => Writers::bump(), static fn() => Writers::on_user_meta( 1, 5, 'bfrc_listed' ), static fn() => \BlueFairy\Recipes\Content\Cache::bump() ] as $i => $change ) {
 			$change();
-			$before = count( $GLOBALS['bfrc_test_user_queries'] );
+			$before = $runs();
 			( new Writers( $this->settings ) )->listed( 1 );
-			$this->assertSame( $before + 2, count( $GLOBALS['bfrc_test_user_queries'] ), 'change #' . $i . ' starts a new key' );
+			$this->assertSame( $before + 2, $runs(), 'change #' . $i . ' starts a new key' );
 		}
-		$before = count( $GLOBALS['bfrc_test_user_queries'] );
+		$before = $runs();
 		Writers::on_user_meta( 1, 5, 'some_other_meta' );
 		( new Writers( $this->settings ) )->listed( 1 );
-		$this->assertSame( $before, count( $GLOBALS['bfrc_test_user_queries'] ), 'unrelated user meta keeps the cache' );
+		$this->assertSame( $before, $runs(), 'unrelated user meta keeps the cache' );
 	}
 
 	public function test_register_hooks_bumps_the_listing_on_role_account_and_switch_changes(): void {
@@ -172,6 +172,10 @@ final class WritersTest extends TestCase {
 		foreach ( [ 'set_user_role', 'add_user_role', 'remove_user_role', 'profile_update', 'user_register', 'deleted_user' ] as $hook ) {
 			$this->assertNotFalse( has_action( $hook, [ Writers::class, 'bump' ] ), $hook );
 		}
+		$before = wp_cache_get_last_changed( Writers::LAST_CHANGED_GROUP );
+		
+		do_action( 'remove_user_from_blog', 5, 1, 0 ); // Multisite Users > Remove: core deletes the capabilities meta directly, no role hook fires.
+		$this->assertNotSame( $before, wp_cache_get_last_changed( Writers::LAST_CHANGED_GROUP ), 'a writer removed from the site leaves the cached listing at once' );
 		foreach ( [ 'added_user_meta', 'updated_user_meta', 'deleted_user_meta' ] as $hook ) {
 			$this->assertNotFalse( has_action( $hook, [ Writers::class, 'on_user_meta' ] ), $hook );
 		}
@@ -197,13 +201,35 @@ final class WritersTest extends TestCase {
 		$this->assertSame( [ 3, 5, 299 ], array_map( static fn( array $w ): int => $w['user']->ID, array_slice( $one['writers'], 0, 3 ) ), 'ann (3), Ann (5), ann (299): same name case-insensitively, lower id first, whichever query found them' );
 	}
 
+	public function test_a_writer_deleted_since_the_page_was_cached_keeps_the_pages_shape(): void {
+		$this->writers->listed( 1 ); // Cached.
+		unset( $GLOBALS['bfrc_test_users'][5] ); // Ann's account is deleted outside core's hooks.
+		$page = ( new Writers( $this->settings ) )->listed( 1 );
+		$this->assertSame( [ 'Ann', 'Dee' ], array_map( static fn( array $w ): string => $w['user']->display_name, $page['writers'] ), 'an id-only row from the cache, not a gap or a fatal' );
+		$this->assertSame( 5, $page['writers'][0]['user']->ID );
+	}
+
+	public function test_a_page_past_the_last_writer_is_not_cached(): void {
+		$this->assertSame( [], $this->writers->listed( 999999 )['writers'] );
+		$keys = array_keys( $GLOBALS['bfrc_test_cache'][ \BlueFairy\Recipes\Content\Cache::GROUP ] ?? [] );
+		$this->assertSame( [], array_values( array_filter( $keys, static fn( string $k ): bool => str_starts_with( $k, 'writers:999999:' ) ) ), 'any page number a visitor types would otherwise leave a cache entry (review R-F-9)' );
+	}
+
+	public function test_a_site_with_more_than_five_hundred_writers_lists_every_one(): void {
+		for ( $i = 1; $i <= 520; $i++ ) {
+			bfrc_test_add_user( 1000 + $i, [ 'roles' => [ 'bfrc_writer' ], 'display_name' => sprintf( 'W%04d', $i ), 'user_nicename' => 'w' . $i ] );
+			bfrc_test_add_post( [ 'ID' => 5000 + $i, 'post_type' => 'bfrc_recipe', 'post_status' => 'publish', 'post_author' => 1000 + $i ] );
+		}
+		$last = $this->writers->listed( 22 );
+		$this->assertSame( 522, $last['total'], 'all 520 (and Ann and Dee): nobody past the 500th is dropped (WPMAP-228)' );
+		$this->assertSame( 22, $last['pages'] );
+		$this->assertSame( 'W0520', end( $last['writers'] )['user']->display_name, 'the last writer is on the last page' );
+	}
+
 	public function test_exclude_opted_out_adds_one_not_exists_clause_to_flagged_user_queries_only(): void {
-		add_action( 'pre_user_query', [ $this->writers, 'exclude_opted_out' ] );
-		$this->writers->listed( 1 );
-		$where = $GLOBALS['bfrc_test_user_query_where'];
-		$this->assertCount( 2, $where );
-		$this->assertSame( " WHERE 1=1 AND NOT EXISTS ( SELECT 1 FROM bfw_usermeta bfrc_lm WHERE bfrc_lm.user_id = bfw_users.ID AND bfrc_lm.meta_key = 'bfrc_listed' AND bfrc_lm.meta_value = '0' )", $where[0], 'the role query: one correlated subquery on the key' );
-		$this->assertSame( ' WHERE 1=1', $where[1], 'the opt-in query is untouched' );
+		$flagged = new \WP_User_Query( [ 'number' => 3, Writers::NOT_OPTED_OUT => true ] );
+		$this->writers->exclude_opted_out( $flagged );
+		$this->assertSame( " WHERE 1=1 AND NOT EXISTS ( SELECT 1 FROM bfw_usermeta bfrc_lm WHERE bfrc_lm.user_id = bfw_users.ID AND bfrc_lm.meta_key = 'bfrc_listed' AND bfrc_lm.meta_value = '0' )", $flagged->query_where, 'one correlated subquery on the key (the users sitemap sets the flag)' );
 		$plain = new \WP_User_Query( [ 'number' => 3 ] );
 		$this->writers->exclude_opted_out( $plain );
 		$this->assertSame( ' WHERE 1=1', $plain->query_where, 'no flag, no clause: other plugins\' user queries are not ours to filter' );

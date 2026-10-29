@@ -66,7 +66,7 @@ test( 'typing schedules one debounced load after the last keystroke, resets the 
 	assert.equal( h.state.query.page, 1, 'a new keyword starts at page 1' );
 	assert.equal( h.calls.fetch.length, 0, 'nothing fetched before the timer fires' );
 	await h.api.lastTimer.fn();
-	assert.deepEqual( h.calls.fetch, [ 'https://example.com/wp-json/bfrc/v1/recipes?s=pie&page=1&per_page=4' ] );
+	assert.deepEqual( h.calls.fetch, [ 'https://example.com/wp-json/bfrc/v1/recipes?s=pie&page=1&per_page=4&_fields=html' ] );
 	assert.deepEqual( h.state.cards, [ '<article>a</article>' ] );
 	assert.deepEqual( [ h.state.total, h.state.totalPages, h.state.hasPages, h.state.filtered, h.state.loading, h.state.error, h.state.version ], [ 9, 3, true, true, false, false, 1 ] );
 	assert.equal( h.state.status, '1 recipe shown.', 'singular' );
@@ -89,7 +89,7 @@ test( 'a select change, the Filter button, Reset and a page link, with focus pla
 	await h.actions.submit( { preventDefault: () => prevented++ } );
 	assert.equal( prevented, 1, 'the Filter button loads at once, no navigation' );
 	assert.ok( h.api.lastTimer.cleared, 'and cancels the pending timer' );
-	assert.equal( h.calls.fetch[ 0 ], 'https://example.com/wp-json/bfrc/v1/recipes?filter%5Bdiet%5D=vegan&filter%5Bmeal_type%5D=dinner&page=1&per_page=4', 'fixed filters are sent too' );
+	assert.equal( h.calls.fetch[ 0 ], 'https://example.com/wp-json/bfrc/v1/recipes?filter%5Bdiet%5D=vegan&filter%5Bmeal_type%5D=dinner&page=1&per_page=4&_fields=html', 'fixed filters are sent too' );
 	assert.equal( h.calls.replaced[ 0 ], 'https://example.com/cook/?bfrc_filter%5Bdiet%5D=vegan', 'but never put in the page URL' );
 	assert.equal( h.state.filtered, true );
 	assert.equal( h.state.status, '2 recipes shown.', 'plural' );
@@ -115,7 +115,7 @@ test( 'a select change, the Filter button, Reset and a page link, with focus pla
 	assert.equal( h.pagination.innerHTML, 'untouched', 'the watcher re-running for the same answer writes nothing (the DOM write that would destroy the focused span)' );
 	assert.equal( focused, null, 'and focus is placed once' );
 	h.pagination.innerHTML = written;
-	assert.ok( h.calls.fetch[ 1 ].endsWith( '&page=2&per_page=4' ) );
+	assert.ok( h.calls.fetch[ 1 ].endsWith( '&page=2&per_page=4&_fields=html' ) );
 	assert.equal( h.calls.replaced[ 1 ], 'https://example.com/cook/?bfrc_filter%5Bdiet%5D=vegan&bfrc_page=2' );
 	list.getBoundingClientRect = () => ( { top: -40 } );
 	await h.actions.paginate( { preventDefault: () => prevented++, target: { closest: ( sel ) => ( sel === 'a[data-bfrc-page]' ? link : null ) } } );

@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-29T01:06:02+00:00\n"
+"POT-Creation-Date: 2026-10-29T07:37:54+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: bluefairy-recipes\n"
@@ -39,88 +39,88 @@ msgstr ""
 msgid "https://bluefairydevelopment.com"
 msgstr ""
 
-#: includes/Admin/ListTable.php:64
-#: includes/Admin/ListTable.php:74
+#: includes/Admin/ListTable.php:71
+#: includes/Admin/ListTable.php:81
 msgid "Time"
 msgstr ""
 
-#: includes/Admin/ListTable.php:65
-#: includes/Admin/ListTable.php:75
-#: includes/Front/Renderer.php:550
+#: includes/Admin/ListTable.php:72
+#: includes/Admin/ListTable.php:82
+#: includes/Front/Renderer.php:579
 msgid "Servings"
 msgstr ""
 
-#: includes/Admin/ListTable.php:66
-#: includes/Admin/ListTable.php:76
-#: includes/Admin/ListTable.php:118
+#: includes/Admin/ListTable.php:73
+#: includes/Admin/ListTable.php:83
+#: includes/Admin/ListTable.php:125
 msgid "Featured"
 msgstr ""
 
-#: includes/Admin/ListTable.php:70
+#: includes/Admin/ListTable.php:77
 msgid "Photo"
 msgstr ""
 
-#: includes/Admin/ListTable.php:120
-#: includes/Admin/ListTable.php:202
+#: includes/Admin/ListTable.php:127
+#: includes/Admin/ListTable.php:209
 msgid "Not featured"
 msgstr ""
 
 #. translators: %d: prep minutes
-#: includes/Admin/ListTable.php:138
+#: includes/Admin/ListTable.php:145
 #, php-format
 msgid "Prep %d min"
 msgstr ""
 
 #. translators: %d: cook minutes
-#: includes/Admin/ListTable.php:142
+#: includes/Admin/ListTable.php:149
 #, php-format
 msgid "Cook %d min"
 msgstr ""
 
 #. translators: 1: prep minutes, 2: cook minutes
-#: includes/Admin/ListTable.php:145
+#: includes/Admin/ListTable.php:152
 #, php-format
 msgid "Prep %1$d / Cook %2$d min"
 msgstr ""
 
 #. translators: %s: taxonomy name
 #. translators: %s: filter type plural name
-#: includes/Admin/ListTable.php:188
-#: includes/Front/Blocks.php:395
-#: includes/Front/Renderer.php:118
+#: includes/Admin/ListTable.php:195
+#: includes/Front/Blocks.php:406
+#: includes/Front/Renderer.php:138
 #: src/blocks/recipe-list/index.js:50
 #, php-format,js-format
 msgid "All %s"
 msgstr ""
 
 #. translators: %s: filter type name
-#: includes/Admin/ListTable.php:194
+#: includes/Admin/ListTable.php:201
 #, php-format
 msgid "Filter by %s"
 msgstr ""
 
-#: includes/Admin/ListTable.php:198
+#: includes/Admin/ListTable.php:205
 msgid "Filter by featured"
 msgstr ""
 
-#: includes/Admin/ListTable.php:200
+#: includes/Admin/ListTable.php:207
 msgid "Featured and not"
 msgstr ""
 
-#: includes/Admin/ListTable.php:201
+#: includes/Admin/ListTable.php:208
 msgid "Featured only"
 msgstr ""
 
-#: includes/Admin/ListTable.php:290
+#: includes/Admin/ListTable.php:346
 msgid "Mark featured"
 msgstr ""
 
-#: includes/Admin/ListTable.php:291
+#: includes/Admin/ListTable.php:347
 msgid "Unmark featured"
 msgstr ""
 
 #. translators: %s: number of recipes
-#: includes/Admin/ListTable.php:352
+#: includes/Admin/ListTable.php:408
 #, php-format
 msgid "%s recipe updated."
 msgid_plural "%s recipes updated."
@@ -149,7 +149,7 @@ msgstr ""
 
 #: includes/Admin/ProUpsell.php:65
 #: includes/Admin/ProUpsell.php:80
-#: includes/Front/Renderer.php:765
+#: includes/Front/Renderer.php:794
 msgid "(opens in a new tab)"
 msgstr ""
 
@@ -170,7 +170,7 @@ msgid "Recipe Video"
 msgstr ""
 
 #: includes/Admin/RecipeEditor.php:66
-#: includes/Front/Renderer.php:598
+#: includes/Front/Renderer.php:627
 msgid "Ingredients"
 msgstr ""
 
@@ -179,7 +179,7 @@ msgid "Steps"
 msgstr ""
 
 #: includes/Admin/RecipeEditor.php:68
-#: includes/Front/Renderer.php:661
+#: includes/Front/Renderer.php:690
 msgid "Nutrition"
 msgstr ""
 
@@ -324,74 +324,74 @@ msgstr ""
 
 #. translators: %d: row number
 #: includes/Admin/RecipeEditor.php:337
-#: includes/Admin/RecipeEditor.php:577
+#: includes/Admin/RecipeEditor.php:581
 #, php-format
 msgid "Ingredient %d measure"
 msgstr ""
 
 #. translators: %d: row number
 #: includes/Admin/RecipeEditor.php:339
-#: includes/Admin/RecipeEditor.php:579
+#: includes/Admin/RecipeEditor.php:583
 #, php-format
 msgid "Ingredient %d name"
 msgstr ""
 
 #. translators: %d: row number
 #: includes/Admin/RecipeEditor.php:341
-#: includes/Admin/RecipeEditor.php:584
+#: includes/Admin/RecipeEditor.php:588
 #, php-format
 msgid "Ingredient %d type"
 msgstr ""
 
 #. translators: 1: row number, 2: field label
 #: includes/Admin/RecipeEditor.php:343
-#: includes/Admin/RecipeEditor.php:593
+#: includes/Admin/RecipeEditor.php:597
 #, php-format
 msgid "Ingredient %1$d %2$s"
 msgstr ""
 
 #. translators: %d: step number
 #: includes/Admin/RecipeEditor.php:347
-#: includes/Admin/RecipeEditor.php:614
+#: includes/Admin/RecipeEditor.php:618
 #, php-format
 msgid "Step %d"
 msgstr ""
 
 #. translators: %s: the URL that was typed
-#: includes/Admin/RecipeEditor.php:477
+#: includes/Admin/RecipeEditor.php:481
 #, php-format
 msgid "The video URL \"%s\" is not a YouTube or Vimeo video, so it was not saved. Paste the video’s own page URL."
 msgstr ""
 
-#: includes/Admin/RecipeEditor.php:572
+#: includes/Admin/RecipeEditor.php:576
 msgid "Kept as it is: this row belongs to an add-on that is not active."
 msgstr ""
 
-#: includes/Admin/RecipeEditor.php:575
-#: includes/Admin/RecipeEditor.php:612
+#: includes/Admin/RecipeEditor.php:579
+#: includes/Admin/RecipeEditor.php:616
 msgid "Drag to reorder"
 msgstr ""
 
 #. translators: %d: row number
-#: includes/Admin/RecipeEditor.php:577
+#: includes/Admin/RecipeEditor.php:581
 msgid "2 cups"
 msgstr ""
 
 #. translators: %d: row number
-#: includes/Admin/RecipeEditor.php:579
+#: includes/Admin/RecipeEditor.php:583
 msgid "flour"
 msgstr ""
 
-#: includes/Admin/RecipeEditor.php:623
+#: includes/Admin/RecipeEditor.php:627
 msgid "Move up"
 msgstr ""
 
-#: includes/Admin/RecipeEditor.php:623
+#: includes/Admin/RecipeEditor.php:627
 msgid "Move down"
 msgstr ""
 
 #. translators: %s: the image's purpose, e.g. "Profile photo"
-#: includes/Admin/RecipeEditor.php:623
+#: includes/Admin/RecipeEditor.php:627
 #: includes/Admin/WriterProfile.php:279
 msgid "Remove"
 msgstr ""
@@ -471,23 +471,23 @@ msgid "Skim the pan juices, squeeze in the roasted lemon and spoon over the carv
 msgstr ""
 
 #: includes/Admin/Samples.php:85
-#: includes/Content/Taxonomies.php:136
+#: includes/Content/Taxonomies.php:165
 msgid "Dinner"
 msgstr ""
 
 #: includes/Admin/Samples.php:86
-#: includes/Content/Taxonomies.php:142
+#: includes/Content/Taxonomies.php:171
 msgid "Gluten-Free"
 msgstr ""
 
 #: includes/Admin/Samples.php:87
-#: includes/Content/Taxonomies.php:148
+#: includes/Content/Taxonomies.php:177
 msgid "Autumn"
 msgstr ""
 
 #: includes/Admin/Samples.php:88
 #: includes/Admin/Samples.php:142
-#: includes/Content/Taxonomies.php:154
+#: includes/Content/Taxonomies.php:183
 msgid "American"
 msgstr ""
 
@@ -556,22 +556,22 @@ msgid "Stir in the greens, season, and serve with bread."
 msgstr ""
 
 #: includes/Admin/Samples.php:112
-#: includes/Content/Taxonomies.php:136
+#: includes/Content/Taxonomies.php:165
 msgid "Lunch"
 msgstr ""
 
 #: includes/Admin/Samples.php:113
-#: includes/Content/Taxonomies.php:142
+#: includes/Content/Taxonomies.php:171
 msgid "Vegan"
 msgstr ""
 
 #: includes/Admin/Samples.php:114
-#: includes/Content/Taxonomies.php:148
+#: includes/Content/Taxonomies.php:177
 msgid "Summer"
 msgstr ""
 
 #: includes/Admin/Samples.php:115
-#: includes/Content/Taxonomies.php:154
+#: includes/Content/Taxonomies.php:183
 msgid "Mediterranean"
 msgstr ""
 
@@ -652,17 +652,17 @@ msgid "Cook for 2 to 3 minutes a side, until golden. Keep warm while you finish 
 msgstr ""
 
 #: includes/Admin/Samples.php:139
-#: includes/Content/Taxonomies.php:136
+#: includes/Content/Taxonomies.php:165
 msgid "Breakfast"
 msgstr ""
 
 #: includes/Admin/Samples.php:140
-#: includes/Content/Taxonomies.php:142
+#: includes/Content/Taxonomies.php:171
 msgid "Vegetarian"
 msgstr ""
 
 #: includes/Admin/Samples.php:141
-#: includes/Content/Taxonomies.php:148
+#: includes/Content/Taxonomies.php:177
 msgid "Spring"
 msgstr ""
 
@@ -672,23 +672,23 @@ msgid "The sample recipes are already installed."
 msgstr ""
 
 #. translators: %s: the sample writer's login
-#: includes/Admin/Samples.php:191
+#: includes/Admin/Samples.php:192
 #: includes/Admin/SettingsPage.php:291
 #, php-format
 msgid "An account named %s exists and is not the sample writer the plugin created. Rename or delete it, then install the samples."
 msgstr ""
 
-#: includes/Admin/Samples.php:201
-#: includes/Admin/Samples.php:202
-#: includes/Admin/Samples.php:226
+#: includes/Admin/Samples.php:210
+#: includes/Admin/Samples.php:211
+#: includes/Admin/Samples.php:236
 msgid "Sam Sample"
 msgstr ""
 
-#: includes/Admin/Samples.php:235
+#: includes/Admin/Samples.php:246
 msgid "Sam is the sample writer who comes with BlueFairy Recipes: three recipes that show what a recipe page, the archive and a writer page look like."
 msgstr ""
 
-#: includes/Admin/Samples.php:291
+#: includes/Admin/Samples.php:303
 msgid "The record of the sample recipes could not be saved."
 msgstr ""
 
@@ -1001,13 +1001,14 @@ msgstr ""
 
 #: includes/Content/PostType.php:88
 #: includes/Content/PostType.php:90
+#: includes/Front/Renderer.php:71
 msgid "Recipes"
 msgstr ""
 
 #: includes/Content/PostType.php:89
 #: includes/Content/PostType.php:91
-#: src/blocks/recipe-card/index.js:34
 #: src/blocks/recipe-card/index.js:36
+#: src/blocks/recipe-card/index.js:38
 msgid "Recipe"
 msgstr ""
 
@@ -1087,132 +1088,136 @@ msgstr ""
 msgid "No route was found matching the URL and request method."
 msgstr ""
 
-#: includes/Content/Taxonomies.php:133
+#: includes/Content/Taxonomies.php:135
+msgid "You can choose an existing filter value, but only someone who manages recipe filters can add a new one."
+msgstr ""
+
+#: includes/Content/Taxonomies.php:162
 msgid "Meal Types"
 msgstr ""
 
-#: includes/Content/Taxonomies.php:134
+#: includes/Content/Taxonomies.php:163
 msgid "Meal Type"
 msgstr ""
 
-#: includes/Content/Taxonomies.php:136
+#: includes/Content/Taxonomies.php:165
 msgid "Dessert"
 msgstr ""
 
-#: includes/Content/Taxonomies.php:136
+#: includes/Content/Taxonomies.php:165
 msgid "Snack"
 msgstr ""
 
-#: includes/Content/Taxonomies.php:139
+#: includes/Content/Taxonomies.php:168
 msgid "Diets"
 msgstr ""
 
-#: includes/Content/Taxonomies.php:140
+#: includes/Content/Taxonomies.php:169
 msgid "Diet"
 msgstr ""
 
-#: includes/Content/Taxonomies.php:142
+#: includes/Content/Taxonomies.php:171
 msgid "Dairy-Free"
 msgstr ""
 
-#: includes/Content/Taxonomies.php:145
+#: includes/Content/Taxonomies.php:174
 msgid "Seasons"
 msgstr ""
 
-#: includes/Content/Taxonomies.php:146
+#: includes/Content/Taxonomies.php:175
 msgid "Season"
 msgstr ""
 
-#: includes/Content/Taxonomies.php:148
+#: includes/Content/Taxonomies.php:177
 msgid "Winter"
 msgstr ""
 
-#: includes/Content/Taxonomies.php:151
+#: includes/Content/Taxonomies.php:180
 msgid "Cuisines"
 msgstr ""
 
-#: includes/Content/Taxonomies.php:152
+#: includes/Content/Taxonomies.php:181
 msgid "Cuisine"
 msgstr ""
 
-#: includes/Content/Taxonomies.php:154
+#: includes/Content/Taxonomies.php:183
 msgid "Italian"
 msgstr ""
 
-#: includes/Content/Taxonomies.php:154
+#: includes/Content/Taxonomies.php:183
 msgid "Mexican"
 msgstr ""
 
-#: includes/Content/Taxonomies.php:154
+#: includes/Content/Taxonomies.php:183
 msgid "Asian"
 msgstr ""
 
-#: includes/Front/Blocks.php:208
-#: includes/Front/Blocks.php:270
+#: includes/Front/Blocks.php:219
+#: includes/Front/Blocks.php:281
 #: src/blocks/featured-recipes/index.js:15
 #: src/blocks/featured-recipes/index.js:19
 #: src/blocks/featured-recipes/index.js:30
 msgid "Featured recipes"
 msgstr ""
 
-#: includes/Front/Blocks.php:354
-#: includes/Front/Renderer.php:338
+#: includes/Front/Blocks.php:365
+#: includes/Front/Renderer.php:367
 msgid "Recipes pagination"
 msgstr ""
 
-#: includes/Front/Blocks.php:379
-#: includes/Front/Renderer.php:104
+#: includes/Front/Blocks.php:390
+#: includes/Front/Renderer.php:124
 msgid "Filter recipes"
 msgstr ""
 
-#: includes/Front/Blocks.php:382
+#: includes/Front/Blocks.php:393
 msgid "Changing a filter or pausing while typing updates the list below; the Filter button applies it at once."
 msgstr ""
 
-#: includes/Front/Blocks.php:401
-#: includes/Front/Renderer.php:124
+#: includes/Front/Blocks.php:412
+#: includes/Front/Renderer.php:144
 msgid "Search by title"
 msgstr ""
 
-#: includes/Front/Blocks.php:402
-#: includes/Front/Renderer.php:125
+#: includes/Front/Blocks.php:413
+#: includes/Front/Renderer.php:145
 msgid "Recipe title"
 msgstr ""
 
-#: includes/Front/Blocks.php:403
-#: includes/Front/Renderer.php:126
+#: includes/Front/Blocks.php:414
+#: includes/Front/Renderer.php:146
 msgid "Filter"
 msgstr ""
 
-#: includes/Front/Blocks.php:404
-#: includes/Front/Renderer.php:128
+#: includes/Front/Blocks.php:415
+#: includes/Front/Renderer.php:148
 msgid "Reset"
 msgstr ""
 
-#: includes/Front/Blocks.php:475
-#: includes/Front/Blocks.php:649
-#: includes/Front/Renderer.php:333
-#: includes/Front/Renderer.php:397
+#: includes/Front/Blocks.php:486
+#: includes/Front/Blocks.php:660
+#: includes/Front/Renderer.php:362
+#: includes/Front/Renderer.php:426
 msgid "&laquo; Previous"
 msgstr ""
 
-#: includes/Front/Blocks.php:487
-#: includes/Front/Blocks.php:650
-#: includes/Front/Renderer.php:334
-#: includes/Front/Renderer.php:398
+#: includes/Front/Blocks.php:498
+#: includes/Front/Blocks.php:661
+#: includes/Front/Renderer.php:363
+#: includes/Front/Renderer.php:427
 msgid "Next &raquo;"
 msgstr ""
 
-#: includes/Front/Blocks.php:646
+#: includes/Front/Blocks.php:657
 msgid "Loading recipes…"
 msgstr ""
 
-#: includes/Front/Blocks.php:647
+#: includes/Front/Blocks.php:658
 msgid "The recipes could not be loaded. Press Filter to reload the page."
 msgstr ""
 
 #. translators: %s: the number of recipes shown
-#: includes/Front/Blocks.php:668
+#: includes/Front/Blocks.php:679
 #, php-format
 msgid "%s recipe shown."
 msgid_plural "%s recipes shown."
@@ -1261,95 +1266,95 @@ msgstr ""
 msgid "%1$s–%2$s"
 msgstr ""
 
-#: includes/Front/Renderer.php:76
+#: includes/Front/Renderer.php:96
 msgid "Browse recipe writers"
 msgstr ""
 
-#: includes/Front/Renderer.php:105
+#: includes/Front/Renderer.php:125
 msgid "Changing a filter or pausing while typing updates the list; the Filter button applies it at once."
 msgstr ""
 
-#: includes/Front/Renderer.php:196
+#: includes/Front/Renderer.php:225
 msgid "No recipes match. Try fewer filters."
 msgstr ""
 
-#: includes/Front/Renderer.php:366
+#: includes/Front/Renderer.php:395
 #: includes/Front/Templates.php:728
 msgid "Recipe writers"
 msgstr ""
 
-#: includes/Front/Renderer.php:367
+#: includes/Front/Renderer.php:396
 msgid "All recipes"
 msgstr ""
 
-#: includes/Front/Renderer.php:370
+#: includes/Front/Renderer.php:399
 msgid "No recipe writers yet."
 msgstr ""
 
 #. translators: %s: number of recipes
-#: includes/Front/Renderer.php:382
+#: includes/Front/Renderer.php:411
 #, php-format
 msgid "%s recipe"
 msgid_plural "%s recipes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/Front/Renderer.php:403
+#: includes/Front/Renderer.php:432
 msgid "Writers pagination"
 msgstr ""
 
-#: includes/Front/Renderer.php:439
+#: includes/Front/Renderer.php:468
 msgid "All recipe writers"
 msgstr ""
 
 #. translators: %s: writer's name
-#: includes/Front/Renderer.php:441
+#: includes/Front/Renderer.php:470
 #, php-format
 msgid "Recipes by %s"
 msgstr ""
 
-#: includes/Front/Renderer.php:506
+#: includes/Front/Renderer.php:535
 msgid "Print recipe"
 msgstr ""
 
-#: includes/Front/Renderer.php:540
+#: includes/Front/Renderer.php:569
 msgid "Prep"
 msgstr ""
 
-#: includes/Front/Renderer.php:543
+#: includes/Front/Renderer.php:572
 msgid "Cook"
 msgstr ""
 
-#: includes/Front/Renderer.php:546
+#: includes/Front/Renderer.php:575
 msgid "Total"
 msgstr ""
 
-#: includes/Front/Renderer.php:632
+#: includes/Front/Renderer.php:661
 msgid "Method"
 msgstr ""
 
-#: includes/Front/Renderer.php:662
+#: includes/Front/Renderer.php:691
 msgid "Per serving"
 msgstr ""
 
-#: includes/Front/Renderer.php:685
+#: includes/Front/Renderer.php:714
 msgid "Share on Facebook"
 msgstr ""
 
-#: includes/Front/Renderer.php:688
+#: includes/Front/Renderer.php:717
 msgid "Share on X"
 msgstr ""
 
-#: includes/Front/Renderer.php:692
+#: includes/Front/Renderer.php:721
 msgid "Pin on Pinterest"
 msgstr ""
 
-#: includes/Front/Renderer.php:697
+#: includes/Front/Renderer.php:726
 msgid "Share this recipe"
 msgstr ""
 
 #. translators: %s: the writer's name (linked)
-#: includes/Front/Renderer.php:748
+#: includes/Front/Renderer.php:777
 #, php-format
 msgid "By %s"
 msgstr ""
@@ -1402,109 +1407,115 @@ msgstr ""
 msgid "This block renders from the recipe template on the site; inside a post's own text it shows nothing. Use the Recipe List, Featured Recipes or Recipe Card block here."
 msgstr ""
 
-#: includes/Rest/Recipes.php:93
+#: includes/Rest/Recipes.php:99
 msgid "A term slug of this filter type."
 msgstr ""
 
-#: includes/Rest/Recipes.php:99
+#: includes/Rest/Recipes.php:105
 msgid "Title keyword, up to 100 characters."
 msgstr ""
 
-#: includes/Rest/Recipes.php:107
+#: includes/Rest/Recipes.php:113
 msgid "Page of results."
 msgstr ""
 
-#: includes/Rest/Recipes.php:115
+#: includes/Rest/Recipes.php:121
 msgid "Recipes per page, 1 to 100."
 msgstr ""
 
-#: includes/Rest/Recipes.php:123
+#: includes/Rest/Recipes.php:129
 msgid "One term slug per filter type code."
 msgstr ""
 
 #. translators: %d: the maximum length
-#: includes/Rest/Recipes.php:140
+#: includes/Rest/Recipes.php:146
 #, php-format
 msgid "The keyword must be text of at most %d characters."
 msgstr ""
 
 #. translators: %d: the deepest page
-#: includes/Rest/Recipes.php:153
+#: includes/Rest/Recipes.php:159
 #, php-format
 msgid "page must be a whole number from 1 to %d."
 msgstr ""
 
 #. translators: %d: the largest page size
-#: includes/Rest/Recipes.php:166
+#: includes/Rest/Recipes.php:172
 #, php-format
 msgid "per_page must be a whole number from 1 to %d."
 msgstr ""
 
-#: includes/Rest/Recipes.php:180
+#: includes/Rest/Recipes.php:186
 msgid "filter must be an object of filter-type code to term slug."
 msgstr ""
 
 #. translators: %s: the key sent
-#: includes/Rest/Recipes.php:186
+#: includes/Rest/Recipes.php:192
 #, php-format
 msgid "%s is not a filter type."
 msgstr ""
 
 #. translators: %s: the filter type code
-#: includes/Rest/Recipes.php:190
+#: includes/Rest/Recipes.php:196
 #, php-format
 msgid "filter[%s] must be one term slug."
 msgstr ""
 
-#: includes/Rest/Recipes.php:280
+#. translators: %d: the most recipes the list pages through
+#: includes/Rest/Recipes.php:222
+#, php-format
+msgid "The list pages through the first %d recipes only: ask for a smaller page or fewer per page, or narrow the list with a search or a filter."
+msgstr ""
+
+#: includes/Rest/Recipes.php:290
 msgid "Recipe id."
 msgstr ""
 
-#: includes/Rest/Recipes.php:281
+#: includes/Rest/Recipes.php:291
 msgid "Title: unescaped plain text; escape it before inserting into HTML."
 msgstr ""
 
-#: includes/Rest/Recipes.php:282
+#: includes/Rest/Recipes.php:292
 msgid "Recipe page."
 msgstr ""
 
-#: includes/Rest/Recipes.php:283
+#: includes/Rest/Recipes.php:293
 msgid "Photo URL, or empty."
 msgstr ""
 
-#: includes/Rest/Recipes.php:286
+#: includes/Rest/Recipes.php:296
 msgid "The writer: name, and their page when they have one."
 msgstr ""
 
-#: includes/Rest/Recipes.php:288
+#: includes/Rest/Recipes.php:298
 msgid "Display name."
 msgstr ""
 
-#: includes/Rest/Recipes.php:289
+#: includes/Rest/Recipes.php:299
 msgid "Writer page, or empty."
 msgstr ""
 
-#: includes/Rest/Recipes.php:294
+#: includes/Rest/Recipes.php:304
 msgid "Minutes; zeros for a locked recipe."
 msgstr ""
 
-#: includes/Rest/Recipes.php:296
+#: includes/Rest/Recipes.php:306
 msgid "Prep minutes."
 msgstr ""
 
-#: includes/Rest/Recipes.php:297
+#: includes/Rest/Recipes.php:307
 msgid "Cook minutes."
 msgstr ""
 
-#: includes/Rest/Recipes.php:298
+#: includes/Rest/Recipes.php:308
 msgid "Prep plus cook."
 msgstr ""
 
-#: includes/Rest/Recipes.php:301
+#: includes/Rest/Recipes.php:311
 msgid "Short description: unescaped plain text, at most 24 words; empty for a locked recipe; escape it before inserting into HTML."
 msgstr ""
 
-#: includes/Rest/Recipes.php:302
+#: includes/Rest/Recipes.php:312
 msgid "The recipe card as the archive renders it."
 msgstr ""
 
@@ -1532,15 +1543,15 @@ msgstr ""
 msgid "No recipes to show yet: mark some recipes as featured, or show the most recent ones."
 msgstr ""
 
-#: src/blocks/recipe-card/index.js:37
+#: src/blocks/recipe-card/index.js:39
 msgid "Type to search published recipes by title."
 msgstr ""
 
-#: src/blocks/recipe-card/index.js:50
+#: src/blocks/recipe-card/index.js:52
 msgid "This recipe is not published."
 msgstr ""
 
-#: src/blocks/recipe-card/index.js:53
+#: src/blocks/recipe-card/index.js:55
 msgid "Choose a recipe in the block settings."
 msgstr ""
 

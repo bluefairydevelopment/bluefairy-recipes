@@ -34,6 +34,13 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class Taxonomies {
 
+	/**
+	 * True while ensure_default_terms() inserts the starter terms.
+	 *
+	 * @var bool
+	 */
+	private static bool $seeding = false;
+
 	public const PREFIX = 'bfrc_';
 
 	/**
@@ -104,6 +111,28 @@ final class Taxonomies {
 	 */
 	public function register_hooks(): void {
 		add_action( 'init', [ $this, 'register' ], 5 );
+		add_filter( 'pre_insert_term', [ $this, 'guard_new_term' ], 10, 2 );
+	}
+
+	/**
+	 * `pre_insert_term`: only a user who may edit recipe terms creates one.
+	 * Core lets anyone who may assign terms create a new one by name in a
+	 * non-hierarchical taxonomy (the classic tag box, Quick Edit): a Writer
+	 * would add public filter values. No current user (activation or seeding
+	 * from WP-CLI) is the site's own code and passes.
+	 *
+	 * @param string|\WP_Error $term     The term name (or an earlier refusal).
+	 * @param string           $taxonomy The taxonomy.
+	 * @return string|\WP_Error
+	 */
+	public function guard_new_term( $term, $taxonomy ) {
+		if ( self::$seeding || ! is_string( $taxonomy ) || 0 !== strpos( $taxonomy, self::PREFIX ) || $term instanceof \WP_Error || 0 === get_current_user_id() ) {
+			return $term;
+		}
+		if ( current_user_can( self::CAPABILITIES['edit_terms'] ) ) {
+			return $term;
+		}
+		return new \WP_Error( 'bfrc_term_not_allowed', __( 'You can choose an existing filter value, but only someone who manages recipe filters can add a new one.', 'bluefairy-recipes' ) );
 	}
 
 	/**
@@ -157,9 +186,21 @@ final class Taxonomies {
 	}
 
 	/**
+	 * WordPress's public query vars (class-wp.php `WP::$public_query_vars`,
+	 * checked against 7.0) and the list's own argument `per_page`: a filter code
+	 * equal to one could be mistaken for it in a hand-written address, so the
+	 * plan reserves them (plan 4.2). One-letter vars (`m`, `p`, `s`, `w`)
+	 * are refused by the code length rule already.
+	 *
+	 * @var list<string>
+	 */
+	public const PUBLIC_QUERY_VARS = [ 'per_page', 'posts', 'cat', 'withcomments', 'withoutcomments', 'search', 'exact', 'sentence', 'calendar', 'page', 'paged', 'more', 'tb', 'pb', 'author', 'order', 'orderby', 'year', 'monthnum', 'day', 'hour', 'minute', 'second', 'name', 'category_name', 'tag', 'feed', 'author_name', 'pagename', 'page_id', 'error', 'attachment', 'attachment_id', 'subpost', 'subpost_id', 'preview', 'robots', 'favicon', 'taxonomy', 'term', 'cpage', 'post_type', 'embed' ];
+
+	/**
 	 * Codes a custom filter type may not use: the system codes, and anything
 	 * that is a route under the archive in either spelling (`chef`, `page`,
-	 * the feed names, the site routes the archive slug refuses).
+	 * the feed names, the site routes the archive slug refuses), and
+	 * WordPress's public query vars with the list's `per_page` (PUBLIC_QUERY_VARS).
 	 *
 	 * @return list<string>
 	 *
@@ -169,7 +210,7 @@ final class Taxonomies {
 	public static function reserved_codes(): array {
 		$out   = array_keys( self::SYSTEM );
 		$out[] = 'constructor'; // The one Object.prototype name the code pattern admits: `state.fixed.constructor` is always truthy in the page script.
-		foreach ( array_merge( Slugs::FIXED, Settings::RESERVED_SLUGS ) as $slug ) {
+		foreach ( array_merge( Slugs::FIXED, Settings::RESERVED_SLUGS, self::PUBLIC_QUERY_VARS ) as $slug ) {
 			$out[] = $slug;
 			$out[] = str_replace( '-', '_', $slug );
 		}
@@ -333,6 +374,20 @@ final class Taxonomies {
 	 * @return array<string, int> Terms inserted per code (for the caller's log or test).
 	 */
 	public function ensure_default_terms(): array {
+		self::$seeding = true; // The plugin's own starter terms: guard_new_term() is for users typing names, and an activating admin's caps are not loaded yet.
+		try {
+			return $this->seed_default_terms();
+		} finally {
+			self::$seeding = false;
+		}
+	}
+
+	/**
+	 * The seeding itself (see ensure_default_terms()).
+	 *
+	 * @return array<string, int> Code => terms inserted.
+	 */
+	private function seed_default_terms(): array {
 		$inserted = [];
 		foreach ( $this->definitions() as $code => $def ) {
 			if ( ! $def['system'] || [] === $def['terms'] ) {
