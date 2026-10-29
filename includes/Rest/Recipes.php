@@ -221,8 +221,8 @@ final class Recipes {
 			/* translators: %d: the most recipes the list pages through */
 			return self::invalid( 'page', sprintf( __( 'The list pages through the first %d recipes only: ask for a smaller page or fewer per page, or narrow the list with a search or a filter.', 'bluefairy-recipes' ), self::MAX_OFFSET ) );
 		}
-		$query  = $this->query->run( $args, 'rest' );
-		$posts  = array_values( array_filter( is_array( $query->posts ) ? $query->posts : [], static fn( mixed $p ): bool => $p instanceof \WP_Post ) );
+		$query = $this->query->run( $args, 'rest' );
+		$posts = array_values( array_filter( is_array( $query->posts ) ? $query->posts : [], static fn( mixed $p ): bool => $p instanceof \WP_Post ) );
 		$this->renderer->prime_thumbnails( $posts ); // As the grid does: one query for every card's photo, not two per card.
 		$links = $this->renderer->writer_links( $posts );
 		$items = [];

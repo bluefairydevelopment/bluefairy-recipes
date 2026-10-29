@@ -202,6 +202,14 @@ final class WritersTest extends TestCase {
 		$this->assertSame( [ 3, 5, 299 ], array_map( static fn( array $w ): int => $w['user']->ID, array_slice( $one['writers'], 0, 3 ) ), 'ann (3), Ann (5), ann (299): same name case-insensitively, lower id first, whichever query found them' );
 	}
 
+	public function test_a_writer_deleted_since_the_page_was_cached_keeps_the_pages_shape(): void {
+		$this->writers->listed( 1 ); // Cached.
+		unset( $GLOBALS['bfrc_test_users'][5] ); // Ann's account is deleted outside core's hooks.
+		$page = ( new Writers( $this->settings ) )->listed( 1 );
+		$this->assertSame( [ 'Ann', 'Dee' ], array_map( static fn( array $w ): string => $w['user']->display_name, $page['writers'] ), 'an id-only row from the cache, not a gap or a fatal' );
+		$this->assertSame( 5, $page['writers'][0]['user']->ID );
+	}
+
 	public function test_a_page_past_the_last_writer_is_not_cached(): void {
 		$this->assertSame( [], $this->writers->listed( 999999 )['writers'] );
 		$keys = array_keys( $GLOBALS['bfrc_test_cache'][ \BlueFairy\Recipes\Content\Cache::GROUP ] ?? [] );

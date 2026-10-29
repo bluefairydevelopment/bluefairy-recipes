@@ -198,37 +198,36 @@ final class Samples {
 				$writer  = (int) $existing;
 				$adopted = true;
 				$shared  = true;
+			} else {
+				// Every way into the account is closed and its profile is ours again: whoever held it before
+				// (an uninstall's leftover, or someone who registered the login and set our address) keeps nothing.
+				wp_set_password( wp_generate_password( 32, true, true ), (int) $existing );
+				\WP_Session_Tokens::get_instance( (int) $existing )->destroy_all();
+				\WP_Application_Passwords::delete_all_application_passwords( (int) $existing );
+				$updated = wp_update_user(
+					[
+						'ID'            => (int) $existing,
+						'display_name'  => __( 'Sam Sample', 'bluefairy-recipes' ),
+						'nickname'      => __( 'Sam Sample', 'bluefairy-recipes' ),
+						'first_name'    => '',
+						'last_name'     => '',
+						'user_nicename' => self::WRITER_LOGIN, // The writer page's URL segment: the previous holder's slug must not stay.
+						'user_url'      => '',
+						'description'   => '',
+					]
+				);
+				if ( is_wp_error( $updated ) ) {
+					return new \WP_Error( 'failed', $updated->get_error_message() ); // Credentials are already reset: the holder is out either way.
+				}
+				foreach ( array_merge( array_keys( WriterProfile::FIELDS ), [ '_new_email' ] ) as $meta_key ) {
+					delete_user_meta( (int) $existing, $meta_key ); // The writer fields, and a pending address change.
+				}
+				$user->remove_all_caps(); // set_role() short-circuits when the role already matches, leaving an individual capability in place.
+				$user->add_role( Capabilities::ROLE_WRITER );
+				$writer  = (int) $existing;
+				$adopted = true;
 			}
-		}
-		if ( false !== $existing && ! $adopted && $user instanceof \WP_User ) {
-			// Every way into the account is closed and its profile is ours again: whoever held it before
-			// (an uninstall's leftover, or someone who registered the login and set our address) keeps nothing.
-			wp_set_password( wp_generate_password( 32, true, true ), (int) $existing );
-			\WP_Session_Tokens::get_instance( (int) $existing )->destroy_all();
-			\WP_Application_Passwords::delete_all_application_passwords( (int) $existing );
-			$updated = wp_update_user(
-				[
-					'ID'            => (int) $existing,
-					'display_name'  => __( 'Sam Sample', 'bluefairy-recipes' ),
-					'nickname'      => __( 'Sam Sample', 'bluefairy-recipes' ),
-					'first_name'    => '',
-					'last_name'     => '',
-					'user_nicename' => self::WRITER_LOGIN, // The writer page's URL segment: the previous holder's slug must not stay.
-					'user_url'      => '',
-					'description'   => '',
-				]
-			);
-			if ( is_wp_error( $updated ) ) {
-				return new \WP_Error( 'failed', $updated->get_error_message() ); // Credentials are already reset: the holder is out either way.
-			}
-			foreach ( array_merge( array_keys( WriterProfile::FIELDS ), [ '_new_email' ] ) as $meta_key ) {
-				delete_user_meta( (int) $existing, $meta_key ); // The writer fields, and a pending address change.
-			}
-			$user->remove_all_caps(); // set_role() short-circuits when the role already matches, leaving an individual capability in place.
-			$user->add_role( Capabilities::ROLE_WRITER );
-			$writer  = (int) $existing;
-			$adopted = true;
-		} elseif ( false === $existing ) {
+		} else {
 			$writer = wp_insert_user(
 				[
 					'user_login'   => self::WRITER_LOGIN,

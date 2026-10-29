@@ -100,6 +100,8 @@ final class RecipeQueryTest extends TestCase {
 		$this->assertCount( 1, $sql );
 		$this->assertMatchesRegularExpression( "/p\\.post_status = 'publish' ORDER BY p\\.post_date DESC, p\\.ID DESC LIMIT 12$/", $sql[0], 'the newest 4 × FEATURED_OVERFETCH published featured ids, not every featured id into post__in (WPMAP-227 L7)' );
 		$this->assertSame( [ 43, 41 ], $GLOBALS['bfrc_test_queries'][0]['post__in'] );
+		$this->wpdb->queue( 'get_col', [ '9', '8' ] );
+		$this->assertSame( [ 9, 8 ], Meta::newest_featured_ids( 2 ), 'Meta::newest_featured_ids() casts the ids' );
 	}
 
 	public function test_featured_falls_back_to_the_whole_set_when_the_query_drops_some_of_the_newest(): void {
