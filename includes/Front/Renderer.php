@@ -99,7 +99,9 @@ final class Renderer {
 		$action = is_string( $action ) ? $action : (string) get_post_type_archive_link( PostType::NAME );
 		$chosen = $this->current_filters();
 		$search = $this->current_search();
-		$html   = '<form class="bfrc-filters" method="get" action="' . esc_url( $action ) . '" data-bfrc-filters role="search" aria-label="' . esc_attr__( 'Filter recipes', 'bluefairy-recipes' ) . '" aria-describedby="bfrc-filters-hint">';
+		// Without pretty permalinks the archive or term URL is a query string (`?post_type=…`, `?bfrc_cuisine=…`), which a GET form would drop: carry it as hidden fields.
+		$target = Blocks::form_target( $action );
+		$html   = '<form class="bfrc-filters" method="get" action="' . esc_url( $target['action'] ) . '" data-bfrc-filters role="search" aria-label="' . esc_attr__( 'Filter recipes', 'bluefairy-recipes' ) . '" aria-describedby="bfrc-filters-hint">' . $target['hidden'];
 		$html  .= '<p id="bfrc-filters-hint" class="screen-reader-text bfrc-filters__hint">' . esc_html__( 'Changing a filter or pausing while typing updates the list; the Filter button applies it at once.', 'bluefairy-recipes' ) . '</p>';
 		$terms  = $this->terms_by_taxonomy();
 		foreach ( $this->taxonomies->enabled() as $code => $definition ) {
@@ -337,6 +339,20 @@ final class Renderer {
 	}
 
 	/**
+	 * The `paginate_links()` base of the writers listing: core's `/page/N/`
+	 * on the listing page, `?paged=N` of the listing's query-string URL
+	 * without pretty permalinks, `?bfrc_page=N` of a page holding the shortcode.
+	 *
+	 * @param string|null $base_url The shortcode's page, or null on the listing page.
+	 */
+	private function writers_page_base( ?string $base_url ): string {
+		if ( null !== $base_url ) {
+			return add_query_arg( RecipeQuery::PAGE_VAR, '%#%', $base_url );
+		}
+		return Writers::uses_permalinks() ? trailingslashit( $this->writers->listing_url() ) . '%_%' : add_query_arg( 'paged', '%#%', $this->writers->listing_url() );
+	}
+
+	/**
 	 * The writers listing page.
 	 *
 	 * @param int         $page        1-based page.
@@ -374,8 +390,8 @@ final class Renderer {
 			// On the listing page the pages are core's `/page/N/`; on a page holding the shortcode they are `?bfrc_page=N` of that page.
 			$links = paginate_links(
 				[
-					'base'      => null === $base_url ? trailingslashit( $this->writers->listing_url() ) . '%_%' : add_query_arg( RecipeQuery::PAGE_VAR, '%#%', $base_url ),
-					'format'    => null === $base_url ? user_trailingslashit( Writers::pagination_base() . '/%#%' ) : '',
+					'base'      => $this->writers_page_base( $base_url ),
+					'format'    => null === $base_url && Writers::uses_permalinks() ? user_trailingslashit( Writers::pagination_base() . '/%#%' ) : '',
 					'total'     => $listing['pages'],
 					'current'   => $page,
 					'prev_text' => __( '&laquo; Previous', 'bluefairy-recipes' ),

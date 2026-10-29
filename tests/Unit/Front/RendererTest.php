@@ -260,6 +260,29 @@ final class RendererTest extends TestCase {
 		$this->assertSame( '', $this->renderer->archive( bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'bfrc_writer' => '1', 'author_name' => 'eve' ], 'author' ) ), 'no public page: nothing (the guard already 404ed)' );
 	}
 
+	public function test_without_pretty_permalinks_the_filter_form_keeps_the_archive_query_and_writers_page_by_paged(): void {
+		wp_insert_term( 'Vegan', 'bfrc_diet' );
+		$structure                                   = $GLOBALS['wp_rewrite']->permalink_structure;
+		$GLOBALS['wp_rewrite']->permalink_structure = '';
+		try {
+			$html = $this->renderer->filters( bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] ) );
+			$this->assertStringContainsString( 'method="get" action="https://example.com/"', $html, 'the query string is not left in the action, where a GET form drops it' );
+			$this->assertStringContainsString( '<input type="hidden" name="post_type" value="bfrc_recipe">', $html, 'the archive is carried as a field' );
+			for ( $i = 1; $i <= 25; $i++ ) {
+				bfrc_test_add_user( 200 + $i, [ 'roles' => [ 'bfrc_writer' ], 'display_name' => sprintf( 'W%02d', $i ), 'user_nicename' => 'w' . $i ] );
+				bfrc_test_add_post( [ 'ID' => 300 + $i, 'post_type' => 'bfrc_recipe', 'post_status' => 'publish', 'post_author' => 200 + $i ] );
+			}
+			$this->writers->reset();
+			\BlueFairy\Recipes\Front\Writers::bump();
+			$this->renderer->writers_list( 2 );
+			$call = $GLOBALS['bfrc_test_paginate_calls'][0];
+			$this->assertSame( 'https://example.com/?post_type=bfrc_recipe&bfrc_writers=1&paged=%#%', $call['base'], 'core\'s ?paged=N of the listing, not /page/N/ glued onto a query string' );
+			$this->assertSame( '', $call['format'] );
+		} finally {
+			$GLOBALS['wp_rewrite']->permalink_structure = $structure;
+		}
+	}
+
 	public function test_writers_list_paginates_and_says_when_empty(): void {
 		$GLOBALS['bfrc_test_users'] = [];
 		$this->assertStringContainsString( 'No recipe writers yet.', $this->renderer->writers_list( 1 ) );

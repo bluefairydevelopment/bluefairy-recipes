@@ -86,7 +86,7 @@
 	 * @return {string} The text.
 	 */
 	function format( template, value ) {
-		return String( template || '' ).replace( /%[sd]/, function () { return String( value ); } );
+		return String( template || '' ).replace( /%(?:1\$)?[sd]/, function () { return String( value ); } ); // %s, or %1$s as a translator may write it.
 	}
 
 	/**

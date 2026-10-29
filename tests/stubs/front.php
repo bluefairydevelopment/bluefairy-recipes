@@ -420,6 +420,9 @@ if ( ! function_exists( 'user_trailingslashit' ) ) {
 }
 if ( ! function_exists( 'get_post_type_archive_link' ) ) {
 	function get_post_type_archive_link( string $post_type ): string|false {
+		if ( isset( $GLOBALS['wp_rewrite'] ) && ! $GLOBALS['wp_rewrite']->using_permalinks() ) {
+			return home_url( '/?post_type=' . $post_type ); // As core: the query-string form.
+		}
 		$slug = $GLOBALS['bfrc_test_archive_slugs'][ $post_type ] ?? ( 'bfrc_recipe' === $post_type ? 'recipes' : $post_type );
 		return home_url( '/' . $slug . '/' );
 	}

@@ -1,10 +1,11 @@
 /**
  * The enabled recipe filter types and their terms, for the inspector
  * controls: every taxonomy of the recipe post type whose name carries the
- * plugin's prefix, with its terms (name order, at most 100).
+ * plugin's prefix, with all of its terms (name order).
  */
 import { useSelect } from '@wordpress/data';
 import { store as coreStore } from '@wordpress/core-data';
+import { TERMS_QUERY } from './terms-query.js';
 
 const PREFIX = 'bfrc_';
 
@@ -17,7 +18,7 @@ export function useRecipeTaxonomies() {
 			.map( ( taxonomy ) => ( {
 				code: taxonomy.slug.slice( PREFIX.length ),
 				label: taxonomy.name,
-				terms: ( getEntityRecords( 'taxonomy', taxonomy.slug, { per_page: 100, orderby: 'name', order: 'asc', hide_empty: false } ) || [] ).map( ( term ) => ( {
+				terms: ( getEntityRecords( 'taxonomy', taxonomy.slug, TERMS_QUERY ) || [] ).map( ( term ) => ( {
 					slug: term.slug,
 					name: term.name,
 				} ) ),

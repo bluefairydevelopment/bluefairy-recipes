@@ -29,7 +29,7 @@ BlueFairy Recipes turns WordPress into a recipe site. Each recipe has ingredient
 
 * A recipe edit screen with Recipe Details, Recipe Video, Ingredients, Steps and Nutrition panels; rows can be added, moved and dragged; works in the block editor and the classic editor.
 * A Recipes list with photo, time, servings and featured columns, filters by filter type and featured, and bulk Mark/Unmark featured.
-* Two roles: Recipe Writer (own recipes) and Recipe Manager (every recipe, the filter types, the settings). Authors and Editors get recipe capabilities too while "Grant core roles" is on.
+* Two roles: Recipe Writer (own recipes) and Recipe Manager (every recipe, the filter types, the settings; Grant core roles and Delete all data on uninstall are changed by Administrators only). Authors and Editors get recipe capabilities too while "Grant core roles" is on.
 * Writer profile fields on the user profile: photo, header image, about text, website and social links, and a switch to appear on the public writers page.
 * Recipes → Settings: on/off switch, rich snippets, archive slug and title, recipes per page, share buttons, writer listing, core role grants, filter types on/off and order, uninstall data choice, and three sample recipes to install and remove.
 

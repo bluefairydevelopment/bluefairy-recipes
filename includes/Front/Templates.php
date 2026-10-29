@@ -346,6 +346,11 @@ final class Templates {
 			return;
 		}
 		$query->set( 'post_type', PostType::NAME );
+		if ( (int) $query->get( 'paged' ) > RecipeQuery::MAX_PAGE ) {
+			// `?paged=99999999` would make MySQL walk that many rows to OFFSET past them. One past
+			// the cap is still past the last page (core 404s it), at the cost of a bounded scan.
+			$query->set( 'paged', RecipeQuery::MAX_PAGE + 1 );
+		}
 		if ( (bool) $query->get( Writers::LIST_VAR ) ) {
 			// The listing page: the post query is only a vehicle for the template, one recipe per
 			// page. `paged` stays: the writers listing reads it, and guard() 404s pages past the

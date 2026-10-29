@@ -10,6 +10,7 @@ namespace BlueFairy\Recipes\Tests\Unit\Front;
 use BlueFairy\Recipes\Capabilities;
 use BlueFairy\Recipes\Content\Taxonomies;
 use BlueFairy\Recipes\Front\Renderer;
+use BlueFairy\Recipes\Front\RecipeQuery;
 use BlueFairy\Recipes\Front\Templates;
 use BlueFairy\Recipes\Front\Writers;
 use BlueFairy\Recipes\Plugin;
@@ -589,6 +590,12 @@ final class TemplatesTest extends TestCase {
 		$q    = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe' ] );
 		$this->templates->shape_query( $q );
 		$this->assertSame( 100, strlen( $q->get( 's' ) ), 'keyword capped' );
+		$q = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'paged' => 99999999 ] );
+		$this->templates->shape_query( $q );
+		$this->assertSame( RecipeQuery::MAX_PAGE + 1, $q->get( 'paged' ), 'a huge page is bounded, and still past the last page' );
+		$q = bfrc_test_front_query( [ 'post_type' => 'bfrc_recipe', 'paged' => RecipeQuery::MAX_PAGE ] );
+		$this->templates->shape_query( $q );
+		$this->assertSame( RecipeQuery::MAX_PAGE, $q->get( 'paged' ), 'the last allowed page is left alone' );
 	}
 
 	public function test_shape_query_skips_the_term_already_in_the_url_and_merges_an_existing_tax_query(): void {

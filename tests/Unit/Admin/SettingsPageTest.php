@@ -34,6 +34,7 @@ final class SettingsPageTest extends TestCase {
 		bfrc_test_add_user( 1, [ 'roles' => [ 'administrator' ] ] );
 		bfrc_test_add_user( 5, [ 'roles' => [ 'bfrc_writer' ] ] );
 		wp_set_current_user( 1 );
+		bfrc_test_grant( 'manage_options' ); // An administrator: the ADMIN_ONLY settings are theirs.
 		bfrc_test_grant( 'create_users' ); // The harness's administrator carries the plugin's caps only; the samples need core's create_users too.
 		$_REQUEST['_wpnonce'] = 'nonce-bfrc_save_settings'; // The stub accepts nonce-<action>.
 	}
@@ -165,6 +166,30 @@ final class SettingsPageTest extends TestCase {
 		$_POST                                   = [ 'bfrc_tab' => 'writers', 'bfrc' => [ 'writers_listing' => '1' ] ];
 		$exit                                    = bfrc_test_catch_exit( fn() => $this->page->save() );
 		$this->assertStringContainsString( 'bfrc_notice=failed', (string) $exit->payload );
+	}
+
+	public function test_a_recipe_manager_sees_but_cannot_change_the_site_wide_settings(): void {
+		$this->settings->update( [ 'grant_core_roles' => true, 'delete_data_on_uninstall' => false, 'writers_listing' => true ] + $this->settings->all() );
+		bfrc_test_add_user( 8, [ 'roles' => [ 'bfrc_recipe_manager' ] ] );
+		wp_set_current_user( 8 );
+		$GLOBALS['bfrc_test_caps']['manage_options'] = false;
+		$this->assertStringContainsString( 'name="bfrc[grant_core_roles]" value="1" checked="checked" disabled="disabled"', $this->render( 'writers' ) );
+		$data = $this->render( 'data' );
+		$this->assertStringContainsString( 'name="bfrc[delete_data_on_uninstall]" value="1" disabled="disabled"', $data );
+		$this->assertStringContainsString( 'Only an administrator can change this.', $data );
+		$_POST = [ 'bfrc_tab' => 'data', 'bfrc' => [ 'delete_data_on_uninstall' => '1' ] ];
+		bfrc_test_catch_exit( fn() => $this->page->save() );
+		$this->assertFalse( ( new Settings() )->all()['delete_data_on_uninstall'], 'a manager cannot arm delete-everything' );
+		$_POST = [ 'bfrc_tab' => 'writers', 'bfrc' => [] ];
+		bfrc_test_catch_exit( fn() => $this->page->save() );
+		$all = ( new Settings() )->all();
+		$this->assertTrue( $all['grant_core_roles'], 'nor take capabilities from Authors and Editors' );
+		$this->assertFalse( $all['writers_listing'], 'the rest of the tab still saves' );
+		$GLOBALS['bfrc_test_caps']['manage_options'] = true;
+		$this->assertStringNotContainsString( 'Only an administrator', $this->render( 'data' ) );
+		$_POST = [ 'bfrc_tab' => 'data', 'bfrc' => [ 'delete_data_on_uninstall' => '1' ] ];
+		bfrc_test_catch_exit( fn() => $this->page->save() );
+		$this->assertTrue( ( new Settings() )->all()['delete_data_on_uninstall'], 'an administrator can' );
 	}
 
 	public function test_save_refuses_an_archive_slug_a_page_already_uses_and_saves_the_rest(): void {

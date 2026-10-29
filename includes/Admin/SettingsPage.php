@@ -85,6 +85,13 @@ final class SettingsPage {
 	 *
 	 * @var list<string>
 	 */
+	/**
+	 * Settings with site-wide reach (who holds which capability; whether
+	 * uninstall deletes everything): a Recipe Manager sees them, only an
+	 * administrator (`manage_options`) changes them.
+	 */
+	public const ADMIN_ONLY = [ 'grant_core_roles', 'delete_data_on_uninstall' ];
+
 	private const CHECKBOXES = [ 'enabled', 'rich_snippets', 'share_enabled', 'share_facebook', 'share_x', 'share_pinterest', 'writers_listing', 'grant_core_roles', 'delete_data_on_uninstall' ];
 
 	/**
@@ -403,6 +410,9 @@ final class SettingsPage {
 		$raw    = isset( $_POST['bfrc'] ) && is_array( $_POST['bfrc'] ) ? wp_unslash( $_POST['bfrc'] ) : [];
 		$values = [];
 		foreach ( self::TAB_KEYS[ $tab ] as $key ) {
+			if ( in_array( $key, self::ADMIN_ONLY, true ) && ! current_user_can( 'manage_options' ) ) {
+				continue; // Kept as stored: see ADMIN_ONLY.
+			}
 			if ( in_array( $key, self::CHECKBOXES, true ) ) {
 				$values[ $key ] = isset( $raw[ $key ] ) && Settings::to_bool( $raw[ $key ] ); // An absent checkbox is unticked; a posted 0 is too.
 			} elseif ( 'taxonomies' === $key ) {
@@ -527,7 +537,11 @@ final class SettingsPage {
 	 * @param string $description Help text ('' for none).
 	 */
 	private function checkbox( string $key, string $label, bool $checked, string $description ): void {
-		echo '<tr><th scope="row"><label for="bfrc-' . esc_attr( $key ) . '">' . esc_html( $label ) . '</label></th><td><input type="checkbox" id="bfrc-' . esc_attr( $key ) . '" name="bfrc[' . esc_attr( $key ) . ']" value="1"' . checked( $checked, true, false );
+		$locked = in_array( $key, self::ADMIN_ONLY, true ) && ! current_user_can( 'manage_options' );
+		if ( $locked ) {
+			$description = trim( $description . ' ' . __( 'Only an administrator can change this.', 'bluefairy-recipes' ) );
+		}
+		echo '<tr><th scope="row"><label for="bfrc-' . esc_attr( $key ) . '">' . esc_html( $label ) . '</label></th><td><input type="checkbox" id="bfrc-' . esc_attr( $key ) . '" name="bfrc[' . esc_attr( $key ) . ']" value="1"' . checked( $checked, true, false ) . disabled( $locked, true, false );
 		if ( '' !== $description ) {
 			echo ' aria-describedby="bfrc-' . esc_attr( $key ) . '-description"';
 		}

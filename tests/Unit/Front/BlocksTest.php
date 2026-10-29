@@ -212,6 +212,11 @@ final class BlocksTest extends TestCase {
 		$GLOBALS['bfrc_test_queries'] = [];
 		$this->blocks->render_list( [ 'perPage' => 4, 'showPagination' => false ] );
 		$this->assertCount( 1, $GLOBALS['bfrc_test_queries'], 'without pagination there is no count and no clamp' );
+		$_GET['bfrc_page'] = '3';
+		$this->fresh();
+		$GLOBALS['bfrc_test_queries'] = [];
+		$this->blocks->render_list( [ 'perPage' => 4, 'showPagination' => false ] );
+		$this->assertSame( 1, $GLOBALS['bfrc_test_queries'][0]['paged'], 'a list without pagination ignores ?bfrc_page: it has no page 3 to show' );
 	}
 
 	public function test_shortcodes_render_the_blocks_inner_markup_and_process_directives(): void {

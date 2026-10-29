@@ -98,9 +98,18 @@ final class ReviewComments {
 		if ( ! $post instanceof \WP_Post || PostType::NAME !== $post->post_type ) {
 			return $count;
 		}
+		// Cached until any comment changes (core bumps the group's last_changed), so a
+		// theme that prints the count several times, or a list of recipes, counts once.
+		$key    = 'bfrc_comments_number:' . (int) $post->ID . ':' . wp_cache_get_last_changed( 'comment' );
+		$cached = wp_cache_get( $key, 'comment-queries' );
+		if ( is_int( $cached ) ) {
+			return $cached;
+		}
 		global $wpdb;
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- one count, only on a recipe with comments, only while Pro (which keeps its own count) is off.
-		return (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->comments} WHERE comment_post_ID = %d AND comment_approved = '1' AND comment_type <> %s", (int) $post->ID, self::TYPE ) );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- one count, cached above, only on a recipe with comments, only while Pro (which keeps its own count) is off.
+		$number = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->comments} WHERE comment_post_ID = %d AND comment_approved = '1' AND comment_type <> %s", (int) $post->ID, self::TYPE ) );
+		wp_cache_set( $key, $number, 'comment-queries' );
+		return $number;
 	}
 
 	/**

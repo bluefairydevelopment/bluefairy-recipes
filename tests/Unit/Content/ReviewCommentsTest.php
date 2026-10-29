@@ -56,6 +56,12 @@ final class ReviewCommentsTest extends TestCase {
 		$this->assertSame( 0, $this->reviews->comments_number( 0, 10 ), 'nothing to count: no query' );
 		$this->assertSame( 5, $this->reviews->comments_number( 5, 999 ) );
 		$this->assertCount( 1, $this->wpdb->queries_matching( 'COUNT(*)' ) );
+		$this->assertSame( 1, $this->reviews->comments_number( 3, 10 ), 'the same recipe again: from the cache' );
+		$this->assertCount( 1, $this->wpdb->queries_matching( 'COUNT(*)' ), 'one COUNT per recipe until a comment changes' );
+		wp_cache_set_last_changed( 'comment' );
+		$this->wpdb->queue( 'get_var', '2' );
+		$this->assertSame( 2, $this->reviews->comments_number( 3, 10 ), 'a comment changed: counted again' );
+		$this->assertCount( 2, $this->wpdb->queries_matching( 'COUNT(*)' ) );
 	}
 
 	public function test_the_rest_api_never_shows_a_reviews_avatar_hash_to_a_visitor(): void {
