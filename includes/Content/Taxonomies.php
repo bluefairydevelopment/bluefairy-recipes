@@ -179,9 +179,21 @@ final class Taxonomies {
 	}
 
 	/**
+	 * WordPress's public query vars (class-wp.php `WP::$public_query_vars`,
+	 * checked against 7.0) and the list's own argument `per_page`: a filter code
+	 * equal to one could be mistaken for it in a hand-written address, so the
+	 * plan reserves them (plan 4.2). One-letter vars (`m`, `p`, `s`, `w`)
+	 * are refused by the code length rule already.
+	 *
+	 * @var list<string>
+	 */
+	public const PUBLIC_QUERY_VARS = [ 'per_page', 'posts', 'cat', 'withcomments', 'withoutcomments', 'search', 'exact', 'sentence', 'calendar', 'page', 'paged', 'more', 'tb', 'pb', 'author', 'order', 'orderby', 'year', 'monthnum', 'day', 'hour', 'minute', 'second', 'name', 'category_name', 'tag', 'feed', 'author_name', 'pagename', 'page_id', 'error', 'attachment', 'attachment_id', 'subpost', 'subpost_id', 'preview', 'robots', 'favicon', 'taxonomy', 'term', 'cpage', 'post_type', 'embed' ];
+
+	/**
 	 * Codes a custom filter type may not use: the system codes, and anything
 	 * that is a route under the archive in either spelling (`chef`, `page`,
-	 * the feed names, the site routes the archive slug refuses).
+	 * the feed names, the site routes the archive slug refuses), and
+	 * WordPress's public query vars with the list's `per_page` (PUBLIC_QUERY_VARS).
 	 *
 	 * @return list<string>
 	 *
@@ -191,7 +203,7 @@ final class Taxonomies {
 	public static function reserved_codes(): array {
 		$out   = array_keys( self::SYSTEM );
 		$out[] = 'constructor'; // The one Object.prototype name the code pattern admits: `state.fixed.constructor` is always truthy in the page script.
-		foreach ( array_merge( Slugs::FIXED, Settings::RESERVED_SLUGS ) as $slug ) {
+		foreach ( array_merge( Slugs::FIXED, Settings::RESERVED_SLUGS, self::PUBLIC_QUERY_VARS ) as $slug ) {
 			$out[] = $slug;
 			$out[] = str_replace( '-', '_', $slug );
 		}

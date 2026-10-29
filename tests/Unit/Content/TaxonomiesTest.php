@@ -134,6 +134,14 @@ final class TaxonomiesTest extends TestCase {
 		$this->assertContains( 'wp-admin', Taxonomies::reserved_codes() );
 	}
 
+	public function test_reserved_codes_include_the_archives_own_arguments_and_wordpress_public_query_vars(): void {
+		$reserved = Taxonomies::reserved_codes();
+		foreach ( [ 'per_page', 'paged', 'post_type', 'author_name', 'orderby', 'order', 'search', 'name', 'taxonomy', 'term', 'cpage', 'preview', 'attachment', 'page_id', 'category_name' ] as $code ) {
+			$this->assertContains( $code, $reserved, "{$code}: a WordPress public query var or the list's own argument (plan 4.2)" );
+		}
+		$this->assertSame( Taxonomies::PUBLIC_QUERY_VARS, array_values( array_unique( Taxonomies::PUBLIC_QUERY_VARS ) ), 'no duplicates' );
+	}
+
 	public function test_flush_drops_the_cached_definitions_so_a_later_filter_or_setting_counts(): void {
 		$t = $this->taxonomies();
 		$this->assertCount( 4, $t->definitions() );
