@@ -89,13 +89,26 @@ final class RecipeQueryTest extends TestCase {
 		$this->assertFalse( $q->is_main_query() );
 	}
 
+	public function test_featured_asks_only_for_the_newest_featured_ids_it_shows_however_many_are_featured(): void {
+		foreach ( [ 41, 42, 43 ] as $id ) {
+			bfrc_test_add_post( [ 'ID' => $id, 'post_type' => 'bfrc_recipe', 'post_status' => 'publish' ] );
+		}
+		$this->wpdb->queue( 'get_col', [ 43, 41 ] );
+		bfrc_test_query_resolver( static fn( array $vars ): array => [ array_slice( (array) ( $vars['post__in'] ?? [] ), 0, (int) $vars['posts_per_page'] ), 0, 0 ] );
+		$this->query->featured( 'featured', 4 );
+		$sql = $this->wpdb->queries_matching( Meta::FEATURED );
+		$this->assertCount( 1, $sql );
+		$this->assertMatchesRegularExpression( "/p\\.post_status = 'publish' ORDER BY p\\.post_date DESC, p\\.ID DESC LIMIT 4$/", $sql[0], 'the newest four published featured ids, not every featured id into post__in (WPMAP-227 L7)' );
+		$this->assertSame( [ 43, 41 ], $GLOBALS['bfrc_test_queries'][0]['post__in'] );
+	}
+
 	public function test_featured_reads_the_cached_id_set_and_starts_a_new_key_when_a_recipe_changes(): void {
 		foreach ( [ 41, 42, 43 ] as $id ) {
 			bfrc_test_add_post( [ 'ID' => $id, 'post_type' => 'bfrc_recipe', 'post_status' => 'publish' ] );
 		}
 		update_post_meta( 41, Meta::FEATURED, true );
 		update_post_meta( 43, Meta::FEATURED, true );
-		$this->wpdb->queue( 'get_col', [ 43, 41 ] ); // Meta::featured_ids(): the indexed id lookup.
+		$this->wpdb->always( 'get_col', [ 43, 41 ] ); // Meta::newest_featured_ids(): the bounded lookup, run on each cache miss.
 		$queries = 0;
 		bfrc_test_query_resolver( static function ( array $vars ) use ( &$queries ): array {
 			++$queries;
@@ -105,7 +118,7 @@ final class RecipeQueryTest extends TestCase {
 		$posts = $this->query->featured( 'featured', 4 );
 		$this->assertSame( [ 43, 41 ], array_map( static fn( \WP_Post $p ): int => $p->ID, $posts ) );
 		$vars = $GLOBALS['bfrc_test_queries'][0];
-		$this->assertSame( [ 43, 41 ], $vars['post__in'], 'the cached id set, never a postmeta join' );
+		$this->assertSame( [ 43, 41 ], $vars['post__in'], 'the newest featured ids, as many as shown' );
 		$this->assertSame( [ 'ids', true, true, 4 ], [ $vars['fields'], $vars['no_found_rows'], $vars['ignore_sticky_posts'], $vars['posts_per_page'] ] );
 		$this->query->featured( 'featured', 4 );
 		$this->assertSame( 1, $queries, 'the second read is from the cache' );
@@ -120,7 +133,7 @@ final class RecipeQueryTest extends TestCase {
 		$this->assertSame( 5, $queries, 'after a bump the old key is never read' );
 		$GLOBALS['bfrc_test_posts'][43]->post_status = 'draft';
 		$this->assertSame( [ 41 ], array_map( static fn( \WP_Post $p ): int => $p->ID, $this->query->featured( 'featured', 4 ) ), 'a recipe unpublished since the set was cached is left out' );
-		$this->wpdb->queue( 'get_col', [] );
+		$this->wpdb->always( 'get_col', [] );
 		Cache::bump();
 		Meta::flush_featured_ids( 1, 41, Meta::FEATURED );
 		$this->assertSame( [], $this->query->featured( 'featured', 4 ), 'no featured recipes: nothing, and no query for them' );

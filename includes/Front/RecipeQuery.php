@@ -210,12 +210,12 @@ final class RecipeQuery {
 				'fields'              => 'ids',
 			];
 			if ( 'featured' === $mode ) {
-				$featured = Meta::featured_ids();
+				$featured = Meta::newest_featured_ids( $count ); // At most $count ids: a site may feature thousands.
 				if ( [] === $featured ) {
 					wp_cache_set( $key, [], Cache::GROUP, self::FEATURED_TTL );
 					return [];
 				}
-				$args['post__in'] = $featured; // The cached id set: no postmeta join.
+				$args['post__in'] = $featured; // Already the newest $count; the query re-checks status and password.
 			}
 			$query = new \WP_Query( $args );
 			$ids   = array_values( array_map( 'intval', is_array( $query->posts ) ? $query->posts : [] ) );
