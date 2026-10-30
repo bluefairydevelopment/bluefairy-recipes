@@ -1,0 +1,15 @@
+/* The blocks preview as the site renders them; inside the editor nothing in them is live. */
+.editor-styles-wrapper .bfrc-filters,
+.editor-styles-wrapper .bfrc-pagination,
+.editor-styles-wrapper .bfrc-card a,
+.editor-styles-wrapper .bfrc-featured a {
+	pointer-events: none;
+}
+
+.editor-styles-wrapper .bfrc-block-note,
+.editor-styles-wrapper .bfrc-block-placeholder {
+	margin: 0;
+	padding: 1em;
+	border: 1px dashed currentColor;
+	opacity: 0.75;
+}

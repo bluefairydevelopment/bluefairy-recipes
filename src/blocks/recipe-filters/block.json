@@ -1,0 +1,21 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "bfrc/recipe-filters",
+	"version": "1.0.0",
+	"title": "Recipe Filters",
+	"category": "widgets",
+	"icon": "filter",
+	"description": "The recipe filter form, for a Recipe List block elsewhere on the page. Changing a filter updates the list without a reload.",
+	"keywords": [ "recipe", "filter", "search" ],
+	"textdomain": "bluefairy-recipes",
+	"attributes": {},
+	"supports": {
+		"html": false,
+		"interactivity": true,
+		"align": [ "wide", "full" ]
+	},
+	"editorScript": "file:./index.js",
+	"editorStyle": [ "bfrc-recipes", "file:./index.css" ],
+	"viewScriptModule": "file:./view.js"
+}

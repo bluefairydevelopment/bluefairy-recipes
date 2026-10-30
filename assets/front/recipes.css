@@ -1,0 +1,111 @@
+/* BlueFairy Recipes: public pages */
+.bfrc-recipes .screen-reader-text { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); border: 0; white-space: nowrap; }
+/* The filter hint is screen-reader-only wherever the form renders (the Site Editor canvas has no body class). */
+.bfrc-filters__hint { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); border: 0; white-space: nowrap; }
+.bfrc-main { max-width: var(--bfrc-max-width, 72rem); margin: 0 auto; padding: 1.5rem; box-sizing: border-box; }
+.bfrc-archive__header, .bfrc-writer__intro { margin-bottom: 1.5rem; }
+.bfrc-archive__title, .bfrc-recipe__title, .bfrc-writer__name { margin: 0 0 .5rem; }
+.bfrc-archive__writers-link { margin: 0; font-size: .9em; }
+.bfrc-filters { display: flex; flex-wrap: wrap; gap: .75rem 1rem; align-items: flex-end; margin: 0 0 1.5rem; padding: 1rem; border: 1px solid rgba(0,0,0,.1); border-radius: .5rem; }
+.bfrc-filters__field { display: flex; flex-direction: column; gap: .25rem; font-size: .9em; }
+.bfrc-filters__field select, .bfrc-filters__field input { min-width: 10rem; padding: .4rem .6rem; }
+.bfrc-filters__actions { display: flex; gap: .75rem; align-items: center; }
+.bfrc-button { cursor: pointer; padding: .5rem 1rem; border: 1px solid currentColor; border-radius: .35rem; background: transparent; font: inherit; }
+.bfrc-grid, .bfrc-writers__grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 1.5rem; }
+.bfrc-card { display: flex; flex-direction: column; height: 100%; border: 1px solid rgba(0,0,0,.1); border-radius: .5rem; overflow: hidden; }
+.bfrc-card--featured { box-shadow: 0 0 0 2px rgba(214, 54, 56, .35); }
+.bfrc-card__media { display: block; aspect-ratio: 3 / 2; background: rgba(0,0,0,.05); }
+.bfrc-card__media img, .bfrc-card__placeholder { display: block; width: 100%; height: 100%; object-fit: cover; }
+.bfrc-card__body { padding: 1rem; display: flex; flex-direction: column; gap: .5rem; }
+.bfrc-card__title { margin: 0; font-size: 1.15em; }
+.bfrc-card__title a { text-decoration: none; }
+.bfrc-card__writer, .bfrc-card__excerpt, .bfrc-recipe__writer, .bfrc-writer-card__count { margin: 0; font-size: .9em; opacity: .85; }
+.bfrc-badges { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; margin: 0; }
+.bfrc-badge { display: flex; gap: .35rem; font-size: .9em; }
+.bfrc-badge dt { font-weight: 600; }
+.bfrc-badge dd { margin: 0; }
+.bfrc-recipe__terms { margin: .25rem 0 0; font-size: .9em; }
+.bfrc-recipe__hero { margin: 1.5rem 0; }
+.bfrc-recipe__hero img { display: block; width: 100%; height: auto; border-radius: .5rem; }
+.bfrc-recipe__video { position: relative; aspect-ratio: 16 / 9; }
+.bfrc-recipe__video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; border-radius: .5rem; }
+.bfrc-recipe__summary { font-size: 1.1em; }
+.bfrc-recipe__ingredients, .bfrc-recipe__steps, .bfrc-recipe__nutrition { margin: 2rem 0; }
+.bfrc-ingredients { padding-left: 1.25rem; }
+.bfrc-ingredient__measure { font-weight: 600; }
+.bfrc-steps { padding-left: 1.5rem; list-style: decimal; } /* numbered whatever the theme resets ol to */
+.bfrc-step { margin-bottom: .75rem; }
+.bfrc-nutrition { border-collapse: collapse; max-width: 24rem; }
+.bfrc-nutrition th, .bfrc-nutrition td { padding: .35rem .5rem; border-bottom: 1px solid rgba(0,0,0,.1); text-align: left; }
+.bfrc-nutrition td { text-align: right; }
+.bfrc-nutrition__note { margin: 0 0 .5rem; font-size: .9em; opacity: .85; }
+.bfrc-recipe__footer { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-top: 2rem; }
+.bfrc-share { display: flex; flex-wrap: wrap; gap: .5rem; }
+.bfrc-share__link { padding: .4rem .8rem; border: 1px solid currentColor; border-radius: 2rem; font-size: .9em; text-decoration: none; }
+/* paginate_links( type => list ) puts the page-numbers class on the <ul> too: the list rule names the ul, the item rule the links, so they never match the same element. */
+.bfrc-pagination ul.page-numbers { list-style: none; display: flex; flex-wrap: wrap; gap: .5rem; padding: 0; margin: 2rem 0 0; border: 0; }
+.bfrc-pagination li > .page-numbers { display: inline-block; padding: .4rem .7rem; border: 1px solid rgba(0,0,0,.15); border-radius: .35rem; text-decoration: none; }
+.bfrc-pagination li > .page-numbers.current { font-weight: 700; }
+.bfrc-empty { opacity: .85; }
+.bfrc-writer__header img { display: block; width: 100%; height: auto; max-height: 20rem; object-fit: cover; border-radius: .5rem; margin-bottom: 1.5rem; }
+.bfrc-writer__intro { display: flex; gap: 1.5rem; align-items: flex-start; }
+.bfrc-avatar { border-radius: 50%; width: 10rem; height: 10rem; object-fit: cover; flex: 0 0 auto; }
+.bfrc-writers__grid { grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); }
+.bfrc-writer-card { display: flex; gap: 1rem; align-items: flex-start; }
+.bfrc-writer-card__avatar { flex: 0 0 auto; }
+.bfrc-writer-card .bfrc-avatar { width: 5rem; height: 5rem; }
+.bfrc-writer-card__name { margin: 0; font-size: 1.1em; }
+.bfrc-writer__links { list-style: none; display: flex; flex-wrap: wrap; gap: .5rem 1rem; padding: 0; margin: .5rem 0 0; }
+@media (max-width: 40rem) {
+	.bfrc-writer__intro { flex-direction: column; }
+	.bfrc-card__media:has(.bfrc-card__placeholder) { aspect-ratio: 3 / 1; }
+	.bfrc-filters__field { flex: 1 1 100%; }
+	.bfrc-filters__field select, .bfrc-filters__field input { width: 100%; }
+}
+/* Recipe List block / [bfrc_recipes]: the list region, its live status line and the loading state. */
+.bfrc-list__status {
+	margin: 0.5rem 0;
+	line-height: 1.5;
+	min-height: 1.5em; /* Exactly one line, reserved even while empty: the loading text must not push the grid down and back. */
+	font-size: 0.9em;
+}
+
+/* The script hides a fixed filter's select, the empty nav and the Reset link with the hidden attribute; a theme
+   without a [hidden] rule would let the display rules above show them (seen on Twenty Twenty-One). */
+.bfrc-filters__field[hidden],
+.bfrc-button--print[hidden],
+.bfrc-pagination[hidden],
+.bfrc-filters__reset[hidden] {
+	display: none !important;
+}
+
+.bfrc-list.is-loading .bfrc-list__results,
+.bfrc-list.is-loading .bfrc-pagination {
+	opacity: 0.5;
+	transition: opacity 0.2s;
+}
+
+/* Featured Recipes block / [bfrc_featured]. */
+.bfrc-featured__title {
+	margin: 0 0 1rem;
+}
+
+/* A view block pasted into a post, in the editor. */
+.bfrc-block-note {
+	margin: 0;
+	padding: 1em;
+	border: 1px dashed currentColor;
+	opacity: 0.75;
+}
+/* Plugin-owned controls never print, wherever the list is (the rules below are scoped to the recipe views' body class). */
+@media print {
+	.bfrc-filters, .bfrc-pagination, .bfrc-list__status { display: none !important; }
+
+	/* Scoped to the recipe views' body class: the stylesheet must never change how another page prints, wherever it loads. */
+	.bfrc-recipes .bfrc-share, .bfrc-recipes .bfrc-button--print, .bfrc-recipes .bfrc-archive__writers-link, .bfrc-recipes .bfrc-recipe__video, .bfrc-recipes #wpadminbar, .bfrc-recipes .wp-block-template-part, body.bfrc-recipes > header, body.bfrc-recipes > footer, .bfrc-recipes .wp-site-blocks > header, .bfrc-recipes .wp-site-blocks > footer, .bfrc-recipes #masthead, .bfrc-recipes #colophon, .bfrc-recipes nav:not(.bfrc-share), .bfrc-recipes aside { display: none !important; }
+	.bfrc-recipes .bfrc-recipe__header, .bfrc-recipes .bfrc-recipe__footer { display: block !important; }
+	.bfrc-recipes .bfrc-recipe { font-size: 11pt; }
+	.bfrc-recipes .bfrc-recipe__hero img { max-height: 3in; width: auto; }
+	.bfrc-recipes .bfrc-recipe__ingredients, .bfrc-recipes .bfrc-recipe__steps, .bfrc-recipes .bfrc-recipe__nutrition { break-inside: avoid; }
+	.bfrc-recipes a[href]::after { content: none; }
+}

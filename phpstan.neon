@@ -1,0 +1,18 @@
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+    level: 6
+    phpVersion: 80100 # The plugin header's Requires PHP: analysed as 8.1, so a newer-only type (true as a return type is 8.2) fails here instead of on a customer's site.
+    paths:
+        - bluefairy-recipes.php
+        - includes/
+        - uninstall.php
+
+    excludePaths:
+        - vendor/
+
+    bootstrapFiles:
+        - phpstan-bootstrap.php
+
+    treatPhpDocTypesAsCertain: false

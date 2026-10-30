@@ -1,0 +1,31 @@
+# Files left out of the distributable zip (WordPress.org and the download build).
+# src/, build/, package.json, package-lock.json and webpack.config.js ship: WordPress.org
+# requires the human-readable source of built JavaScript and the command that builds it.
+/.git
+/.github
+/.gitignore
+/.distignore
+/.gitattributes
+/.cache
+/.phpunit.cache
+/.phpunit.result.cache
+/node_modules
+/vendor
+/tests
+/bin
+# docs/: everything but the features guide PDF, which ships in every zip.
+/docs/*
+!/docs/*FeaturesGuide.pdf
+/FEATURES.md
+/README.md
+/coverage
+/composer.json
+/composer.lock
+/phpcs.xml.dist
+/phpstan.neon
+/phpstan-bootstrap.php
+/phpunit.xml.dist
+/.DS_Store
+/SECURITY.md
+# WordPress.org listing assets (banners, icons, screenshots): SVN assets/, never the zip.
+/wp-org-assets
