@@ -193,3 +193,50 @@ leaves it to WordPress:
 - **No store-view scope.** On a multisite network each site is its own recipe site, with its
   own settings and recipes: network-activate the plugin or activate it on each site that
   needs it, and a site created later is set up on its own.
+
+## BlueFairy Recipes Pro
+
+BlueFairy Recipes is complete on its own. BlueFairy Recipes Pro is an add-on that runs beside it
+and turns a recipe site into a community and a shop. Everything in this guide keeps working
+exactly as described when Pro is added.
+
+| Feature | BlueFairy Recipes Pro | BlueFairy Recipes (free) |
+|---|---|---|
+| Recipes with ingredients, steps, nutrition, timings and servings | Yes | Yes |
+| Photo or YouTube/Vimeo video per recipe | Yes | Yes |
+| Recipe rich results markup (JSON-LD) | Yes, with the average star rating | Yes |
+| Filterable recipe archive, blocks and shortcodes | Yes | Yes |
+| Meal Type, Diet, Season and Cuisine filters | Yes | Yes |
+| Your own filter types (for example Occasion) | Yes, up to 50 | — |
+| Writer profiles and public writer pages | Yes | Yes |
+| Print layout and share buttons | Yes | Yes |
+| Visitor reviews with 1 to 5 stars and moderation | Yes | — |
+| Recipe submissions from visitors, with a photo and approval | Yes | — |
+| Add a recipe's ingredients to the WooCommerce cart | Yes | — |
+| Affiliate ingredient links (marked sponsored) | Yes | — |
+| Related Recipes on WooCommerce product pages | Yes | — |
+| Correct visitor addresses behind Cloudflare for review and submission limits | Yes | — |
+| Updates | 12 months of updates and support included, renewal optional | From WordPress.org |
+
+**Visitors can read your recipes, but cannot tell you what they thought.** Pro adds reviews with
+a 1 to 5 star rating under each recipe, held for your approval by default, and adds the average
+rating to the recipe's rich results markup.
+
+**Readers who cook have recipes of their own.** Pro adds a Submit a Recipe form with a photo
+upload; nothing is published until someone who can edit other writers' recipes approves it, and approving turns the
+submission into a draft recipe.
+
+**An ingredient list is a shopping list.** With WooCommerce, Pro links ingredients to your
+products, adds the whole recipe's shop ingredients to the cart in one click, links other
+ingredients to affiliate shops (marked as sponsored), and shows Related Recipes on product pages.
+
+**Four ways to browse may not fit your site.** Pro lets you add your own filter types, such as
+Occasion, beside Meal Type, Diet, Season and Cuisine.
+
+### Get Pro
+
+**https://wordpress.bluefairydevelopment.com/product/bluefairy-recipes-pro/**
+
+One payment, no subscription: the licence never expires, and the price includes 12 months of
+updates and support; renewing those after the first year is optional. Pro requires this plugin
+to be installed and active: it is an add-on, not a replacement.
