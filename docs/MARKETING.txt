@@ -1,0 +1,80 @@
+BlueFairy Recipes — Marketing Content
+=====================================
+
+
+3-SENTENCE SUMMARY
+------------------
+
+BlueFairy Recipes turns WordPress into a recipe site: recipe pages with ingredients, steps, timings, servings, nutrition and a photo or video, a recipe archive filtered by meal type, diet, season and cuisine, writer profiles with public pages, and Recipe structured data for Google. Four blocks, three shortcodes and a read-only REST endpoint come with it. Requires PHP 8.1+ and WordPress 6.7+; licensed GPL-2.0-or-later; free.
+
+
+CSS CLASS PREFIX
+----------------
+
+bfrc   (Recipes; the Pro add-on uses bfrcp)
+
+
+FREE VS PRO COMPARISON
+----------------------
+
+Written once, in the Pro add-on's docs/MARKETING.txt (Pro first). FEATURES.md
+"BlueFairy Recipes Pro" carries a copy of the same table at the end of the
+features guide (DocsTest checks its shape and the Pro product link); the hub
+page copies it too (wp-deploy content/bluefairy-recipes, compare_rows.py).
+
+
+HTML LONG DESCRIPTION
+---------------------
+
+(WooCommerce product description for bluefairy-recipes. The applied copy is
+wp-deploy content/bluefairy-recipes/free-description.html; keep the two equal.)
+
+<div class="bfrc-dc-grid">
+  <div class="bfrc-dc-card">
+    <h3>Recipe Pages</h3>
+    <p>Ingredients with measures, numbered steps, prep and cook times, servings, nutrition facts per serving, a photo or a YouTube or Vimeo video, share buttons (Facebook, X, Pinterest) and a print layout.</p>
+  </div>
+  <div class="bfrc-dc-card">
+    <h3>Filterable Archive</h3>
+    <p>A recipe archive filtered by meal type, diet, season and cuisine with a title search; a page for every filter term. The form works without JavaScript.</p>
+  </div>
+  <div class="bfrc-dc-card">
+    <h3>Recipe Rich Results</h3>
+    <p>Recipe JSON-LD for Google on every recipe page with a featured image, switchable in Settings if your SEO plugin prints its own.</p>
+  </div>
+  <div class="bfrc-dc-card">
+    <h3>Writer Profiles</h3>
+    <p>Recipe Writer and Recipe Manager roles, a photo, header image, about text and links per writer, and a public writers listing with a page and feed per writer.</p>
+  </div>
+  <div class="bfrc-dc-card">
+    <h3>Blocks &amp; Shortcodes</h3>
+    <p>Recipe List (filters update the list without a reload), Recipe Filters, Featured Recipes and Recipe Card blocks, plus <code>[bfrc_recipes]</code>, <code>[bfrc_featured]</code> and <code>[bfrc_writers]</code>.</p>
+  </div>
+  <div class="bfrc-dc-card">
+    <h3>Any Theme</h3>
+    <p>Block themes get Single Recipe, Recipes Archive and Recipe Writers templates for the Site Editor; classic themes get templates you can override.</p>
+  </div>
+  <div class="bfrc-dc-card bfrc-dc-card-pro">
+    <h3>Want more? Recipes Pro</h3>
+    <p>Star-rated reviews, recipe submissions from visitors, shoppable WooCommerce ingredients with Related Recipes, affiliate links and your own filter types. <a href="/product/bluefairy-recipes-pro/">Buy Recipes Pro &mdash; $25 &rarr;</a></p>
+  </div>
+</div>
+<div class="bfrc-dc-shots">
+  <figure><img src="{{img:recipes/recipe-page.png}}" alt="A recipe page"><figcaption>A recipe page</figcaption></figure>
+  <figure><img src="{{img:recipes/archive-filters.png}}" alt="The recipe archive with filters"><figcaption>The recipe archive with filters</figcaption></figure>
+  <figure><img src="{{img:recipes/editor-panels.png}}" alt="The recipe editor panels"><figcaption>The recipe editor panels</figcaption></figure>
+  <figure><img src="{{img:recipes/writer-page.png}}" alt="A writer page"><figcaption>A writer page</figcaption></figure>
+</div>
+<div class="bfrc-dc-included">
+  <h3>What&rsquo;s included</h3>
+  <ul>
+    <li>Recipe post type with ingredients, steps, nutrition, timings and video</li>
+    <li>Archive filters, term pages and title search</li>
+    <li>Recipe JSON-LD</li>
+    <li>Writer roles, profiles and pages</li>
+    <li>Four blocks and three shortcodes</li>
+    <li>Read-only REST endpoint <code>GET /wp-json/bfrc/v1/recipes</code></li>
+    <li>Three sample recipes to install and remove</li>
+    <li>GPL-2.0-or-later &middot; PHP 8.1+ &middot; WordPress 6.7+ &middot; Multisite supported</li>
+  </ul>
+</div>

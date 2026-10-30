@@ -266,6 +266,25 @@ final class DocsTest extends TestCase {
 		$this->assertStringContainsString( 'a site created later is set up on its own', self::folded( $this->features ) );
 	}
 
+	/**
+	 * The guide ships with the free plugin and ends by selling Pro: the
+	 * comparison table, then the Pro product page the plugins screen and the
+	 * settings footer link to (ProUpsell::PRODUCT_URL), as the last section.
+	 */
+	public function test_the_guide_ends_with_the_pro_comparison_and_the_pro_product_link(): void {
+		$start = strrpos( $this->features, "\n## " );
+		$this->assertNotFalse( $start );
+		$last = substr( $this->features, $start + 1 );
+		$this->assertStringStartsWith( "## BlueFairy Recipes Pro\n", $last, 'the last section is the Pro one' );
+		$this->assertStringContainsString( '| Feature | BlueFairy Recipes Pro | BlueFairy Recipes (free) |', $last );
+		$rows = $this->table( $this->features, 'BlueFairy Recipes Pro' );
+		$this->assertGreaterThanOrEqual( 10, count( $rows ), 'the comparison rows' );
+		foreach ( $rows as $cells ) {
+			$this->assertCount( 3, $cells, implode( ' | ', $cells ) );
+		}
+		$this->assertStringContainsString( '**' . \BlueFairy\Recipes\Admin\ProUpsell::PRODUCT_URL . '**', $last );
+	}
+
 	public function test_no_document_still_carries_a_placeholder(): void {
 		foreach ( [ 'FEATURES.md' => $this->features, 'README.md' => $this->readme, 'readme.txt' => $this->readme_txt, 'CHANGELOG.md' => $this->changelog ] as $name => $doc ) {
 			foreach ( [ 'later milestone', 'In development', 'TODO', 'TBD', 'lorem', 'single-site product', 'network activation is not supported', 'not a tested' ] as $placeholder ) {
