@@ -51,8 +51,28 @@ final class DistignoreTest extends TestCase {
 		foreach ( [ 'docs/BlueFairyRecipesFeaturesGuide.pdf', 'includes/Plugin.php', 'readme.txt' ] as $shipped ) {
 			$this->assertFalse( self::ignored( $rules, $shipped ), "$shipped ships" );
 		}
-		foreach ( [ 'docs/ARCHITECTURE.md', 'docs/images/x.png', 'docs/screenshots/x.png', 'docs/NEW.md', 'docs/Other.pdf', 'tests/Unit/x.php', 'FEATURES.md' ] as $excluded ) {
+		foreach ( [ 'docs/ARCHITECTURE.md', 'docs/images/x.png', 'docs/screenshots/x.png', 'docs/NEW.md', 'docs/Other.pdf', 'tests/Unit/x.php', 'FEATURES.md', 'wp-org-assets/icon-128x128.png' ] as $excluded ) {
 			$this->assertTrue( self::ignored( $rules, $excluded ), "$excluded never ships" );
+		}
+	}
+
+	/**
+	 * The listing banners and icons WordPress.org reads from SVN assets/, at
+	 * the sizes it asks for (WPMAP-203). They live in wp-org-assets/, which
+	 * the zip leaves out (the test above).
+	 */
+	public function test_listing_banners_and_icons_exist_at_their_sizes(): void {
+		$sizes = [
+			'banner-772x250.png'  => [ 772, 250 ],
+			'banner-1544x500.png' => [ 1544, 500 ],
+			'icon-128x128.png'    => [ 128, 128 ],
+			'icon-256x256.png'    => [ 256, 256 ],
+		];
+		foreach ( $sizes as $file => [ $w, $h ] ) {
+			$this->assertFileExists( BFRC_DIR . 'wp-org-assets/' . $file );
+			$info = getimagesize( BFRC_DIR . 'wp-org-assets/' . $file );
+			$this->assertIsArray( $info, "$file is an image" );
+			$this->assertSame( [ $w, $h, IMAGETYPE_PNG ], [ $info[0], $info[1], $info[2] ], "$file is a {$w}x{$h} PNG" );
 		}
 	}
 
