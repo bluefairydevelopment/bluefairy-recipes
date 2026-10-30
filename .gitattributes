@@ -26,3 +26,4 @@
 /phpunit.xml.dist export-ignore
 /.DS_Store export-ignore
 /SECURITY.md export-ignore
+/wp-org-assets export-ignore

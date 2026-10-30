@@ -27,3 +27,5 @@
 /phpunit.xml.dist
 /.DS_Store
 /SECURITY.md
+# WordPress.org listing assets (banners, icons, screenshots): SVN assets/, never the zip.
+/wp-org-assets
