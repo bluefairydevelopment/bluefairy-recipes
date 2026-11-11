@@ -56,7 +56,7 @@ wp-deploy content/bluefairy-recipes/free-description.html; keep the two equal.)
   </div>
   <div class="bfrc-dc-card bfrc-dc-card-pro">
     <h3>Want more? Recipes Pro</h3>
-    <p>Star-rated reviews, recipe submissions from visitors, shoppable WooCommerce ingredients with Related Recipes, affiliate links and your own filter types. <a href="/product/bluefairy-recipes-pro/">Buy Recipes Pro &mdash; $25 &rarr;</a></p>
+    <p>Star-rated reviews, recipe submissions from visitors, shoppable WooCommerce ingredients with Related Recipes, affiliate links and your own filter types. <a href="/product/bluefairy-recipes-pro/">Buy Recipes Pro &mdash; $50 &rarr;</a></p>
   </div>
 </div>
 <div class="bfrc-dc-shots">
